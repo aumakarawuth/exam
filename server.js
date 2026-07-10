@@ -14,8 +14,8 @@ const express = require('express');
 const XLSX = require('xlsx');
 
 const PORT = process.env.PORT || 3000;
-const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme123';
-if (ADMIN_KEY === 'changeme123') {
+const ADMIN_KEY = process.env.ADMIN_KEY || 'aunaum11';
+if (ADMIN_KEY === 'aunaum11') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
 }
 
