@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบข้อสอบ — สำหรับนักเรียน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --blue:#2563EB; --blue-dark:#1D4ED8; --indigo:#4F46E5;
+  --bg:#F7F9FC; --surface:#FFFFFF; --line:#E2E8F0; --ink:#0F172A; --sub:#64748B;
+  --green:#16A34A; --amber:#D97706; --red:#DC2626; --grid:#EEF2FB;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+h1,h2,h3,.display{font-family:'Prompt',sans-serif;}
+button{font-family:inherit;cursor:pointer;}
+.hidden{display:none !important;}
+.btn{border:none;border-radius:12px;padding:14px 22px;font-weight:600;font-size:15px;transition:transform .15s,box-shadow .15s,background .15s;}
+.btn-primary{background:var(--blue);color:#fff;box-shadow:0 8px 20px -8px rgba(37,99,235,.6);}
+.btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);}
+.btn-primary:disabled{background:var(--sub);box-shadow:none;cursor:not-allowed;transform:none;}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
+.btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
+
+.screen-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.card{max-width:720px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:40px;box-shadow:0 20px 50px -20px rgba(37,99,235,.25);}
+.eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--blue);background:rgba(37,99,235,.1);padding:5px 12px;border-radius:999px;margin-bottom:14px;}
+.card h1{font-size:26px;margin:0 0 6px;}
+.card p.lead{color:var(--sub);margin:0 0 22px;line-height:1.7;}
+.meta-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;}
+.meta-pill{background:var(--grid);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;display:flex;align-items:center;gap:8px;}
+.meta-pill b{color:var(--blue);}
+.spec-box{background:var(--grid);border:1px dashed var(--line);border-radius:12px;padding:16px 18px;margin-bottom:26px;}
+.spec-box h3{font-size:14px;margin:0 0 8px;color:var(--indigo);}
+.spec-box ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--sub);line-height:1.8;}
+.start-actions{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+.name-input{width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;font-size:16px;font-family:inherit;margin-bottom:20px;}
+.name-input:focus{outline:none;border-color:var(--blue);}
+.id-error{color:var(--red);font-size:13px;margin:-12px 0 16px;display:none;}
+.identity-box{background:rgba(22,163,74,.08);border:1px solid var(--green);border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:14px;line-height:1.8;}
+.identity-box b{color:var(--green);}
+
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:8px;}
+.qcard{background:var(--grid);border:1.5px solid var(--line);border-radius:14px;padding:18px;text-align:left;color:var(--ink);}
+.qcard:hover{border-color:var(--blue);}
+.qcard.selected{border-color:var(--blue);background:rgba(37,99,235,.08);}
+.qcard h3{font-size:15px;margin:0 0 6px;font-family:'Prompt',sans-serif;}
+.qcard p{font-size:12.5px;color:var(--sub);margin:0 0 10px;line-height:1.6;}
+.qcard .lvbadges{display:flex;gap:6px;flex-wrap:wrap;}
+.lvbadge{font-size:10.5px;background:var(--surface);border:1px solid var(--line);padding:2px 8px;border-radius:999px;color:var(--sub);}
+.empty-note{font-size:13.5px;color:var(--sub);background:var(--grid);border:1px dashed var(--line);border-radius:12px;padding:20px;text-align:center;}
+
+#countdownOverlay{position:fixed;inset:0;background:rgba(15,23,42,.92);display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:100;color:#fff;}
+#countdownNumber{font-family:'Prompt',sans-serif;font-weight:700;font-size:120px;animation:pop .9s ease;}
+#countdownLabel{color:#93A1BE;margin-top:8px;font-size:14px;letter-spacing:.08em;}
+@keyframes pop{0%{transform:scale(.4);opacity:0;}30%{transform:scale(1.08);opacity:1;}100%{transform:scale(1);opacity:1;}}
+
+#examScreen{display:flex;flex-direction:column;height:100vh;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;gap:10px;}
+.topbar-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.topbar-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:15px;}
+.tag{font-size:11px;background:var(--grid);color:var(--sub);padding:3px 9px;border-radius:999px;border:1px solid var(--line);}
+.name-tag{font-size:12px;background:rgba(37,99,235,.1);color:var(--blue);padding:4px 11px;border-radius:999px;font-weight:600;}
+.timer{font-family:'Prompt',sans-serif;font-weight:700;font-size:20px;background:var(--grid);border:1px solid var(--line);border-radius:10px;padding:6px 16px;min-width:96px;text-align:center;}
+.timer.warn{color:var(--amber);border-color:var(--amber);}
+.timer.danger{color:var(--red);border-color:var(--red);animation:blink 1s infinite;}
+@keyframes blink{50%{opacity:.45;}}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.icon-btn{background:var(--grid);border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:12.5px;color:var(--ink);display:flex;align-items:center;gap:6px;}
+.icon-btn:hover{border-color:var(--blue);color:var(--blue);}
+.icon-btn:disabled{opacity:.5;cursor:not-allowed;}
+.badge-warn{background:rgba(217,119,6,.12);color:var(--amber);border-color:var(--amber);}
+
+.hub-wrap{flex:1;overflow-y:auto;padding:36px;display:flex;justify-content:center;}
+.hub-inner{max-width:900px;width:100%;}
+.hub-inner h2{font-size:20px;margin:0 0 4px;}
+.hub-inner .sub{color:var(--sub);font-size:13.5px;margin:0 0 24px;}
+.lv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+.lv-card{background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:10px;}
+.lv-card h3{font-size:16px;margin:0;}
+.lv-card .lv-desc{font-size:12.5px;color:var(--sub);line-height:1.7;flex:1;}
+.lv-status{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;width:fit-content;}
+.lv-status.todo{background:var(--grid);color:var(--sub);}
+.lv-status.done{background:rgba(22,163,74,.12);color:var(--green);}
+.hub-note{background:rgba(37,99,235,.08);border:1px solid var(--blue);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.7;margin-bottom:20px;}
+
+.section-wrap{flex:1;overflow-y:auto;padding:28px;display:flex;justify-content:center;}
+.section-inner{max-width:820px;width:100%;padding-bottom:60px;}
+.section-head{margin-bottom:22px;}
+.section-head h2{font-size:20px;margin:0 0 6px;}
+.section-head p{color:var(--sub);font-size:13.5px;margin:0;line-height:1.7;}
+.qblock{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:18px;}
+.qblock .qnum{font-family:'Prompt',sans-serif;font-size:12px;color:var(--blue);font-weight:600;margin-bottom:6px;}
+.qblock .qtext{font-size:15.5px;line-height:1.8;margin-bottom:16px;}
+.choice-list{display:flex;flex-direction:column;gap:10px;}
+.choice-item{display:flex;align-items:center;gap:12px;background:var(--grid);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px;}
+.choice-item:hover{border-color:var(--blue);}
+.choice-item.picked{border-color:var(--blue);background:rgba(37,99,235,.08);}
+.choice-item input{width:17px;height:17px;accent-color:var(--blue);flex:none;}
+.written-textarea{width:100%;min-height:130px;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:14.5px;resize:vertical;line-height:1.7;}
+.written-textarea:focus{outline:none;border-color:var(--blue);}
+.written-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--sub);margin-top:6px;}
+
+.match-wrap{display:flex;gap:18px;flex-wrap:wrap;}
+.match-col{flex:1;min-width:240px;display:flex;flex-direction:column;gap:10px;}
+.match-col h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--indigo);margin:0 0 4px;}
+.match-item{background:var(--grid);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px;display:flex;align-items:center;gap:10px;position:relative;}
+.match-item:hover{border-color:var(--blue);}
+.match-item.pending{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15);}
+.match-item.matched{border-color:var(--green);}
+.match-badge{font-family:'Prompt',sans-serif;font-weight:700;font-size:11px;background:var(--blue);color:#fff;border-radius:999px;width:22px;height:22px;flex:none;display:flex;align-items:center;justify-content:center;}
+.match-item.matched .match-badge{background:var(--green);}
+.match-item .noBadge{width:22px;height:22px;flex:none;border-radius:999px;border:1.5px dashed var(--line);}
+.match-hint{font-size:12.5px;color:var(--sub);margin:2px 0 14px;line-height:1.7;}
+
+.section-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+
+#levelResultModal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:60;}
+.modal-card{background:var(--surface);border-radius:18px;padding:30px;max-width:420px;width:92%;box-shadow:0 30px 60px -20px rgba(0,0,0,.4);}
+.modal-card h3{font-size:16px;margin:0 0 4px;}
+.modal-score{font-family:'Prompt',sans-serif;font-size:40px;font-weight:700;color:var(--blue);margin:10px 0 16px;}
+.modal-actions{display:flex;gap:10px;}
+.modal-best-note{font-size:12.5px;background:rgba(37,99,235,.08);border:1px solid var(--blue);border-radius:10px;padding:8px 12px;margin:-4px 0 14px;line-height:1.7;}
+.modal-best-note.is-new{background:rgba(22,163,74,.1);border-color:var(--green);color:var(--green);}
+.modal-note-written{font-size:12px;color:var(--sub);margin:-6px 0 14px;line-height:1.7;}
+
+#finalScreen{padding:40px;max-width:760px;margin:0 auto;}
+#finalScreen .card{padding:36px;}
+.final-list{margin:18px 0;}
+.final-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;}
+.final-row b{font-family:'Prompt',sans-serif;color:var(--blue);}
+.final-overall{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;margin:18px 0 4px;border-radius:10px;background:var(--blue);}
+.final-overall span{font-family:'Prompt',sans-serif;font-size:14px;color:#fff;}
+.final-overall b{font-family:'Prompt',sans-serif;font-size:28px;color:#fff;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;z-index:200;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);}
+.loading-note{font-size:13px;color:var(--sub);padding:30px;text-align:center;}
+</style>
+</head>
+<body>
+
+<!-- ================= START ================= -->
+<div id="startScreen" class="screen-wrap">
+  <div class="card">
+    <span class="eyebrow">EXAM SYSTEM · นักเรียน</span>
+    <h1>ระบบข้อสอบออนไลน์</h1>
+    <p class="lead">ทำข้อสอบ 3 รูปแบบ ได้แก่ ปรนัย (เลือกตอบ), จับคู่ และอัตนัย (เขียนตอบ) ภายในเวลาที่กำหนด ระบบจะตรวจให้คะแนนอัตโนมัติและออกไฟล์ PDF สรุปผล</p>
+    <div class="meta-row">
+      <div class="meta-pill">⏱ เวลารวม <b>60:00</b> นาที</div>
+      <div class="meta-pill">📊 เลือกทำ <b>ส่วนใดก่อนก็ได้</b></div>
+      <div class="meta-pill">🎯 คะแนนเต็ม <b>100</b> ต่อส่วน</div>
+      <div class="meta-pill">📝 3 รูปแบบ <b>ปรนัย/จับคู่/อัตนัย</b></div>
+    </div>
+    <div class="spec-box">
+      <h3>คำชี้แจง</h3>
+      <ul>
+        <li>ใช้ <b>รหัสนักเรียน</b> ในการเข้าสู่ระบบ ระบบจะดึงชื่อ-สกุลและรายวิชาที่คุณมีสิทธิสอบขึ้นมาให้อัตโนมัติ</li>
+        <li>เลือกทำส่วน ปรนัย, จับคู่ หรือ อัตนัย ก่อนก็ได้ ไม่บังคับลำดับ เวลารวม 60 นาที ใช้ร่วมกันทุกส่วน</li>
+        <li>ส่งคำตอบแต่ละส่วนก่อนเวลาหมดได้ทุกเมื่อ ระบบจะแจ้งคะแนนทันที (ไม่แสดงเฉลย)</li>
+        <li>เมื่อกด "จบการสอบ" หรือหมดเวลา ระบบจะสร้างไฟล์ PDF และส่งคะแนนให้อาจารย์ประจำวิชาโดยอัตโนมัติ</li>
+      </ul>
+    </div>
+    <div class="start-actions">
+      <span></span>
+      <button class="btn btn-primary" id="goLoginBtn">เข้าสู่ระบบด้วยรหัสนักเรียน →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= STUDENT LOGIN ================= -->
+<div id="loginScreen" class="screen-wrap hidden">
+  <div class="card">
+    <span class="eyebrow">เข้าสู่ระบบ</span>
+    <h1>กรอกรหัสนักเรียน</h1>
+    <p class="lead">ระบบจะตรวจสอบสิทธิ์และดึงชื่อ-สกุล พร้อมรายวิชาที่คุณต้องสอบขึ้นมาให้อัตโนมัติ</p>
+    <input type="text" class="name-input" id="studentIdInput" placeholder="เช่น 10001" inputmode="numeric">
+    <div class="id-error" id="loginError"></div>
+    <div class="start-actions">
+      <button class="btn btn-ghost" id="backToStartBtn">← ย้อนกลับ</button>
+      <button class="btn btn-primary" id="checkIdBtn">ตรวจสอบสิทธิ์ →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SUBJECT SELECT ================= -->
+<div id="selectScreen" class="screen-wrap hidden">
+  <div class="card" style="max-width:820px;">
+    <span class="eyebrow">เลือกรายวิชาที่จะสอบ</span>
+    <h1 id="selectHeading" style="margin-bottom:6px;">รายวิชาที่คุณมีสิทธิสอบ</h1>
+    <div class="identity-box" id="identityBox"></div>
+    <div id="qgridWrap"><div class="loading-note">กำลังโหลดรายวิชา...</div></div>
+    <div class="start-actions" style="margin-top:20px;">
+      <button class="btn btn-ghost" id="backToLoginBtn">← ออกจากระบบ</button>
+      <button class="btn btn-primary" id="confirmQBtn" disabled>เริ่มทำข้อสอบ →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= COUNTDOWN ================= -->
+<div id="countdownOverlay" class="hidden">
+  <div id="countdownNumber">3</div>
+  <div id="countdownLabel">เตรียมตัว...</div>
+</div>
+
+<!-- ================= EXAM SHELL ================= -->
+<div id="examScreen" class="hidden">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title" id="topTitle">รายการส่วนข้อสอบ</span>
+      <span class="name-tag" id="nameTag"></span>
+      <span class="tag" id="tabSwitchTag">สลับแท็บ: 0 ครั้ง</span>
+      <span class="tag badge-warn" id="reloadTag" style="display:none;"></span>
+    </div>
+    <div class="timer" id="timerDisplay">60:00</div>
+    <div class="topbar-right" id="hubActions">
+      <button class="icon-btn" style="background:var(--blue);color:#fff;" id="endExamBtn" disabled title="ต้องส่งอย่างน้อย 1 ส่วนก่อน">จบการสอบและออก PDF</button>
+    </div>
+    <div class="topbar-right hidden" id="sectionActions">
+      <button class="icon-btn" id="backToHubBtn">← รายการส่วนข้อสอบ</button>
+    </div>
+  </div>
+
+  <div class="hub-wrap" id="hubView">
+    <div class="hub-inner">
+      <h2 id="hubQTitle">โจทย์: -</h2>
+      <p class="sub" id="hubQTagline"></p>
+      <div class="hub-note">เลือกทำส่วนใดก่อนก็ได้ เวลารวม 60 นาทีใช้ร่วมกันทุกส่วน กดส่งคำตอบในแต่ละส่วนเมื่อพร้อม ระบบจะเก็บคะแนนสูงสุดที่ทำได้ในแต่ละส่วนไว้ให้อัตโนมัติ</div>
+      <div class="lv-grid" id="lvGrid"></div>
+    </div>
+  </div>
+
+  <div class="section-wrap hidden" id="sectionView">
+    <div class="section-inner" id="sectionInner"></div>
+  </div>
+
+  <div id="levelResultModal" class="hidden">
+    <div class="modal-card">
+      <h3 id="modalTitle">ผลคะแนน</h3>
+      <div class="modal-score" id="modalScore">0/100</div>
+      <div id="modalBestNote" class="modal-best-note"></div>
+      <div id="modalWrittenNote" class="modal-note-written hidden">* คะแนนอัตนัยข้างต้นเป็นคะแนนเบื้องต้นจากระบบเท่านั้น ครูผู้สอนจะตรวจและยืนยันคะแนนจริงจากไฟล์ PDF อีกครั้ง</div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="modalStayBtn" style="flex:1;">แก้ไขต่อ</button>
+        <button class="btn btn-primary" id="modalHubBtn" style="flex:1;">กลับไปหน้ารายการ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FINAL SCREEN ================= -->
+<div id="finalScreen" class="screen-wrap hidden">
+  <div class="card">
+    <span class="eyebrow" id="finalHeadline">ส่งข้อสอบเรียบร้อยแล้ว</span>
+    <h1>สรุปผลการสอบ</h1>
+    <p class="lead" id="finalSummaryText"></p>
+    <div class="final-overall">
+      <span>คะแนนรวม (เต็ม 20)</span>
+      <b id="finalOverallScore">0/20</b>
+    </div>
+    <div class="final-list" id="finalList"></div>
+    <div class="hub-note hidden" id="finalReloadNote"></div>
+    <div class="start-actions">
+      <button class="btn btn-ghost" id="redownloadBtn">⬇ ดาวน์โหลด PDF อีกครั้ง</button>
+      <button class="btn btn-primary" id="restartAllBtn">ออกจากระบบ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+/* ============ API CLIENT ============ */
+const API_BASE = '';
+async function apiFetch(path, options){
+  options = options || {};
+  const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
+  let res;
+  try{
+    res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
+  }catch(e){ throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'); }
+  if(!res.ok){
+    let msg = 'เกิดข้อผิดพลาด (HTTP '+res.status+')';
+    try{ const j = await res.json(); if(j && j.message) msg = j.message; }catch(e){}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+async function apiLookupStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id)); }
+async function apiGetEligibleSets(classRoom){ return apiFetch('/api/sets?classRoom='+encodeURIComponent(classRoom)); }
+async function apiSubmitResult(record){ return apiFetch('/api/results', { method:'POST', body:record }); }
+
+const SECTION_KEYS = ['mc','matching','written'];
+const SECTION_TITLES = {mc:'ส่วนที่ 1 — ปรนัย', matching:'ส่วนที่ 2 — จับคู่', written:'ส่วนที่ 3 — อัตนัย'};
+const SECTION_ICON = {mc:'📝', matching:'🔗', written:'✍️'};
+
+function computeOverallScore20(){
+  const sum = SECTION_KEYS.reduce((acc,sec)=>{
+    const att = app.attempts[sec];
+    return acc + (att ? att.best.total : 0);
+  }, 0);
+  return Math.round((sum/300)*20*10)/10;
+}
+
+/* ============ APP / SESSION STATE ============ */
+let app = {
+  studentId: null, studentName: '', classRoom: '',
+  questionKey: null, section: null,
+  attempts: {mc:null, matching:null, written:null},
+  timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
+  examEnded: false, reloadCount: 0
+};
+let state = { tabSwitches: 0 };
+let draftAnswers = { mc:{}, matching:{}, written:{} };
+let ELIGIBLE_SETS = [];
+let ELIGIBLE_SETS_BY_KEY = {};
+function currentQuestion(){ return ELIGIBLE_SETS_BY_KEY[app.questionKey]; }
+
+/* ============ SESSION PERSISTENCE (localStorage, per-browser) ============ */
+const SESSION_KEY = 'examSession';
+let _saveDebounceHandle = null;
+function saveSession(){
+  if(!app.questionKey) return;
+  const payload = {
+    studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
+    questionKey: app.questionKey, section: app.section,
+    attempts: app.attempts, examEndTime: app.examEndTime, examEnded: app.examEnded,
+    reloadCount: app.reloadCount, tabSwitches: state.tabSwitches, draftAnswers: draftAnswers,
+    eligibleSets: ELIGIBLE_SETS
+  };
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); }catch(e){}
+}
+function scheduleSave(){ clearTimeout(_saveDebounceHandle); _saveDebounceHandle = setTimeout(saveSession, 500); }
+function loadSessionData(){
+  try{ const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function clearSessionData(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
+window.addEventListener('beforeunload', ()=>{ if(app.questionKey && !app.examEnded) saveSession(); });
+
+/* ============ SCREEN REFS ============ */
+const startScreen = document.getElementById('startScreen');
+const loginScreen = document.getElementById('loginScreen');
+const selectScreen = document.getElementById('selectScreen');
+const countdownOverlay = document.getElementById('countdownOverlay');
+const examScreen = document.getElementById('examScreen');
+const finalScreen = document.getElementById('finalScreen');
+const hubView = document.getElementById('hubView');
+const sectionView = document.getElementById('sectionView');
+const hubActions = document.getElementById('hubActions');
+const sectionActions = document.getElementById('sectionActions');
+function hideAllTopScreens(){ [startScreen,loginScreen,selectScreen,examScreen,finalScreen].forEach(s=>s.classList.add('hidden')); }
+
+/* ============ START -> LOGIN ============ */
+document.getElementById('goLoginBtn').addEventListener('click', ()=>{
+  hideAllTopScreens(); loginScreen.classList.remove('hidden');
+  document.getElementById('studentIdInput').value=''; document.getElementById('loginError').style.display='none';
+  document.getElementById('studentIdInput').focus();
+});
+document.getElementById('backToStartBtn').addEventListener('click', ()=>{ hideAllTopScreens(); startScreen.classList.remove('hidden'); });
+document.getElementById('backToLoginBtn').addEventListener('click', ()=>{
+  hideAllTopScreens(); loginScreen.classList.remove('hidden');
+});
+
+async function tryLogin(){
+  const val = document.getElementById('studentIdInput').value.trim();
+  const errBox = document.getElementById('loginError');
+  if(!val){ errBox.textContent='กรุณากรอกรหัสนักเรียน'; errBox.style.display='block'; return; }
+  const btn = document.getElementById('checkIdBtn');
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  try{
+    const student = await apiLookupStudent(val);
+    app.studentId = student.studentId;
+    app.studentName = student.firstName + ' ' + student.lastName;
+    app.classRoom = student.classRoom;
+    hideAllTopScreens(); selectScreen.classList.remove('hidden');
+    document.getElementById('identityBox').innerHTML = `ยืนยันตัวตน: <b>${escapeHtml(app.studentName)}</b> &nbsp;|&nbsp; รหัส ${escapeHtml(app.studentId)} &nbsp;|&nbsp; ห้อง ${escapeHtml(app.classRoom)}`;
+    await refreshSelectScreen();
+  }catch(e){
+    errBox.textContent = e.message; errBox.style.display='block';
+  }
+  btn.disabled = false; btn.textContent = 'ตรวจสอบสิทธิ์ →';
+}
+document.getElementById('checkIdBtn').addEventListener('click', tryLogin);
+document.getElementById('studentIdInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
+
+let pickedKey = null;
+async function refreshSelectScreen(){
+  document.getElementById('qgridWrap').innerHTML = '<div class="loading-note">กำลังโหลดรายวิชา...</div>';
+  try{
+    ELIGIBLE_SETS = await apiGetEligibleSets(app.classRoom);
+  }catch(e){
+    document.getElementById('qgridWrap').innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>';
+    return;
+  }
+  ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
+  renderQGrid();
+}
+function renderQGrid(){
+  const wrap = document.getElementById('qgridWrap');
+  if(!ELIGIBLE_SETS.length){
+    wrap.innerHTML = '<div class="empty-note">ขณะนี้ยังไม่มีรายวิชาที่คุณมีสิทธิสอบ กรุณาติดต่ออาจารย์ผู้สอนหรือผู้ดูแลระบบ</div>';
+    return;
+  }
+  wrap.innerHTML = `<div class="qgrid">` + ELIGIBLE_SETS.map(q=>{
+    return `<button class="qcard" data-key="${q.key}">
+      <h3>${escapeHtml(q.title)}</h3>
+      <p>${escapeHtml(q.desc||'')}</p>
+      <div class="lvbadges">
+        <span class="lvbadge">${SECTION_ICON.mc} ปรนัย ${q.sections.mc.questions.length} ข้อ</span>
+        <span class="lvbadge">${SECTION_ICON.matching} จับคู่ ${q.sections.matching.left.length} คู่</span>
+        <span class="lvbadge">${SECTION_ICON.written} อัตนัย ${q.sections.written.questions.length} ข้อ</span>
+        ${q.subjectTeacherName ? `<span class="lvbadge">👤 ${escapeHtml(q.subjectTeacherName)}</span>` : ''}
+      </div>
+    </button>`;
+  }).join('') + `</div>`;
+  wrap.querySelectorAll('.qcard').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      wrap.querySelectorAll('.qcard').forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+      pickedKey = card.dataset.key;
+      document.getElementById('confirmQBtn').disabled = false;
+    });
+  });
+}
+document.getElementById('confirmQBtn').addEventListener('click', ()=>{
+  if(!pickedKey) return;
+  app.questionKey = pickedKey;
+  selectScreen.classList.add('hidden');
+  runCountdown();
+});
+
+/* ============ COUNTDOWN -> EXAM ============ */
+function runCountdown(){
+  countdownOverlay.classList.remove('hidden');
+  let n = 3;
+  const numEl = document.getElementById('countdownNumber');
+  numEl.textContent = n;
+  const handle = setInterval(()=>{
+    n--;
+    if(n<=0){ clearInterval(handle); countdownOverlay.classList.add('hidden'); beginExam(); }
+    else { numEl.textContent = n; numEl.style.animation='none'; void numEl.offsetWidth; numEl.style.animation='pop .9s ease'; }
+  }, 900);
+}
+function beginExam(){
+  examScreen.classList.remove('hidden');
+  document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
+  document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
+  document.getElementById('hubQTagline').textContent = currentQuestion().tagline||'';
+  app.timeLeft = 60*60;
+  app.examEndTime = Date.now() + app.timeLeft*1000;
+  updateReloadTag();
+  updateGlobalTimerDisplay();
+  showHub();
+  saveSession();
+  runGlobalTimer();
+}
+function runGlobalTimer(){
+  clearInterval(app.globalTimerHandle);
+  app.globalTimerHandle = setInterval(()=>{
+    app.timeLeft = Math.max(0, Math.round((app.examEndTime - Date.now())/1000));
+    updateGlobalTimerDisplay();
+    saveSession();
+    if(app.timeLeft<=0){ clearInterval(app.globalTimerHandle); forceTimeUp(); }
+  }, 1000);
+}
+function updateGlobalTimerDisplay(){
+  const m = Math.floor(app.timeLeft/60).toString().padStart(2,'0');
+  const s = (app.timeLeft%60).toString().padStart(2,'0');
+  const el = document.getElementById('timerDisplay');
+  el.textContent = m+':'+s;
+  el.classList.toggle('warn', app.timeLeft<=600 && app.timeLeft>120);
+  el.classList.toggle('danger', app.timeLeft<=120);
+}
+function updateReloadTag(){
+  const tag = document.getElementById('reloadTag');
+  if(app.reloadCount>0){ tag.style.display=''; tag.textContent = '🔄 ทำต่อ (โหลดหน้าใหม่ครั้งที่ ' + app.reloadCount + ')'; }
+  else tag.style.display='none';
+}
+
+/* ============ HUB ============ */
+function showHub(){
+  app.section = null;
+  document.getElementById('topTitle').textContent = 'รายการส่วนข้อสอบ';
+  hubActions.classList.remove('hidden');
+  sectionActions.classList.add('hidden');
+  sectionView.classList.add('hidden');
+  hubView.classList.remove('hidden');
+  renderHubCards();
+  saveSession();
+}
+function renderHubCards(){
+  const grid = document.getElementById('lvGrid');
+  const descBy = {mc:'เลือกคำตอบที่ถูกต้องที่สุดในแต่ละข้อ', matching:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', written:'เขียนตอบด้วยคำพูดของตนเอง (รอครูตรวจยืนยันคะแนน)'};
+  grid.innerHTML = SECTION_KEYS.map(sec=>{
+    const att = app.attempts[sec];
+    const statusHtml = att ? `<span class="lv-status done">ส่งแล้ว · คะแนนสูงสุด ${att.best.total}/100</span>` : `<span class="lv-status todo">ยังไม่ทำ</span>`;
+    const btnLabel = att ? 'แก้ไขต่อ (คะแนนสูงสุดจะถูกเก็บไว้)' : 'เข้าทำส่วนนี้';
+    return `<div class="lv-card">
+      <h3>${SECTION_ICON[sec]} ${SECTION_TITLES[sec]}</h3>
+      <div class="lv-desc">${descBy[sec]}</div>
+      ${statusHtml}
+      <button class="btn btn-primary" data-enter="${sec}" ${app.examEnded?'disabled':''}>${btnLabel}</button>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('[data-enter]').forEach(btn=>{ btn.addEventListener('click', ()=> enterSection(btn.dataset.enter)); });
+  const anyDone = SECTION_KEYS.some(sec=>app.attempts[sec]);
+  document.getElementById('endExamBtn').disabled = !anyDone;
+}
+document.getElementById('endExamBtn').addEventListener('click', ()=>{
+  if(confirm('ยืนยันจบการสอบ? หลังจากนี้จะไม่สามารถทำส่วนเพิ่มเติมได้ และระบบจะสร้างไฟล์ PDF ให้ดาวน์โหลด')){
+    clearInterval(app.globalTimerHandle);
+    finalizeExam(false);
+  }
+});
+document.getElementById('backToHubBtn').addEventListener('click', showHub);
+
+/* ============ ANTI-CHEAT ============ */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden && !examScreen.classList.contains('hidden') && !app.examEnded){
+    state.tabSwitches++;
+    const tag = document.getElementById('tabSwitchTag');
+    tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+    tag.classList.add('badge-warn');
+    scheduleSave();
+  }
+});
+
+/* ============ ENTER SECTION ============ */
+let matchPendingLeft = null;
+function enterSection(sec){
+  app.section = sec;
+  hubActions.classList.add('hidden');
+  sectionActions.classList.remove('hidden');
+  hubView.classList.add('hidden');
+  sectionView.classList.remove('hidden');
+  document.getElementById('topTitle').textContent = SECTION_TITLES[sec] + ' — ' + currentQuestion().title;
+  matchPendingLeft = null;
+  renderSection();
+}
+function renderSection(){
+  const sec = app.section;
+  const q = currentQuestion();
+  const s = q.sections[sec];
+  const inner = document.getElementById('sectionInner');
+  if(!draftAnswers[sec]) draftAnswers[sec] = {};
+  let html = `<div class="section-head"><h2>${SECTION_ICON[sec]} ${escapeHtml(s.title)}</h2><p>${escapeHtml(s.desc||'')}</p></div>`;
+
+  if(sec==='mc'){
+    html += s.questions.map((qq,i)=>{
+      const picked = draftAnswers.mc[qq.id];
+      const choicesHtml = qq.choices.map((c,ci)=>`
+        <label class="choice-item ${picked===ci?'picked':''}" data-qid="${qq.id}" data-ci="${ci}">
+          <input type="radio" name="${qq.id}" ${picked===ci?'checked':''}> <span>${escapeHtml(c)}</span>
+        </label>`).join('');
+      return `<div class="qblock"><div class="qnum">ข้อ ${i+1} (${qq.points} คะแนน)</div><div class="qtext">${escapeHtml(qq.text)}</div><div class="choice-list">${choicesHtml}</div></div>`;
+    }).join('');
+  } else if(sec==='matching'){
+    const matched = draftAnswers.matching;
+    const badgeFor = {}; let bi=1;
+    Object.keys(matched).forEach(lid=>{ badgeFor[lid+'|'+matched[lid]] = bi++; });
+    html += `<div class="match-hint">คลิกรายการทางซ้าย 1 รายการ แล้วคลิกรายการทางขวาที่สัมพันธ์กันเพื่อจับคู่ (${s.pointsEach} คะแนน/คู่ที่ถูก)</div>`;
+    html += `<div class="match-wrap"><div class="match-col" id="matchLeftCol"><h4>รายการ ก</h4>`;
+    html += s.left.map(item=>{
+      const r = matched[item.id];
+      const isPending = matchPendingLeft===item.id;
+      const badge = r ? (badgeFor[item.id+'|'+r] || '') : '';
+      return `<div class="match-item ${isPending?'pending':''} ${r?'matched':''}" data-side="left" data-id="${item.id}">
+        ${r?`<span class="match-badge">${badge}</span>`:`<span class="noBadge"></span>`}<span>${escapeHtml(item.text)}</span></div>`;
+    }).join('');
+    html += `</div><div class="match-col" id="matchRightCol"><h4>รายการ ข</h4>`;
+    html += s.right.map(item=>{
+      let matchedLeft = null;
+      Object.entries(matched).forEach(([lid,rid])=>{ if(rid===item.id) matchedLeft = lid; });
+      const badge = matchedLeft ? (badgeFor[matchedLeft+'|'+item.id] || '') : '';
+      return `<div class="match-item ${matchedLeft?'matched':''}" data-side="right" data-id="${item.id}">
+        ${matchedLeft?`<span class="match-badge">${badge}</span>`:`<span class="noBadge"></span>`}<span>${escapeHtml(item.text)}</span></div>`;
+    }).join('');
+    html += `</div></div>
+      <div class="section-actions" style="margin-top:14px;"><button class="btn btn-ghost" id="clearMatchBtn">ล้างการจับคู่ทั้งหมด</button></div>`;
+  } else if(sec==='written'){
+    html += s.questions.map((qq,i)=>{
+      const val = draftAnswers.written[qq.id] || '';
+      return `<div class="qblock"><div class="qnum">ข้อ ${i+1} (เต็ม ${qq.maxPoints} คะแนน)</div><div class="qtext">${escapeHtml(qq.text)}</div>
+        <textarea class="written-textarea" data-qid="${qq.id}" placeholder="พิมพ์คำตอบที่นี่...">${escapeHtml(val)}</textarea>
+        <div class="written-meta"><span>คะแนนเบื้องต้นจากระบบ ครูจะตรวจยืนยันอีกครั้ง</span></div></div>`;
+    }).join('');
+  }
+
+  html += `<div class="section-actions"><button class="btn btn-primary" id="submitSectionBtn">ส่งคำตอบส่วนนี้</button></div>`;
+  inner.innerHTML = html;
+  bindSectionEvents();
+}
+function bindSectionEvents(){
+  const sec = app.section;
+  if(sec==='mc'){
+    document.querySelectorAll('.choice-item').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        draftAnswers.mc[item.dataset.qid] = parseInt(item.dataset.ci,10);
+        scheduleSave();
+        renderSection();
+      });
+    });
+  } else if(sec==='matching'){
+    document.querySelectorAll('.match-item[data-side="left"]').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        matchPendingLeft = (matchPendingLeft===item.dataset.id) ? null : item.dataset.id;
+        renderSection();
+      });
+    });
+    document.querySelectorAll('.match-item[data-side="right"]').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        if(!matchPendingLeft) return;
+        const rid = item.dataset.id;
+        Object.keys(draftAnswers.matching).forEach(lid=>{ if(draftAnswers.matching[lid]===rid) delete draftAnswers.matching[lid]; });
+        draftAnswers.matching[matchPendingLeft] = rid;
+        matchPendingLeft = null;
+        scheduleSave();
+        renderSection();
+      });
+    });
+    const clearBtn = document.getElementById('clearMatchBtn');
+    if(clearBtn) clearBtn.addEventListener('click', ()=>{
+      draftAnswers.matching = {}; matchPendingLeft = null; scheduleSave(); renderSection();
+    });
+  } else if(sec==='written'){
+    document.querySelectorAll('.written-textarea').forEach(ta=>{
+      ta.addEventListener('input', ()=>{ draftAnswers.written[ta.dataset.qid] = ta.value; scheduleSave(); });
+    });
+  }
+  const submitBtn = document.getElementById('submitSectionBtn');
+  if(submitBtn) submitBtn.addEventListener('click', submitSection);
+}
+
+/* ============ GRADING ============ */
+function gradeMC(){
+  const s = currentQuestion().sections.mc;
+  let total = 0; const answers = {};
+  s.questions.forEach(qq=>{
+    const picked = draftAnswers.mc[qq.id];
+    answers[qq.id] = picked;
+    if(picked===qq.answer) total += qq.points;
+  });
+  return { total: Math.round(total), answers };
+}
+function gradeMatching(){
+  const s = currentQuestion().sections.matching;
+  let total = 0; const answers = Object.assign({}, draftAnswers.matching);
+  s.left.forEach(item=>{ if(answers[item.id] && answers[item.id]===s.correctMap[item.id]) total += s.pointsEach; });
+  return { total: Math.round(total), answers };
+}
+function keywordScore(text, keywords, maxPoints){
+  if(!text || !text.trim() || !keywords.length) return 0;
+  const norm = text.toLowerCase();
+  let hit = 0;
+  keywords.forEach(k=>{ if(norm.includes(k.toLowerCase())) hit++; });
+  return Math.round((hit/keywords.length)*maxPoints);
+}
+function gradeWritten(){
+  const s = currentQuestion().sections.written;
+  let total = 0; const answers = {};
+  s.questions.forEach(qq=>{
+    const text = draftAnswers.written[qq.id] || '';
+    const pts = keywordScore(text, qq.keywords, qq.maxPoints);
+    answers[qq.id] = { text, autoScore: pts };
+    total += pts;
+  });
+  return { total: Math.round(total), answers };
+}
+function graderFor(sec){ if(sec==='mc') return gradeMC; if(sec==='matching') return gradeMatching; return gradeWritten; }
+
+/* ============ SUBMIT SECTION ============ */
+function submitSection(){
+  const sec = app.section;
+  const result = graderFor(sec)();
+  const existing = app.attempts[sec];
+  const isNewBest = !existing || result.total > existing.best.total;
+  const bestRecord = isNewBest ? result : existing.best;
+  app.attempts[sec] = { latest: result, best: bestRecord };
+  saveSession();
+  showResultModal(sec, result, isNewBest, existing);
+}
+function showResultModal(sec, result, isNewBest, existing){
+  document.getElementById('modalTitle').textContent = SECTION_TITLES[sec] + ' — ผลคะแนน';
+  document.getElementById('modalScore').textContent = result.total + '/100';
+  const note = document.getElementById('modalBestNote');
+  if(existing){
+    note.textContent = isNewBest ? '🎉 คะแนนนี้สูงกว่าครั้งก่อน ระบบได้บันทึกเป็นคะแนนสูงสุดใหม่แล้ว' : 'คะแนนนี้ไม่สูงกว่าครั้งก่อน ระบบจึงเก็บคะแนนสูงสุดเดิม (' + existing.best.total + '/100) ไว้';
+    note.classList.toggle('is-new', isNewBest);
+  } else {
+    note.textContent = 'บันทึกคะแนนนี้เป็นคะแนนสูงสุดของส่วนนี้แล้ว';
+    note.classList.add('is-new');
+  }
+  document.getElementById('modalWrittenNote').classList.toggle('hidden', sec!=='written');
+  document.getElementById('levelResultModal').classList.remove('hidden');
+}
+document.getElementById('modalStayBtn').addEventListener('click', ()=>{ document.getElementById('levelResultModal').classList.add('hidden'); });
+document.getElementById('modalHubBtn').addEventListener('click', ()=>{ document.getElementById('levelResultModal').classList.add('hidden'); showHub(); });
+
+/* ============ PDF GENERATION ============ */
+async function generateFinalPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 48;
+  let y = margin;
+  function ensureSpace(need){ if(y+need>pageH-margin){ doc.addPage(); y=margin; } }
+  function wrapText(text, size, font, style){ doc.setFont(font||'helvetica', style||'normal'); doc.setFontSize(size); return doc.splitTextToSize(text, pageW-margin*2); }
+  doc.setFont('helvetica','bold'); doc.setFontSize(20);
+  doc.text('Exam Result Report (Choice / Matching / Written)', margin, y); y+=30;
+  doc.setFont('helvetica','normal'); doc.setFontSize(12);
+  doc.text('Student ID: ' + (app.studentId||'-'), margin, y); y+=18;
+  doc.text('Student: ' + (app.studentName||'-') + '   Class: ' + (app.classRoom||'-'), margin, y); y+=18;
+  doc.text('Subject: ' + (currentQuestion()?.title||'-'), margin, y); y+=18;
+  doc.text('Subject teacher: ' + (currentQuestion()?.subjectTeacherName||'-'), margin, y); y+=18;
+  doc.text('Date: ' + new Date().toLocaleString('th-TH'), margin, y); y+=18;
+  doc.text('Page reloads during exam: ' + (app.reloadCount||0), margin, y); y+=18;
+  doc.text('Tab switches during exam: ' + (state.tabSwitches||0), margin, y); y+=26;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text(`Overall Score: ${computeOverallScore20()} / 20`, margin, y); y+=22;
+  doc.setFont('helvetica','bold'); doc.setFontSize(13);
+  doc.text('Summary (per section)', margin, y); y+=18;
+  doc.setFont('helvetica','normal'); doc.setFontSize(11);
+  SECTION_KEYS.forEach(sec=>{
+    const att = app.attempts[sec];
+    doc.text(`${SECTION_TITLES[sec]}: ` + (att? `${att.best.total} / 100` : 'Not attempted'), margin+10, y);
+    y+=16;
+  });
+  y += 8;
+  doc.setFont('helvetica','italic'); doc.setFontSize(10);
+  doc.text('Note: Written-section scores are auto-estimated by keyword matching. Teacher must review and confirm final scores.', margin, y);
+  y += 20;
+
+  const q = currentQuestion();
+  const mcAtt = app.attempts.mc;
+  if(mcAtt){
+    doc.addPage(); y = margin;
+    doc.setFont('helvetica','bold'); doc.setFontSize(16);
+    doc.text('Section 1 - Multiple Choice (Best Attempt: ' + mcAtt.best.total + '/100)', margin, y); y+=24;
+    q.sections.mc.questions.forEach((qq,i)=>{
+      ensureSpace(60);
+      const picked = mcAtt.best.answers[qq.id];
+      const lines = wrapText(`${i+1}. ${qq.text}`, 11, 'helvetica', 'bold');
+      lines.forEach(l=>{ ensureSpace(14); doc.text(l, margin, y); y+=14; });
+      const pickedText = (picked!=null) ? qq.choices[picked] : '(ไม่ได้ตอบ / not answered)';
+      const ansLines = wrapText('Student answer: ' + pickedText, 10.5, 'helvetica','normal');
+      ansLines.forEach(l=>{ ensureSpace(13); doc.text(l, margin+10, y); y+=13; });
+      y += 8;
+    });
+  }
+  const matchAtt = app.attempts.matching;
+  if(matchAtt){
+    doc.addPage(); y = margin;
+    doc.setFont('helvetica','bold'); doc.setFontSize(16);
+    doc.text('Section 2 - Matching (Best Attempt: ' + matchAtt.best.total + '/100)', margin, y); y+=24;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    q.sections.matching.left.forEach(item=>{
+      ensureSpace(16);
+      const rid = matchAtt.best.answers[item.id];
+      const rightItem = q.sections.matching.right.find(r=>r.id===rid);
+      doc.text(`${item.text}  ->  ${rightItem ? rightItem.text : '(ไม่ได้จับคู่ / not matched)'}`, margin+10, y);
+      y += 16;
+    });
+  }
+  const writtenAtt = app.attempts.written;
+  if(writtenAtt){
+    doc.addPage(); y = margin;
+    doc.setFont('helvetica','bold'); doc.setFontSize(16);
+    doc.text('Section 3 - Written (Auto Estimated: ' + writtenAtt.best.total + '/100)', margin, y); y+=24;
+    q.sections.written.questions.forEach((qq,i)=>{
+      ensureSpace(40);
+      const a = writtenAtt.best.answers[qq.id] || {text:'', autoScore:0};
+      const qLines = wrapText(`${i+1}. ${qq.text}  (auto score: ${a.autoScore}/${qq.maxPoints})`, 11, 'helvetica','bold');
+      qLines.forEach(l=>{ ensureSpace(14); doc.text(l, margin, y); y+=14; });
+      const ansLines = wrapText('Student answer: ' + (a.text || '(ไม่ได้ตอบ / not answered)'), 10.5, 'helvetica','normal');
+      ansLines.forEach(l=>{ ensureSpace(13); doc.text(l, margin+10, y); y+=13; });
+      y += 6;
+      doc.setDrawColor(226,232,240); doc.line(margin, y, pageW-margin, y); y += 12;
+    });
+  }
+  return doc;
+}
+
+/* ============ SAVE RESULT TO BACKEND (goes to the subject teacher's dashboard) ============ */
+async function saveResultRecord(){
+  const q = currentQuestion();
+  const record = {
+    studentId: app.studentId,
+    studentName: app.studentName,
+    classRoom: app.classRoom,
+    questionKey: app.questionKey,
+    questionTitle: q?.title || '-',
+    subjectTeacherName: q?.subjectTeacherName || '',
+    subjectTeacherEmail: q?.subjectTeacherEmail || '',
+    overallScore20: computeOverallScore20(),
+    sectionScores: {
+      mc: app.attempts.mc ? app.attempts.mc.best.total : null,
+      matching: app.attempts.matching ? app.attempts.matching.best.total : null,
+      written: app.attempts.written ? app.attempts.written.best.total : null
+    },
+    tabSwitches: state.tabSwitches,
+    reloadCount: app.reloadCount,
+    detail: { attempts: app.attempts }
+  };
+  try{ await apiSubmitResult(record); }
+  catch(e){ console.error('ส่งผลสอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ', e); showToast('บันทึกผลสอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ (ไฟล์ PDF ยังดาวน์โหลดได้ตามปกติ)'); }
+}
+
+/* ============ END OF EXAM ============ */
+function forceTimeUp(){ finalizeExam(true); }
+async function finalizeExam(auto){
+  app.examEnded = true;
+  clearInterval(app.globalTimerHandle);
+  saveSession();
+  await saveResultRecord();
+  clearSessionData();
+  examScreen.classList.add('hidden');
+  finalScreen.classList.remove('hidden');
+  document.getElementById('finalHeadline').textContent = auto ? 'หมดเวลาสอบ' : 'ส่งข้อสอบเรียบร้อยแล้ว';
+  document.getElementById('finalSummaryText').textContent = auto
+    ? 'ครบเวลา 60 นาทีแล้ว ระบบปิดการทำข้อสอบและสร้างไฟล์ PDF ให้อัตโนมัติ พร้อมส่งคะแนนให้อาจารย์ประจำวิชาเรียบร้อยแล้ว'
+    : 'ระบบได้บันทึกคะแนนสูงสุดของทุกส่วนที่ทำไว้ สร้างไฟล์ PDF ให้ดาวน์โหลด และส่งคะแนนให้อาจารย์ประจำวิชาเรียบร้อยแล้ว';
+  document.getElementById('finalOverallScore').textContent = computeOverallScore20()+'/20';
+  const list = document.getElementById('finalList');
+  list.innerHTML = SECTION_KEYS.map(sec=>{
+    const att = app.attempts[sec];
+    return `<div class="final-row"><span>${SECTION_TITLES[sec]}</span><b>${att? att.best.total+'/100' : 'ไม่ได้ทำ'}</b></div>`;
+  }).join('');
+  const reloadNote = document.getElementById('finalReloadNote');
+  if(app.reloadCount>0){
+    reloadNote.textContent = '🔄 หมายเหตุ: มีการโหลดหน้าใหม่ระหว่างการสอบทั้งหมด ' + app.reloadCount + ' ครั้ง (ระบบทำต่อจากข้อมูลเดิมทุกครั้ง ไม่ได้เริ่มทำใหม่)';
+    reloadNote.classList.remove('hidden');
+  } else reloadNote.classList.add('hidden');
+  try{
+    const doc = await generateFinalPDF();
+    window.__examDoc = doc;
+    doc.save(`ผลสอบ_${(app.studentName||'student').replace(/\s+/g,'_')}.pdf`);
+  }catch(e){ console.error('PDF generation failed', e); }
+}
+document.getElementById('redownloadBtn').addEventListener('click', ()=>{
+  if(window.__examDoc) window.__examDoc.save(`ผลสอบ_${(app.studentName||'student').replace(/\s+/g,'_')}.pdf`);
+  else alert('ไม่พบไฟล์ PDF ที่สร้างไว้ ลองรีเฟรชหน้าใหม่');
+});
+document.getElementById('restartAllBtn').addEventListener('click', ()=>{
+  clearSessionData();
+  hideAllTopScreens(); startScreen.classList.remove('hidden');
+  app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, attempts:{mc:null,matching:null,written:null}, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, reloadCount:0};
+  state = {tabSwitches:0};
+  draftAnswers = {mc:{}, matching:{}, written:{}};
+});
+
+/* ============ RESUME AFTER REFRESH ============ */
+function attemptResumeSession(){
+  const saved = loadSessionData();
+  if(!saved || !saved.questionKey) return false;
+  ELIGIBLE_SETS = saved.eligibleSets || [];
+  ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
+  if(!ELIGIBLE_SETS_BY_KEY[saved.questionKey]) return false;
+
+  app.studentId = saved.studentId; app.studentName = saved.studentName || ''; app.classRoom = saved.classRoom || '';
+  app.questionKey = saved.questionKey;
+  app.attempts = saved.attempts || {mc:null, matching:null, written:null};
+  app.examEnded = !!saved.examEnded;
+  app.examEndTime = saved.examEndTime;
+  app.reloadCount = (saved.reloadCount||0) + 1;
+  state.tabSwitches = saved.tabSwitches || 0;
+  draftAnswers = saved.draftAnswers || {mc:{}, matching:{}, written:{}};
+
+  hideAllTopScreens();
+  document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
+  document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
+  document.getElementById('hubQTagline').textContent = currentQuestion().tagline||'';
+  const tsTag = document.getElementById('tabSwitchTag');
+  tsTag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+  if(state.tabSwitches>0) tsTag.classList.add('badge-warn');
+  updateReloadTag();
+
+  if(app.examEnded){
+    finalScreen.classList.remove('hidden');
+    document.getElementById('finalHeadline').textContent = 'ส่งข้อสอบเรียบร้อยแล้ว';
+    document.getElementById('finalSummaryText').textContent = 'ตรวจพบว่าคุณได้ส่งข้อสอบชุดนี้ไปแล้วก่อนหน้านี้ ระบบจึงแสดงผลสรุปเดิมให้';
+    document.getElementById('finalOverallScore').textContent = computeOverallScore20()+'/20';
+    const list = document.getElementById('finalList');
+    list.innerHTML = SECTION_KEYS.map(sec=>{
+      const att = app.attempts[sec];
+      return `<div class="final-row"><span>${SECTION_TITLES[sec]}</span><b>${att? att.best.total+'/100' : 'ไม่ได้ทำ'}</b></div>`;
+    }).join('');
+    document.getElementById('finalReloadNote').classList.add('hidden');
+    return true;
+  }
+
+  examScreen.classList.remove('hidden');
+  const remaining = app.examEndTime ? Math.max(0, Math.round((app.examEndTime - Date.now())/1000)) : 0;
+  app.timeLeft = remaining;
+  if(remaining<=0){ showHub(); saveSession(); forceTimeUp(); return true; }
+  if(app.section) enterSection(app.section); else showHub();
+  updateGlobalTimerDisplay();
+  runGlobalTimer();
+  saveSession();
+  return true;
+}
+
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function showToast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+
+/* ============ INIT ============ */
+if(!attemptResumeSession()){ startScreen.classList.remove('hidden'); }
+
+})();
+</script>
+</body>
+</html>

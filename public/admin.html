@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบข้อสอบ — สำหรับผู้ดูแล/อาจารย์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --blue:#2563EB; --blue-dark:#1D4ED8; --indigo:#4F46E5;
+  --bg:#F7F9FC; --surface:#FFFFFF; --line:#E2E8F0; --ink:#0F172A; --sub:#64748B;
+  --green:#16A34A; --amber:#D97706; --red:#DC2626; --grid:#EEF2FB;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+h1,h2,h3{font-family:'Prompt',sans-serif;}
+button{font-family:inherit;cursor:pointer;}
+.hidden{display:none !important;}
+.btn{border:none;border-radius:12px;padding:14px 22px;font-weight:600;font-size:15px;transition:transform .15s,box-shadow .15s,background .15s;}
+.btn-primary{background:var(--blue);color:#fff;box-shadow:0 8px 20px -8px rgba(37,99,235,.6);}
+.btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);}
+.btn-primary:disabled{background:var(--sub);box-shadow:none;cursor:not-allowed;transform:none;}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
+.btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
+.btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);}
+.btn-danger:hover{background:rgba(220,38,38,.08);}
+.btn-sm{padding:8px 14px;font-size:12.5px;border-radius:9px;}
+
+.screen-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.card{max-width:720px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:40px;box-shadow:0 20px 50px -20px rgba(37,99,235,.25);}
+.eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--blue);background:rgba(37,99,235,.1);padding:5px 12px;border-radius:999px;margin-bottom:14px;}
+.card h1{font-size:26px;margin:0 0 6px;}
+.card p.lead{color:var(--sub);margin:0 0 22px;line-height:1.7;}
+.start-actions{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+.name-input{width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;font-size:16px;font-family:inherit;margin-bottom:20px;}
+.name-input:focus{outline:none;border-color:var(--blue);}
+
+#adminScreen{min-height:100vh;display:flex;flex-direction:column;}
+.admin-topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--line);}
+.admin-topbar .brand{font-family:'Prompt',sans-serif;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;}
+.admin-tabs{display:flex;gap:6px;padding:14px 24px 0;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.admin-tab-btn{background:transparent;border:none;border-bottom:2.5px solid transparent;padding:10px 6px;font-weight:600;font-size:13.5px;color:var(--sub);}
+.admin-tab-btn.active{color:var(--blue);border-color:var(--blue);}
+.admin-body{flex:1;overflow-y:auto;padding:28px 24px 60px;display:flex;justify-content:center;}
+.admin-inner{max-width:1040px;width:100%;}
+.admin-inner h2{font-size:19px;margin:0 0 4px;}
+.admin-inner .sub{color:var(--sub);font-size:13px;margin:0 0 20px;}
+.set-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-bottom:22px;}
+.set-card{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:8px;}
+.set-card h3{font-size:15px;margin:0;}
+.set-card p{font-size:12px;color:var(--sub);margin:0;line-height:1.6;}
+.set-card .set-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:18px;}
+.panel h3{font-size:14.5px;margin:0 0 4px;display:flex;align-items:center;justify-content:space-between;}
+.panel .panel-sub{font-size:12px;color:var(--sub);margin:0 0 16px;}
+.field-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+.field{flex:1;min-width:160px;margin-bottom:14px;}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--sub);margin-bottom:6px;}
+.field input[type=text],.field input[type=number],.field input[type=email],.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;}
+.field textarea{resize:vertical;min-height:60px;}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--blue);}
+.mini-card{background:var(--grid);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px;position:relative;}
+.mini-card .rm-btn{position:absolute;top:10px;right:10px;background:transparent;border:none;color:var(--red);font-size:16px;font-weight:700;}
+.choice-edit-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.choice-edit-row input[type=radio]{width:16px;height:16px;accent-color:var(--green);flex:none;}
+.choice-edit-row input[type=text]{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;}
+.add-row-btn{background:var(--surface);border:1.5px dashed var(--line);border-radius:10px;padding:9px 14px;font-size:12.5px;color:var(--blue);width:100%;}
+.add-row-btn:hover{border-color:var(--blue);}
+.editor-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;}
+.match-edit-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+.match-edit-row .idx{font-family:'Prompt',sans-serif;font-weight:700;font-size:12px;color:var(--blue);width:22px;flex:none;}
+.match-edit-row input[type=text]{flex:1;min-width:120px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;}
+.result-table{width:100%;border-collapse:collapse;font-size:13px;}
+.result-table th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--sub);border-bottom:1.5px solid var(--line);padding:8px 10px;}
+.result-table td{padding:10px;border-bottom:1px solid var(--line);}
+.result-table tr:hover td{background:var(--grid);}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;z-index:200;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);}
+.loading-note{font-size:13px;color:var(--sub);padding:30px;text-align:center;}
+.empty-note{font-size:13.5px;color:var(--sub);background:var(--grid);border:1px dashed var(--line);border-radius:12px;padding:20px;text-align:center;}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.chip{background:rgba(37,99,235,.1);color:var(--blue);border-radius:999px;padding:5px 8px 5px 12px;font-size:12.5px;display:flex;align-items:center;gap:6px;}
+.chip button{background:transparent;border:none;color:var(--blue);font-weight:700;font-size:13px;line-height:1;padding:2px;}
+.chip-empty-note{font-size:12px;color:var(--sub);margin:-2px 0 10px;}
+.add-chip-row{display:flex;gap:8px;margin-bottom:4px;}
+.add-chip-row input{flex:1;padding:9px 11px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;}
+.add-chip-row button{white-space:nowrap;}
+.toolbar-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+.filter-select{padding:9px 12px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;background:var(--surface);}
+.import-report{font-size:12.5px;background:var(--grid);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;line-height:1.7;}
+.import-report .err{color:var(--red);}
+</style>
+</head>
+<body>
+
+<!-- ================= ADMIN LOGIN ================= -->
+<div id="adminLoginScreen" class="screen-wrap">
+  <div class="card">
+    <span class="eyebrow">EXAM SYSTEM · ผู้ดูแล/อาจารย์</span>
+    <h1>เข้าสู่ระบบผู้ดูแล</h1>
+    <p class="lead">หน้านี้สำหรับผู้ดูแลระบบและอาจารย์เท่านั้น กรอกรหัสผู้ดูแลระบบ (Admin Key) ที่ตั้งไว้ในไฟล์ .env ของเซิร์ฟเวอร์</p>
+    <input type="password" class="name-input" id="adminKeyInput" placeholder="รหัสผู้ดูแลระบบ">
+    <div id="adminLoginError" style="color:var(--red);font-size:13px;margin:-12px 0 16px;display:none;"></div>
+    <div class="start-actions">
+      <span></span>
+      <button class="btn btn-primary" id="adminLoginBtn">เข้าสู่ระบบ →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ADMIN SCREEN ================= -->
+<div id="adminScreen" class="hidden">
+  <div class="admin-topbar">
+    <div class="brand">🛠️ ระบบจัดการข้อสอบ (สำหรับผู้ดูแล/อาจารย์)</div>
+    <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
+  </div>
+  <div class="admin-tabs">
+    <button class="admin-tab-btn active" data-atab="sets">ชุดข้อสอบ</button>
+    <button class="admin-tab-btn" data-atab="students">รายชื่อนักเรียน</button>
+    <button class="admin-tab-btn" data-atab="results">ผลสอบนักเรียน</button>
+  </div>
+  <div class="admin-body">
+    <div class="admin-inner">
+
+      <!-- ============ SETS TAB ============ -->
+      <div id="atab-sets">
+        <div class="toolbar-row">
+          <div>
+            <h2>ชุดข้อสอบทั้งหมด</h2>
+            <p class="sub" style="margin:0;">กำหนดได้ว่าห้องไหนมีสิทธิสอบวิชานี้ และใครคืออาจารย์ประจำวิชาที่จะได้รับคะแนน</p>
+          </div>
+          <button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button>
+        </div>
+        <div id="setListWrap"><div class="loading-note">กำลังโหลด...</div></div>
+        <div id="setEditor" class="hidden"></div>
+      </div>
+
+      <!-- ============ STUDENTS TAB ============ -->
+      <div id="atab-students" class="hidden">
+        <div class="toolbar-row">
+          <div>
+            <h2>รายชื่อนักเรียน</h2>
+            <p class="sub" style="margin:0;">ข้อมูลนี้ใช้ตรวจสิทธิ์ตอนนักเรียนกรอกรหัสเข้าสอบ และดึงชื่อ-สกุล-ห้องมาแสดงอัตโนมัติ</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>นำเข้ารายชื่อแบบรวดเร็ว (วางจาก Excel)</h3>
+          <p class="panel-sub">คัดลอกคอลัมน์ รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง จาก Excel แล้ววางที่นี่ (1 บรรทัดต่อ 1 คน) หากมีรหัสซ้ำในระบบอยู่แล้ว ระบบจะอัปเดตข้อมูลแทนการเพิ่มซ้ำ</p>
+          <textarea id="bulkImportText" placeholder="10001&#9;สมชาย&#9;ใจดี&#9;ม.3/1&#10;10002&#9;สมหญิง&#9;รักเรียน&#9;ม.3/1" style="width:100%;min-height:120px;padding:12px;border:1.5px solid var(--line);border-radius:10px;font-family:monospace;font-size:12.5px;"></textarea>
+          <div class="editor-actions"><button class="btn btn-primary btn-sm" id="bulkImportBtn">นำเข้ารายชื่อ</button></div>
+          <div id="importReport"></div>
+        </div>
+
+        <div class="panel">
+          <h3>เพิ่มทีละคน</h3>
+          <div class="field-row">
+            <div class="field"><label>รหัสนักเรียน</label><input type="text" id="fsId" placeholder="เช่น 10004"></div>
+            <div class="field"><label>ชื่อ</label><input type="text" id="fsFirst" placeholder="ชื่อ"></div>
+            <div class="field"><label>นามสกุล</label><input type="text" id="fsLast" placeholder="นามสกุล"></div>
+            <div class="field"><label>ห้อง</label><input type="text" id="fsClass" placeholder="เช่น ม.3/1"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="addStudentBtn">+ เพิ่มนักเรียน</button>
+        </div>
+
+        <div class="toolbar-row">
+          <select class="filter-select" id="classFilterSelect"><option value="">ทุกห้อง</option></select>
+          <button class="btn btn-ghost btn-sm" id="refreshStudentsBtn">↻ รีเฟรช</button>
+        </div>
+        <div id="studentsWrap"><div class="loading-note">กำลังโหลด...</div></div>
+      </div>
+
+      <!-- ============ RESULTS TAB ============ -->
+      <div id="atab-results" class="hidden">
+        <div class="toolbar-row">
+          <div>
+            <h2>ผลสอบที่นักเรียนส่งเข้ามา</h2>
+            <p class="sub" style="margin:0;">กรองตามรายวิชา แล้วส่งออกเป็น Excel เพื่อส่งให้อาจารย์ประจำวิชา</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select class="filter-select" id="setFilterSelect"><option value="">ทุกรายวิชา</option></select>
+            <button class="btn btn-ghost btn-sm" id="refreshResultsBtn">↻ รีเฟรช</button>
+            <button class="btn btn-primary btn-sm" id="exportExcelBtn">⬇ ส่งออก Excel</button>
+          </div>
+        </div>
+        <div id="resultsWrap"><div class="loading-note">กำลังโหลด...</div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+/* ============ API CLIENT ============ */
+const API_BASE = '';
+let adminKey = null;
+async function apiFetch(path, options){
+  options = options || {};
+  const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
+  if(options.admin) headers['x-admin-key'] = adminKey || '';
+  let res;
+  try{
+    res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
+  }catch(e){ throw new Error('เชื่อมต่อเซิร์ฟเวอร์ backend ไม่สำเร็จ กรุณาตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่'); }
+  if(res.status===401){ throw new Error('รหัสผู้ดูแลไม่ถูกต้อง หรือหมดสิทธิ์การเข้าถึง'); }
+  if(!res.ok){
+    let msg = 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (HTTP '+res.status+')';
+    try{ const j = await res.json(); if(j && j.message) msg = j.message; }catch(e){}
+    throw new Error(msg);
+  }
+  if(res.status===204) return null;
+  return res.json();
+}
+async function apiVerifyAdmin(key){ const res = await fetch(API_BASE+'/api/admin/verify', {method:'POST', headers:{'x-admin-key':key}}); return res.ok; }
+async function apiGetSets(){ return apiFetch('/api/sets'); }
+async function apiCreateSet(set){ return apiFetch('/api/sets', { method:'POST', body:set, admin:true }); }
+async function apiUpdateSet(key, set){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'PUT', body:set, admin:true }); }
+async function apiDuplicateSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', admin:true }); }
+async function apiDeleteSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'DELETE', admin:true }); }
+async function apiGetResults(setKey){ return apiFetch('/api/results'+(setKey?('?setKey='+encodeURIComponent(setKey)):''), { admin:true }); }
+async function apiGetStudents(classRoom){ return apiFetch('/api/students'+(classRoom?('?classRoom='+encodeURIComponent(classRoom)):''), { admin:true }); }
+async function apiAddStudent(s){ return apiFetch('/api/students', { method:'POST', body:s, admin:true }); }
+async function apiBulkImportStudents(text){ return apiFetch('/api/students/bulk', { method:'POST', body:{text}, admin:true }); }
+async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
+async function apiGetClasses(){ return apiFetch('/api/classes', { admin:true }); }
+
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeAttr(str){ return escapeHtml(str).replace(/\n/g,' '); }
+function showToast(msg){
+  const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(), 2800);
+}
+
+/* ============ LOGIN ============ */
+const adminLoginScreen = document.getElementById('adminLoginScreen');
+const adminScreen = document.getElementById('adminScreen');
+async function tryAdminLogin(){
+  const val = document.getElementById('adminKeyInput').value.trim();
+  const errBox = document.getElementById('adminLoginError');
+  if(!val){ errBox.textContent='กรุณากรอกรหัสผู้ดูแลระบบ'; errBox.style.display='block'; return; }
+  const btn = document.getElementById('adminLoginBtn');
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  let ok = false;
+  try{ ok = await apiVerifyAdmin(val); }catch(e){ ok = false; }
+  btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ →';
+  if(!ok){ errBox.textContent = 'รหัสผู้ดูแลระบบไม่ถูกต้อง หรือเชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ'; errBox.style.display='block'; return; }
+  adminKey = val;
+  adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
+  initAdmin();
+}
+document.getElementById('adminLoginBtn').addEventListener('click', tryAdminLogin);
+document.getElementById('adminKeyInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
+document.getElementById('adminExitBtn').addEventListener('click', ()=>{
+  adminKey = null; adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
+  document.getElementById('adminKeyInput').value=''; document.getElementById('adminLoginError').style.display='none';
+});
+
+/* ============ TABS ============ */
+document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    ['sets','students','results'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    if(btn.dataset.atab==='results') refreshResults();
+    if(btn.dataset.atab==='students') refreshStudents();
+  });
+});
+
+async function initAdmin(){
+  document.getElementById('setEditor').classList.add('hidden');
+  document.getElementById('setEditor').innerHTML = '';
+  document.getElementById('setListWrap').innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
+  ADMIN_SETS = await apiGetSets().catch(e=>{ showToast(e.message); return []; });
+  renderSetList();
+  populateSetFilterOptions();
+}
+
+/* ======================================================================
+   EXAM SETS
+   ====================================================================== */
+let ADMIN_SETS = [];
+let editingSet = null;
+let editingIsNew = false;
+let knownClasses = [];
+
+function renderSetList(){
+  const wrap = document.getElementById('setListWrap');
+  if(!ADMIN_SETS.length){
+    wrap.innerHTML = '<div class="empty-note">ยังไม่มีชุดข้อสอบ กด "เพิ่มชุดข้อสอบใหม่" เพื่อเริ่มสร้างชุดแรก</div>';
+    return;
+  }
+  wrap.innerHTML = `<div class="set-list">` + ADMIN_SETS.map(s=>{
+    const classesText = (s.assignedClasses && s.assignedClasses.length) ? s.assignedClasses.join(', ') : 'ทุกห้อง (ยังไม่จำกัดสิทธิ์)';
+    return `<div class="set-card">
+      <h3>${escapeHtml(s.title)}</h3>
+      <p>${escapeHtml(s.desc||'')}</p>
+      <p style="color:var(--blue);">🏫 ${escapeHtml(classesText)}</p>
+      ${s.subjectTeacherName ? `<p>👤 อาจารย์: ${escapeHtml(s.subjectTeacherName)}</p>` : ''}
+      <div class="set-actions">
+        <button class="btn btn-ghost btn-sm" data-edit="${s.key}">แก้ไข</button>
+        <button class="btn btn-ghost btn-sm" data-dup="${s.key}">ทำสำเนา</button>
+        <button class="btn btn-danger btn-sm" data-del="${s.key}">ลบ</button>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+  wrap.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openEditor(b.dataset.edit)));
+  wrap.querySelectorAll('[data-dup]').forEach(b=>b.addEventListener('click', ()=>duplicateSet(b.dataset.dup)));
+  wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>deleteSet(b.dataset.del)));
+}
+async function duplicateSet(key){
+  try{ await apiDuplicateSetCall(key); ADMIN_SETS = await apiGetSets(); renderSetList(); populateSetFilterOptions(); showToast('ทำสำเนาชุดข้อสอบแล้ว'); }
+  catch(e){ showToast(e.message); }
+}
+async function deleteSet(key){
+  if(!confirm('ยืนยันลบชุดข้อสอบนี้? การลบไม่สามารถย้อนกลับได้')) return;
+  try{ await apiDeleteSetCall(key); ADMIN_SETS = await apiGetSets(); renderSetList(); populateSetFilterOptions(); showToast('ลบชุดข้อสอบแล้ว'); }
+  catch(e){ showToast(e.message); }
+}
+document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(null));
+
+function blankSet(){
+  return {
+    key: uid('set'), title:'', tagline:'', desc:'', assignedClasses:[], subjectTeacherName:'', subjectTeacherEmail:'',
+    sections:{
+      mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[] },
+      matching:{ title:'ส่วนที่ 2 — จับคู่', desc:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', left:[], right:[], correctMap:{}, pointsEach:20 },
+      written:{ title:'ส่วนที่ 3 — อัตนัย (เขียนตอบ)', desc:'ตอบคำถามด้วยคำพูดของตนเอง', questions:[] }
+    }
+  };
+}
+async function openEditor(key){
+  editingIsNew = !key;
+  editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : blankSet();
+  if(!editingSet.assignedClasses) editingSet.assignedClasses = [];
+  try{ knownClasses = await apiGetClasses(); }catch(e){ knownClasses = []; }
+  document.getElementById('setEditor').classList.remove('hidden');
+  renderEditor();
+  document.getElementById('setEditor').scrollIntoView({behavior:'smooth'});
+}
+function closeEditor(){
+  editingSet = null;
+  document.getElementById('setEditor').classList.add('hidden');
+  document.getElementById('setEditor').innerHTML = '';
+}
+
+function renderEditor(){
+  const box = document.getElementById('setEditor');
+  const s = editingSet;
+  let html = `
+  <div class="panel">
+    <h3>ข้อมูลชุดข้อสอบ</h3>
+    <div class="field-row">
+      <div class="field"><label>ชื่อชุดข้อสอบ / รายวิชา</label><input type="text" id="fTitle" value="${escapeAttr(s.title)}" placeholder="เช่น ภาษาไทย ม.3 หน่วยที่ 1"></div>
+      <div class="field"><label>แท็กไลน์ (ถ้ามี)</label><input type="text" id="fTagline" value="${escapeAttr(s.tagline)}" placeholder="เช่น Unit 1 Quiz"></div>
+    </div>
+    <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
+  </div>
+
+  <div class="panel">
+    <h3>🏫 ห้องที่มีสิทธิสอบวิชานี้</h3>
+    <p class="panel-sub">ถ้าไม่เพิ่มห้องใดเลย ระบบจะเปิดให้ทุกห้องสอบวิชานี้ได้ (ค่าเริ่มต้น)</p>
+    <div class="chip-row" id="classChipRow"></div>
+    <div class="add-chip-row">
+      <input type="text" id="addClassInput" list="knownClassesList" placeholder="พิมพ์ชื่อห้อง เช่น ม.3/1 แล้วกดเพิ่ม">
+      <datalist id="knownClassesList">${knownClasses.map(c=>`<option value="${escapeAttr(c)}">`).join('')}</datalist>
+      <button class="btn btn-ghost btn-sm" id="addClassBtn" type="button">+ เพิ่มห้อง</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>👤 อาจารย์ประจำวิชา</h3>
+    <p class="panel-sub">ใช้แสดงในรายงานผลสอบ / ไฟล์ Excel ที่จะส่งให้อาจารย์ท่านนี้</p>
+    <div class="field-row">
+      <div class="field"><label>ชื่ออาจารย์</label><input type="text" id="fTeacherName" value="${escapeAttr(s.subjectTeacherName||'')}" placeholder="เช่น อ.สมศรี ใจงาม"></div>
+      <div class="field"><label>อีเมลอาจารย์ (ถ้ามี)</label><input type="email" id="fTeacherEmail" value="${escapeAttr(s.subjectTeacherEmail||'')}" placeholder="teacher@school.ac.th"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>📝 ส่วนที่ 1 — ปรนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.mc.questions.length} ข้อ)</span></h3>
+    <div id="mcList"></div>
+    <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
+  </div>
+
+  <div class="panel">
+    <h3>🔗 ส่วนที่ 2 — จับคู่ <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.matching.left.length} คู่)</span></h3>
+    <div class="field-row">
+      <div class="field" style="max-width:200px;"><label>คะแนนต่อคู่ที่ถูก</label><input type="number" id="fMatchPoints" value="${s.sections.matching.pointsEach}" min="1"></div>
+    </div>
+    <div id="matchList"></div>
+    <button class="add-row-btn" id="addMatchBtn" type="button">+ เพิ่มคู่จับคู่</button>
+  </div>
+
+  <div class="panel">
+    <h3>✍️ ส่วนที่ 3 — อัตนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.written.questions.length} ข้อ)</span></h3>
+    <div id="writtenList"></div>
+    <button class="add-row-btn" id="addWrittenBtn" type="button">+ เพิ่มข้ออัตนัย</button>
+  </div>
+
+  <div class="editor-actions">
+    <button class="btn btn-ghost" id="cancelEditBtn">ยกเลิก</button>
+    <button class="btn btn-primary" id="saveSetBtn">บันทึกชุดข้อสอบ</button>
+  </div>`;
+  box.innerHTML = html;
+
+  renderClassChips(); renderMcList(); renderMatchList(); renderWrittenList();
+
+  document.getElementById('addClassBtn').addEventListener('click', ()=>{
+    const inp = document.getElementById('addClassInput');
+    const val = inp.value.trim();
+    if(val && !s.assignedClasses.includes(val)){ s.assignedClasses.push(val); }
+    inp.value=''; renderClassChips();
+  });
+  document.getElementById('addClassInput').addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
+  });
+  document.getElementById('addMcBtn').addEventListener('click', ()=>{
+    s.sections.mc.questions.push({id:uid('mc'), text:'', choices:['','','',''], answer:0, points:10});
+    renderMcList();
+  });
+  document.getElementById('addMatchBtn').addEventListener('click', ()=>{
+    const lid = uid('l'), rid = uid('r');
+    s.sections.matching.left.push({id:lid, text:''});
+    s.sections.matching.right.push({id:rid, text:''});
+    s.sections.matching.correctMap[lid] = rid;
+    renderMatchList();
+  });
+  document.getElementById('addWrittenBtn').addEventListener('click', ()=>{
+    s.sections.written.questions.push({id:uid('w'), text:'', keywords:[], maxPoints:20});
+    renderWrittenList();
+  });
+  document.getElementById('fMatchPoints').addEventListener('input', (e)=>{ s.sections.matching.pointsEach = parseInt(e.target.value,10) || 0; });
+  document.getElementById('cancelEditBtn').addEventListener('click', ()=>{
+    if(confirm('ยกเลิกการแก้ไข? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
+  });
+  document.getElementById('saveSetBtn').addEventListener('click', saveEditingSet);
+}
+
+function renderClassChips(){
+  const s = editingSet;
+  const row = document.getElementById('classChipRow');
+  if(!s.assignedClasses.length){
+    row.innerHTML = `<div class="chip-empty-note">ยังไม่ได้จำกัดห้อง — ตอนนี้ทุกห้องสอบวิชานี้ได้</div>`;
+    return;
+  }
+  row.innerHTML = s.assignedClasses.map((c,i)=>`<span class="chip">${escapeHtml(c)}<button type="button" data-rmclass="${i}">✕</button></span>`).join('');
+  row.querySelectorAll('[data-rmclass]').forEach(b=>b.addEventListener('click', ()=>{
+    s.assignedClasses.splice(parseInt(b.dataset.rmclass,10),1);
+    renderClassChips();
+  }));
+}
+
+function renderMcList(){
+  const s = editingSet;
+  const wrap = document.getElementById('mcList');
+  wrap.innerHTML = s.sections.mc.questions.map((qq,qi)=>`
+    <div class="mini-card" data-mc-idx="${qi}">
+      <button class="rm-btn" data-rm-mc="${qi}" type="button">✕</button>
+      <div class="field" style="margin-bottom:10px;"><label>โจทย์ข้อ ${qi+1}</label><textarea data-mc-text="${qi}" placeholder="พิมพ์คำถาม...">${escapeHtml(qq.text)}</textarea></div>
+      ${qq.choices.map((c,ci)=>`
+        <div class="choice-edit-row">
+          <input type="radio" name="mcAns${qi}" data-mc-ans="${qi}" data-ci="${ci}" ${qq.answer===ci?'checked':''} title="ทำเครื่องหมายคำตอบที่ถูกต้อง">
+          <input type="text" data-mc-choice="${qi}" data-ci="${ci}" value="${escapeAttr(c)}" placeholder="ตัวเลือกที่ ${ci+1}">
+        </div>`).join('')}
+      <div class="field" style="max-width:160px;margin-top:6px;margin-bottom:0;"><label>คะแนนข้อนี้</label><input type="number" data-mc-points="${qi}" value="${qq.points}" min="1"></div>
+    </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีข้อปรนัย</p>`;
+
+  wrap.querySelectorAll('[data-rm-mc]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.mc.questions.splice(parseInt(b.dataset.rmMc,10),1); renderMcList(); }));
+  wrap.querySelectorAll('[data-mc-text]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcText,10)].text = el.value; }));
+  wrap.querySelectorAll('[data-mc-choice]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcChoice,10)].choices[parseInt(el.dataset.ci,10)] = el.value; }));
+  wrap.querySelectorAll('[data-mc-ans]').forEach(el=>el.addEventListener('change', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcAns,10)].answer = parseInt(el.dataset.ci,10); }));
+  wrap.querySelectorAll('[data-mc-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcPoints,10)].points = parseInt(el.value,10) || 0; }));
+}
+
+function renderMatchList(){
+  const s = editingSet;
+  const m = s.sections.matching;
+  const wrap = document.getElementById('matchList');
+  wrap.innerHTML = m.left.map((item,i)=>`
+    <div class="match-edit-row" data-match-idx="${i}">
+      <span class="idx">${i+1}.</span>
+      <input type="text" data-match-left="${i}" value="${escapeAttr(item.text)}" placeholder="รายการฝั่งซ้าย (โจทย์)">
+      <span style="color:var(--sub);">คู่กับ →</span>
+      <input type="text" data-match-right="${i}" value="${escapeAttr(m.right[i].text)}" placeholder="รายการฝั่งขวา (คำตอบ)">
+      <button class="rm-btn" style="position:static;" data-rm-match="${i}" type="button">✕</button>
+    </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีคู่จับคู่</p>`;
+
+  wrap.querySelectorAll('[data-match-left]').forEach(el=>el.addEventListener('input', ()=>{ m.left[parseInt(el.dataset.matchLeft,10)].text = el.value; }));
+  wrap.querySelectorAll('[data-match-right]').forEach(el=>el.addEventListener('input', ()=>{ m.right[parseInt(el.dataset.matchRight,10)].text = el.value; }));
+  wrap.querySelectorAll('[data-rm-match]').forEach(b=>b.addEventListener('click', ()=>{
+    const i = parseInt(b.dataset.rmMatch,10);
+    const lid = m.left[i].id;
+    m.left.splice(i,1); m.right.splice(i,1);
+    delete m.correctMap[lid];
+    renderMatchList();
+  }));
+}
+
+function renderWrittenList(){
+  const s = editingSet;
+  const wrap = document.getElementById('writtenList');
+  wrap.innerHTML = s.sections.written.questions.map((qq,qi)=>`
+    <div class="mini-card" data-w-idx="${qi}">
+      <button class="rm-btn" data-rm-w="${qi}" type="button">✕</button>
+      <div class="field" style="margin-bottom:10px;"><label>โจทย์ข้อ ${qi+1}</label><textarea data-w-text="${qi}" placeholder="พิมพ์คำถาม...">${escapeHtml(qq.text)}</textarea></div>
+      <div class="field" style="margin-bottom:10px;"><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" data-w-keywords="${qi}" value="${escapeAttr((qq.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์, จับต้องได้"></div>
+      <div class="field" style="max-width:160px;margin-bottom:0;"><label>คะแนนเต็มข้อนี้</label><input type="number" data-w-points="${qi}" value="${qq.maxPoints}" min="1"></div>
+    </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีข้ออัตนัย</p>`;
+
+  wrap.querySelectorAll('[data-rm-w]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.written.questions.splice(parseInt(b.dataset.rmW,10),1); renderWrittenList(); }));
+  wrap.querySelectorAll('[data-w-text]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wText,10)].text = el.value; }));
+  wrap.querySelectorAll('[data-w-keywords]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wKeywords,10)].keywords = el.value.split(',').map(k=>k.trim()).filter(Boolean); }));
+  wrap.querySelectorAll('[data-w-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wPoints,10)].maxPoints = parseInt(el.value,10) || 0; }));
+}
+
+async function saveEditingSet(){
+  const s = editingSet;
+  s.title = document.getElementById('fTitle').value.trim();
+  s.tagline = document.getElementById('fTagline').value.trim();
+  s.desc = document.getElementById('fDesc').value.trim();
+  s.subjectTeacherName = document.getElementById('fTeacherName').value.trim();
+  s.subjectTeacherEmail = document.getElementById('fTeacherEmail').value.trim();
+  if(!s.title){ alert('กรุณากรอกชื่อชุดข้อสอบ'); return; }
+  if(s.sections.mc.questions.some(q=>!q.text.trim())){ alert('มีข้อปรนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
+  if(s.sections.written.questions.some(q=>!q.text.trim())){ alert('มีข้ออัตนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
+
+  const saveBtn = document.getElementById('saveSetBtn');
+  saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...';
+  try{
+    if(editingIsNew) await apiCreateSet(s); else await apiUpdateSet(s.key, s);
+    ADMIN_SETS = await apiGetSets();
+    closeEditor(); renderSetList(); populateSetFilterOptions();
+    showToast('บันทึกชุดข้อสอบเรียบร้อยแล้ว นักเรียนในห้องที่กำหนดจะเห็นวิชานี้ทันที');
+  }catch(e){
+    showToast(e.message);
+    saveBtn.disabled = false; saveBtn.textContent = 'บันทึกชุดข้อสอบ';
+  }
+}
+
+/* ======================================================================
+   STUDENTS (ROSTER)
+   ====================================================================== */
+async function refreshStudents(){
+  const wrap = document.getElementById('studentsWrap');
+  wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
+  const classFilter = document.getElementById('classFilterSelect').value;
+  let students;
+  try{ students = await apiGetStudents(classFilter || undefined); }
+  catch(e){ wrap.innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
+
+  try{
+    const classes = await apiGetClasses();
+    const sel = document.getElementById('classFilterSelect');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">ทุกห้อง</option>' + classes.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
+    sel.value = current;
+  }catch(e){}
+
+  if(!students.length){
+    wrap.innerHTML = '<div class="empty-note">ยังไม่มีรายชื่อนักเรียนในระบบ ลองนำเข้ารายชื่อด้านบน</div>';
+    return;
+  }
+  wrap.innerHTML = `<table class="result-table"><thead><tr>
+      <th>รหัสนักเรียน</th><th>ชื่อ</th><th>นามสกุล</th><th>ห้อง</th><th></th>
+    </tr></thead><tbody>` + students.map(s=>`
+      <tr>
+        <td>${escapeHtml(s.studentId)}</td>
+        <td>${escapeHtml(s.firstName)}</td>
+        <td>${escapeHtml(s.lastName)}</td>
+        <td>${escapeHtml(s.classRoom)}</td>
+        <td><button class="btn btn-danger btn-sm" data-delstu="${escapeAttr(s.studentId)}">ลบ</button></td>
+      </tr>`).join('') + `</tbody></table>`;
+  wrap.querySelectorAll('[data-delstu]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('ลบนักเรียนรหัส '+b.dataset.delstu+' ออกจากระบบ?')) return;
+    try{ await apiDeleteStudent(b.dataset.delstu); refreshStudents(); showToast('ลบนักเรียนแล้ว'); }
+    catch(e){ showToast(e.message); }
+  }));
+}
+document.getElementById('refreshStudentsBtn').addEventListener('click', refreshStudents);
+document.getElementById('classFilterSelect').addEventListener('change', refreshStudents);
+document.getElementById('addStudentBtn').addEventListener('click', async ()=>{
+  const studentId = document.getElementById('fsId').value.trim();
+  const firstName = document.getElementById('fsFirst').value.trim();
+  const lastName = document.getElementById('fsLast').value.trim();
+  const classRoom = document.getElementById('fsClass').value.trim();
+  if(!studentId || !firstName || !lastName || !classRoom){ showToast('กรอกข้อมูลนักเรียนให้ครบทุกช่อง'); return; }
+  try{
+    await apiAddStudent({studentId, firstName, lastName, classRoom});
+    ['fsId','fsFirst','fsLast','fsClass'].forEach(id=>document.getElementById(id).value='');
+    refreshStudents();
+    showToast('เพิ่มนักเรียนแล้ว');
+  }catch(e){ showToast(e.message); }
+});
+document.getElementById('bulkImportBtn').addEventListener('click', async ()=>{
+  const text = document.getElementById('bulkImportText').value;
+  if(!text.trim()){ showToast('กรุณาวางรายชื่อก่อนนำเข้า'); return; }
+  const btn = document.getElementById('bulkImportBtn');
+  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
+  try{
+    const result = await apiBulkImportStudents(text);
+    const report = document.getElementById('importReport');
+    report.innerHTML = `<div class="import-report">
+      นำเข้าใหม่ ${result.imported} คน · อัปเดตข้อมูลเดิม ${result.updated} คน
+      ${result.errors.length ? '<br><span class="err">พบปัญหา ' + result.errors.length + ' บรรทัด:<br>' + result.errors.map(escapeHtml).join('<br>') + '</span>' : ''}
+    </div>`;
+    document.getElementById('bulkImportText').value = '';
+    refreshStudents();
+  }catch(e){ showToast(e.message); }
+  btn.disabled = false; btn.textContent = 'นำเข้ารายชื่อ';
+});
+
+/* ======================================================================
+   RESULTS + EXCEL EXPORT
+   ====================================================================== */
+function populateSetFilterOptions(){
+  const sel = document.getElementById('setFilterSelect');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">ทุกรายวิชา</option>' + ADMIN_SETS.map(s=>`<option value="${escapeAttr(s.key)}">${escapeHtml(s.title)}</option>`).join('');
+  sel.value = current;
+}
+async function refreshResults(){
+  const wrap = document.getElementById('resultsWrap');
+  wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
+  const setKey = document.getElementById('setFilterSelect').value;
+  let records;
+  try{ records = await apiGetResults(setKey || undefined); }
+  catch(e){ wrap.innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
+  if(!records || !records.length){
+    wrap.innerHTML = '<div class="empty-note">ยังไม่มีผลสอบส่งเข้ามา</div>';
+    return;
+  }
+  wrap.innerHTML = `<table class="result-table"><thead><tr>
+      <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>รายวิชา</th><th>อาจารย์</th>
+      <th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม (/20)</th><th></th>
+    </tr></thead><tbody>` + records.map(r=>`
+      <tr>
+        <td>${new Date(r.submittedAt).toLocaleString('th-TH')}</td>
+        <td>${escapeHtml(r.studentId)}</td>
+        <td>${escapeHtml(r.studentName)}</td>
+        <td>${escapeHtml(r.classRoom)}</td>
+        <td>${escapeHtml(r.questionTitle)}</td>
+        <td>${escapeHtml(r.subjectTeacherName||'-')}</td>
+        <td>${r.sectionScores.mc!=null ? r.sectionScores.mc+'/100' : '-'}</td>
+        <td>${r.sectionScores.matching!=null ? r.sectionScores.matching+'/100' : '-'}</td>
+        <td>${r.sectionScores.written!=null ? r.sectionScores.written+'/100' : '-'}</td>
+        <td><b>${r.overallScore20}</b></td>
+        <td><button class="btn btn-danger btn-sm" data-delres="${r.id}">ลบ</button></td>
+      </tr>`).join('') + `</tbody></table>`;
+  wrap.querySelectorAll('[data-delres]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('ลบผลสอบรายการนี้?')) return;
+    try{ await apiFetch('/api/results/'+encodeURIComponent(b.dataset.delres), { method:'DELETE', admin:true }); refreshResults(); }
+    catch(e){ showToast(e.message); }
+  }));
+}
+document.getElementById('refreshResultsBtn').addEventListener('click', refreshResults);
+document.getElementById('setFilterSelect').addEventListener('change', refreshResults);
+document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
+  const setKey = document.getElementById('setFilterSelect').value;
+  const btn = document.getElementById('exportExcelBtn');
+  btn.disabled = true; btn.textContent = 'กำลังสร้างไฟล์...';
+  try{
+    const url = '/api/export/results.xlsx' + (setKey ? ('?setKey='+encodeURIComponent(setKey)) : '');
+    const res = await fetch(url, { headers: { 'x-admin-key': adminKey || '' } });
+    if(!res.ok){ throw new Error('ส่งออก Excel ไม่สำเร็จ (HTTP '+res.status+')'); }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    const dlUrl = URL.createObjectURL(blob);
+    a.href = dlUrl;
+    a.download = setKey ? 'ผลสอบ.xlsx' : 'ผลสอบทั้งหมด.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(dlUrl);
+    showToast('ดาวน์โหลดไฟล์ Excel แล้ว');
+  }catch(e){ showToast(e.message); }
+  btn.disabled = false; btn.textContent = '⬇ ส่งออก Excel';
+});
+
+})();
+</script>
+</body>
+</html>
