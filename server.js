@@ -18,8 +18,8 @@ const express = require('express');
 const XLSX = require('xlsx');
 
 const PORT = process.env.PORT || 3000;
-const ADMIN_KEY = process.env.ADMIN_KEY || 'aunaum11';
-if (ADMIN_KEY === 'aunaum11') {
+const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme123';
+if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
 }
 const EXAM_TYPES = ['กลางภาค', 'ปลายภาค'];
@@ -154,6 +154,7 @@ function sanitizeSetForStudent(s) {
     key: s.key, title: s.title, tagline: s.tagline, desc: s.desc,
     examType: s.examType || '', assignedClasses: s.assignedClasses || [],
     subjectTeacherName: s.subjectTeacherName || '',
+    shuffleQuestions: !!s.shuffleQuestions, shuffleChoices: !!s.shuffleChoices,
     sections: {
       mc: {
         title: s.sections.mc.title, desc: s.sections.mc.desc,
@@ -202,6 +203,23 @@ app.get('/api/students/:studentId', (req, res) => {
   const s = db.students.find(x => x.studentId === req.params.studentId.trim());
   if (!s) return res.status(404).json({ error: 'not_found', message: 'ไม่พบรหัสนักเรียนนี้ในระบบ กรุณาตรวจสอบรหัส หรือติดต่อผู้ดูแลระบบ' });
   res.json(s);
+});
+// Public: a student checks their own submitted results. Score fields are null until published.
+app.get('/api/students/:studentId/results', (req, res) => {
+  const db = readDB();
+  const mine = db.results.filter(r => r.studentId === req.params.studentId.trim());
+  const shaped = mine
+    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
+    .map(r => ({
+      questionKey: r.questionKey,
+      questionTitle: r.questionTitle,
+      examType: r.examType,
+      submittedAt: r.submittedAt,
+      published: !!r.published,
+      overallScore20: r.published ? r.overallScore20 : null,
+      sectionScores: r.published ? r.sectionScores : null
+    }));
+  res.json(shaped);
 });
 app.get('/api/students', requireAdmin, (req, res) => {
   const db = readDB();
@@ -302,6 +320,8 @@ app.post('/api/sets', requireAdmin, async (req, res) => {
     examType: EXAM_TYPES.includes(body.examType) ? body.examType : EXAM_TYPES[0],
     assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
+    shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
+    publishMode: body.publishMode === 'auto' ? 'auto' : 'manual',
     sections: body.sections, createdAt: now, updatedAt: now
   });
   await writeDB(db);
@@ -319,6 +339,8 @@ app.put('/api/sets/:key', requireAdmin, async (req, res) => {
     examType: EXAM_TYPES.includes(body.examType) ? body.examType : (db.sets[idx].examType || EXAM_TYPES[0]),
     assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
+    shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
+    publishMode: body.publishMode === 'auto' ? 'auto' : 'manual',
     sections: body.sections, updatedAt: now
   });
   await writeDB(db);
@@ -355,6 +377,19 @@ app.post('/api/results', async (req, res) => {
   if (!set) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
 
   const answers = r.answers || {};
+  // Completeness check — only enforced for a voluntary submission (never blocks an auto
+  // submission when time runs out, so a student never loses partial work).
+  if (!r.autoSubmit) {
+    const missing = { mc: [], matching: [], written: [] };
+    (set.sections.mc.questions || []).forEach(q => { if (!answers.mc || answers.mc[q.id] === undefined || answers.mc[q.id] === null) missing.mc.push(q.id); });
+    (set.sections.matching.left || []).forEach(item => { if (!answers.matching || !answers.matching[item.id]) missing.matching.push(item.id); });
+    (set.sections.written.questions || []).forEach(q => { if (!answers.written || !String(answers.written[q.id] || '').trim()) missing.written.push(q.id); });
+    const hasMissing = missing.mc.length || missing.matching.length || missing.written.length;
+    if (hasMissing) {
+      return res.status(400).json({ error: 'incomplete', message: 'ตอบคำถามยังไม่ครบทุกข้อ กรุณาตอบให้ครบก่อนส่งคำตอบ', missing });
+    }
+  }
+
   const mcScore = gradeMC(set.sections.mc, answers.mc);
   const matchingScore = gradeMatching(set.sections.matching, answers.matching);
   const writtenResult = gradeWritten(set.sections.written, answers.written);
@@ -376,7 +411,7 @@ app.post('/api/results', async (req, res) => {
     reloadCount: r.reloadCount || 0,
     rightClickAttempts: r.rightClickAttempts || 0,
     copyAttempts: r.copyAttempts || 0,
-    published: false,
+    published: set.publishMode === 'auto',
     detail: { answers, writtenPerQuestion: writtenResult.perQuestion },
     submittedAt: new Date().toISOString()
   };

@@ -324,6 +324,7 @@ function renderSetList(){
       <p style="color:var(--blue);">🏫 ${escapeHtml(classesText)}</p>
       ${s.subjectTeacherName ? `<p>👤 อาจารย์: ${escapeHtml(s.subjectTeacherName)}</p>` : ''}
       <p style="color:${total===20?'var(--green)':'var(--amber)'};">🎯 คะแนนเต็มรวม: ${total}/20 ${total!==20?'⚠️':'✓'}</p>
+      <p style="color:var(--sub);font-size:11.5px;">${s.publishMode==='auto'?'⚡ ประกาศคะแนนอัตโนมัติ':'🔒 ต้องตรวจก่อนประกาศ'}${s.shuffleQuestions?' · 🔀 สุ่มโจทย์':''}${s.shuffleChoices?' · 🔀 สุ่มตัวเลือก':''}</p>
       <div class="set-actions">
         <button class="btn btn-ghost btn-sm" data-edit="${s.key}">แก้ไข</button>
         <button class="btn btn-ghost btn-sm" data-dup="${s.key}">ทำสำเนา</button>
@@ -356,6 +357,7 @@ document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(n
 function blankSet(){
   return {
     key: uid('set'), title:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', assignedClasses:[], subjectTeacherName:'', subjectTeacherEmail:'',
+    shuffleQuestions:false, shuffleChoices:false, publishMode:'manual',
     sections:{
       mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[] },
       matching:{ title:'ส่วนที่ 2 — จับคู่', desc:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', left:[], right:[], correctMap:{}, pointsEach:1 },
@@ -368,6 +370,9 @@ async function openEditor(key){
   editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : blankSet();
   if(!editingSet.assignedClasses) editingSet.assignedClasses = [];
   if(!editingSet.examType) editingSet.examType = EXAM_TYPES[0]||'กลางภาค';
+  if(editingSet.shuffleQuestions===undefined) editingSet.shuffleQuestions = false;
+  if(editingSet.shuffleChoices===undefined) editingSet.shuffleChoices = false;
+  if(!editingSet.publishMode) editingSet.publishMode = 'manual';
   try{ knownClasses = await apiGetClasses(); }catch(e){ knownClasses = []; }
   document.getElementById('setEditor').classList.remove('hidden');
   renderEditor();
@@ -412,6 +417,25 @@ function renderEditor(){
     <div class="field-row">
       <div class="field"><label>ชื่ออาจารย์</label><input type="text" id="fTeacherName" value="${escapeAttr(s.subjectTeacherName||'')}" placeholder="เช่น อ.สมศรี ใจงาม"></div>
       <div class="field"><label>อีเมลอาจารย์ (ถ้ามี)</label><input type="email" id="fTeacherEmail" value="${escapeAttr(s.subjectTeacherEmail||'')}" placeholder="teacher@school.ac.th"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>⚙️ การประกาศผลและการสุ่มข้อสอบ</h3>
+    <div class="field-row">
+      <div class="field">
+        <label>โหมดประกาศผล</label>
+        <select id="fPublishMode">
+          <option value="manual" ${s.publishMode!=='auto'?'selected':''}>ต้องให้อาจารย์ตรวจสอบก่อนจึงประกาศ (ค่าเริ่มต้น)</option>
+          <option value="auto" ${s.publishMode==='auto'?'selected':''}>ประกาศคะแนนให้นักเรียนทันทีที่ส่งคำตอบ</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:normal;color:var(--ink);"><input type="checkbox" id="fShuffleQuestions" ${s.shuffleQuestions?'checked':''} style="width:16px;height:16px;"> สุ่มลำดับโจทย์ (แต่ละคนเห็นข้อสอบเรียงไม่เหมือนกัน)</label>
+    </div>
+    <div class="field-row">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:normal;color:var(--ink);"><input type="checkbox" id="fShuffleChoices" ${s.shuffleChoices?'checked':''} style="width:16px;height:16px;"> สุ่มลำดับตัวเลือกปรนัย (แต่ละคนเห็นตัวเลือกเรียงไม่เหมือนกัน)</label>
     </div>
   </div>
 
@@ -568,6 +592,9 @@ async function saveEditingSet(){
   s.examType = document.getElementById('fExamType').value;
   s.subjectTeacherName = document.getElementById('fTeacherName').value.trim();
   s.subjectTeacherEmail = document.getElementById('fTeacherEmail').value.trim();
+  s.publishMode = document.getElementById('fPublishMode').value;
+  s.shuffleQuestions = document.getElementById('fShuffleQuestions').checked;
+  s.shuffleChoices = document.getElementById('fShuffleChoices').checked;
   if(!s.title){ alert('กรุณากรอกชื่อชุดข้อสอบ'); return; }
   if(s.sections.mc.questions.some(q=>!q.text.trim())){ alert('มีข้อปรนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
   if(s.sections.written.questions.some(q=>!q.text.trim())){ alert('มีข้ออัตนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
