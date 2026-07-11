@@ -376,6 +376,11 @@ app.post('/api/results', async (req, res) => {
   const set = db.sets.find(x => x.key === r.questionKey);
   if (!set) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
 
+  // One attempt per student per exam — reject if this student already has a result for this set
+  if (db.results.some(x => x.studentId === r.studentId && x.questionKey === r.questionKey)) {
+    return res.status(409).json({ error: 'already_submitted', message: 'รหัสนักเรียนนี้ได้ทำข้อสอบวิชานี้ไปแล้ว ระบบอนุญาตให้ทำได้เพียง 1 ครั้งเท่านั้น' });
+  }
+
   const answers = r.answers || {};
   // Completeness check — only enforced for a voluntary submission (never blocks an auto
   // submission when time runs out, so a student never loses partial work).
