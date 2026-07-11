@@ -6,7 +6,6 @@
 <title>ระบบข้อสอบ — สำหรับนักเรียน</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --blue:#2563EB; --blue-dark:#1D4ED8; --indigo:#4F46E5;
@@ -52,6 +51,7 @@ button{font-family:inherit;cursor:pointer;}
 .qcard p{font-size:12.5px;color:var(--sub);margin:0 0 10px;line-height:1.6;}
 .qcard .lvbadges{display:flex;gap:6px;flex-wrap:wrap;}
 .lvbadge{font-size:10.5px;background:var(--surface);border:1px solid var(--line);padding:2px 8px;border-radius:999px;color:var(--sub);}
+.lvbadge.examtype{background:var(--indigo);color:#fff;border-color:var(--indigo);font-weight:600;}
 .empty-note{font-size:13.5px;color:var(--sub);background:var(--grid);border:1px dashed var(--line);border-radius:12px;padding:20px;text-align:center;}
 
 #countdownOverlay{position:fixed;inset:0;background:rgba(15,23,42,.92);display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:100;color:#fff;}
@@ -73,7 +73,16 @@ button{font-family:inherit;cursor:pointer;}
 .icon-btn{background:var(--grid);border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:12.5px;color:var(--ink);display:flex;align-items:center;gap:6px;}
 .icon-btn:hover{border-color:var(--blue);color:var(--blue);}
 .icon-btn:disabled{opacity:.5;cursor:not-allowed;}
+.icon-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
 .badge-warn{background:rgba(217,119,6,.12);color:var(--amber);border-color:var(--amber);}
+
+#examBody{flex:1;display:flex;overflow:hidden;}
+#mainPane{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#scratchPane{width:360px;flex:none;border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;}
+#scratchPane .scratch-head{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;}
+#scratchPane .scratch-note{padding:0 16px;font-size:11.5px;color:var(--sub);line-height:1.6;margin:10px 0;}
+#scratchTextarea{flex:1;border:none;padding:14px 16px;font-family:inherit;font-size:14px;resize:none;background:var(--grid);margin:0 16px 16px;border-radius:10px;}
+#scratchTextarea:focus{outline:none;}
 
 .hub-wrap{flex:1;overflow-y:auto;padding:36px;display:flex;justify-content:center;}
 .hub-inner{max-width:900px;width:100%;}
@@ -122,20 +131,17 @@ button{font-family:inherit;cursor:pointer;}
 #levelResultModal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:60;}
 .modal-card{background:var(--surface);border-radius:18px;padding:30px;max-width:420px;width:92%;box-shadow:0 30px 60px -20px rgba(0,0,0,.4);}
 .modal-card h3{font-size:16px;margin:0 0 4px;}
-.modal-score{font-family:'Prompt',sans-serif;font-size:40px;font-weight:700;color:var(--blue);margin:10px 0 16px;}
+.modal-card p{color:var(--sub);font-size:13.5px;line-height:1.7;}
+.modal-check{font-size:44px;color:var(--green);margin:14px 0;}
 .modal-actions{display:flex;gap:10px;}
-.modal-best-note{font-size:12.5px;background:rgba(37,99,235,.08);border:1px solid var(--blue);border-radius:10px;padding:8px 12px;margin:-4px 0 14px;line-height:1.7;}
-.modal-best-note.is-new{background:rgba(22,163,74,.1);border-color:var(--green);color:var(--green);}
-.modal-note-written{font-size:12px;color:var(--sub);margin:-6px 0 14px;line-height:1.7;}
 
-#finalScreen{padding:40px;max-width:760px;margin:0 auto;}
-#finalScreen .card{padding:36px;}
-.final-list{margin:18px 0;}
+#finalScreen{padding:40px;max-width:720px;margin:0 auto;}
+#finalScreen .card{padding:36px;text-align:center;}
+#finalScreen .modal-check{font-size:60px;}
+.final-list{margin:18px 0;text-align:left;}
 .final-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;}
 .final-row b{font-family:'Prompt',sans-serif;color:var(--blue);}
-.final-overall{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;margin:18px 0 4px;border-radius:10px;background:var(--blue);}
-.final-overall span{font-family:'Prompt',sans-serif;font-size:14px;color:#fff;}
-.final-overall b{font-family:'Prompt',sans-serif;font-size:28px;color:#fff;}
+.secret-note{background:rgba(217,119,6,.1);border:1px solid var(--amber);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.7;color:#92400E;margin:18px 0;text-align:left;}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;z-index:200;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);}
 .loading-note{font-size:13px;color:var(--sub);padding:30px;text-align:center;}
 </style>
@@ -147,20 +153,21 @@ button{font-family:inherit;cursor:pointer;}
   <div class="card">
     <span class="eyebrow">EXAM SYSTEM · นักเรียน</span>
     <h1>ระบบข้อสอบออนไลน์</h1>
-    <p class="lead">ทำข้อสอบ 3 รูปแบบ ได้แก่ ปรนัย (เลือกตอบ), จับคู่ และอัตนัย (เขียนตอบ) ภายในเวลาที่กำหนด ระบบจะตรวจให้คะแนนอัตโนมัติและออกไฟล์ PDF สรุปผล</p>
+    <p class="lead">ข้อสอบกลางภาคและปลายภาค 3 รูปแบบ ได้แก่ ปรนัย (เลือกตอบ), จับคู่ และอัตนัย (เขียนตอบ) คะแนนเต็มรวม 20 คะแนนต่อวิชา</p>
     <div class="meta-row">
       <div class="meta-pill">⏱ เวลารวม <b>60:00</b> นาที</div>
-      <div class="meta-pill">📊 เลือกทำ <b>ส่วนใดก่อนก็ได้</b></div>
-      <div class="meta-pill">🎯 คะแนนเต็ม <b>100</b> ต่อส่วน</div>
+      <div class="meta-pill">🎯 คะแนนเต็ม <b>20</b> คะแนน</div>
       <div class="meta-pill">📝 3 รูปแบบ <b>ปรนัย/จับคู่/อัตนัย</b></div>
+      <div class="meta-pill">🔒 คะแนน <b>เป็นความลับ</b></div>
     </div>
     <div class="spec-box">
       <h3>คำชี้แจง</h3>
       <ul>
         <li>ใช้ <b>รหัสนักเรียน</b> ในการเข้าสู่ระบบ ระบบจะดึงชื่อ-สกุลและรายวิชาที่คุณมีสิทธิสอบขึ้นมาให้อัตโนมัติ</li>
         <li>เลือกทำส่วน ปรนัย, จับคู่ หรือ อัตนัย ก่อนก็ได้ ไม่บังคับลำดับ เวลารวม 60 นาที ใช้ร่วมกันทุกส่วน</li>
-        <li>ส่งคำตอบแต่ละส่วนก่อนเวลาหมดได้ทุกเมื่อ ระบบจะแจ้งคะแนนทันที (ไม่แสดงเฉลย)</li>
-        <li>เมื่อกด "จบการสอบ" หรือหมดเวลา ระบบจะสร้างไฟล์ PDF และส่งคะแนนให้อาจารย์ประจำวิชาโดยอัตโนมัติ</li>
+        <li><b>คะแนนจะไม่แสดงให้เห็นทันที</b> เพื่อรักษาความลับของข้อสอบ อาจารย์จะเป็นผู้ประกาศผลภายหลัง</li>
+        <li>ห้ามคลิกขวาหรือคัดลอกข้อความระหว่างทำข้อสอบ ระบบจะบันทึกจำนวนครั้งที่พยายามทำไว้</li>
+        <li>มีพื้นที่ "แบ่งหน้าจอ" สำหรับจดบันทึกส่วนตัวในหน้าเดียวกับข้อสอบ ใช้ได้โดยไม่นับเป็นการสลับหน้าจอ</li>
       </ul>
     </div>
     <div class="start-actions">
@@ -212,36 +219,44 @@ button{font-family:inherit;cursor:pointer;}
       <span class="topbar-title" id="topTitle">รายการส่วนข้อสอบ</span>
       <span class="name-tag" id="nameTag"></span>
       <span class="tag" id="tabSwitchTag">สลับแท็บ: 0 ครั้ง</span>
+      <span class="tag" id="rightClickTag">คลิกขวา: 0 ครั้ง</span>
+      <span class="tag" id="copyTag">คัดลอก: 0 ครั้ง</span>
       <span class="tag badge-warn" id="reloadTag" style="display:none;"></span>
     </div>
     <div class="timer" id="timerDisplay">60:00</div>
-    <div class="topbar-right" id="hubActions">
-      <button class="icon-btn" style="background:var(--blue);color:#fff;" id="endExamBtn" disabled title="ต้องส่งอย่างน้อย 1 ส่วนก่อน">จบการสอบและออก PDF</button>
-    </div>
-    <div class="topbar-right hidden" id="sectionActions">
-      <button class="icon-btn" id="backToHubBtn">← รายการส่วนข้อสอบ</button>
-    </div>
-  </div>
-
-  <div class="hub-wrap" id="hubView">
-    <div class="hub-inner">
-      <h2 id="hubQTitle">โจทย์: -</h2>
-      <p class="sub" id="hubQTagline"></p>
-      <div class="hub-note">เลือกทำส่วนใดก่อนก็ได้ เวลารวม 60 นาทีใช้ร่วมกันทุกส่วน กดส่งคำตอบในแต่ละส่วนเมื่อพร้อม ระบบจะเก็บคะแนนสูงสุดที่ทำได้ในแต่ละส่วนไว้ให้อัตโนมัติ</div>
-      <div class="lv-grid" id="lvGrid"></div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="splitScreenBtn">🗂️ แบ่งหน้าจอ</button>
+      <span id="hubActions"><button class="icon-btn" style="background:var(--blue);color:#fff;" id="endExamBtn" disabled title="ต้องบันทึกคำตอบอย่างน้อย 1 ส่วนก่อน">จบการสอบและส่งคำตอบ</button></span>
+      <span id="sectionActions" class="hidden"><button class="icon-btn" id="backToHubBtn">← รายการส่วนข้อสอบ</button></span>
     </div>
   </div>
 
-  <div class="section-wrap hidden" id="sectionView">
-    <div class="section-inner" id="sectionInner"></div>
+  <div id="examBody">
+    <div id="mainPane">
+      <div class="hub-wrap" id="hubView">
+        <div class="hub-inner">
+          <h2 id="hubQTitle">โจทย์: -</h2>
+          <p class="sub" id="hubQTagline"></p>
+          <div class="hub-note">เลือกทำส่วนใดก่อนก็ได้ เวลารวม 60 นาทีใช้ร่วมกันทุกส่วน คะแนนจะไม่แสดงทันที — อาจารย์จะเป็นผู้ประกาศผลภายหลัง</div>
+          <div class="lv-grid" id="lvGrid"></div>
+        </div>
+      </div>
+      <div class="section-wrap hidden" id="sectionView">
+        <div class="section-inner" id="sectionInner"></div>
+      </div>
+    </div>
+    <div id="scratchPane" class="hidden">
+      <div class="scratch-head">🗂️ พื้นที่จดบันทึกส่วนตัว</div>
+      <div class="scratch-note">พื้นที่นี้อยู่ในหน้าเดียวกับข้อสอบ ใช้จดร่าง/คำนวณได้อย่างอิสระ ไม่ถูกส่งเป็นคำตอบ และไม่นับเป็นการสลับหน้าจอ</div>
+      <textarea id="scratchTextarea" placeholder="จดบันทึกที่นี่..."></textarea>
+    </div>
   </div>
 
   <div id="levelResultModal" class="hidden">
-    <div class="modal-card">
-      <h3 id="modalTitle">ผลคะแนน</h3>
-      <div class="modal-score" id="modalScore">0/100</div>
-      <div id="modalBestNote" class="modal-best-note"></div>
-      <div id="modalWrittenNote" class="modal-note-written hidden">* คะแนนอัตนัยข้างต้นเป็นคะแนนเบื้องต้นจากระบบเท่านั้น ครูผู้สอนจะตรวจและยืนยันคะแนนจริงจากไฟล์ PDF อีกครั้ง</div>
+    <div class="modal-card" style="text-align:center;">
+      <div class="modal-check">✅</div>
+      <h3 id="modalTitle">บันทึกคำตอบแล้ว</h3>
+      <p>คำตอบของคุณในส่วนนี้ถูกบันทึกไว้เรียบร้อยแล้ว คุณสามารถกลับมาแก้ไขได้ก่อนจบการสอบ</p>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="modalStayBtn" style="flex:1;">แก้ไขต่อ</button>
         <button class="btn btn-primary" id="modalHubBtn" style="flex:1;">กลับไปหน้ารายการ</button>
@@ -253,17 +268,14 @@ button{font-family:inherit;cursor:pointer;}
 <!-- ================= FINAL SCREEN ================= -->
 <div id="finalScreen" class="screen-wrap hidden">
   <div class="card">
-    <span class="eyebrow" id="finalHeadline">ส่งข้อสอบเรียบร้อยแล้ว</span>
-    <h1>สรุปผลการสอบ</h1>
-    <p class="lead" id="finalSummaryText"></p>
-    <div class="final-overall">
-      <span>คะแนนรวม (เต็ม 20)</span>
-      <b id="finalOverallScore">0/20</b>
-    </div>
+    <div class="modal-check">✅</div>
+    <span class="eyebrow" id="finalHeadline">ส่งคำตอบเรียบร้อยแล้ว</span>
+    <h1>คุณได้ส่งคำตอบเรียบร้อยแล้ว</h1>
+    <p class="lead" id="finalSummaryText">ระบบได้บันทึกคำตอบของคุณเข้าสู่ระบบเรียบร้อยแล้ว</p>
+    <div class="secret-note">🔒 คะแนนของคุณถูกเก็บเป็นความลับ ยังไม่มีการประกาศผลในขณะนี้ กรุณารอประกาศผลจากอาจารย์ประจำวิชา</div>
     <div class="final-list" id="finalList"></div>
-    <div class="hub-note hidden" id="finalReloadNote"></div>
     <div class="start-actions">
-      <button class="btn btn-ghost" id="redownloadBtn">⬇ ดาวน์โหลด PDF อีกครั้ง</button>
+      <span></span>
       <button class="btn btn-primary" id="restartAllBtn">ออกจากระบบ</button>
     </div>
   </div>
@@ -296,23 +308,15 @@ const SECTION_KEYS = ['mc','matching','written'];
 const SECTION_TITLES = {mc:'ส่วนที่ 1 — ปรนัย', matching:'ส่วนที่ 2 — จับคู่', written:'ส่วนที่ 3 — อัตนัย'};
 const SECTION_ICON = {mc:'📝', matching:'🔗', written:'✍️'};
 
-function computeOverallScore20(){
-  const sum = SECTION_KEYS.reduce((acc,sec)=>{
-    const att = app.attempts[sec];
-    return acc + (att ? att.best.total : 0);
-  }, 0);
-  return Math.round((sum/300)*20*10)/10;
-}
-
 /* ============ APP / SESSION STATE ============ */
 let app = {
   studentId: null, studentName: '', classRoom: '',
   questionKey: null, section: null,
-  attempts: {mc:null, matching:null, written:null},
+  submittedSections: {mc:false, matching:false, written:false},
   timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
-  examEnded: false, reloadCount: 0
+  examEnded: false, examInProgress: false, reloadCount: 0
 };
-let state = { tabSwitches: 0 };
+let state = { tabSwitches: 0, rightClickAttempts: 0, copyAttempts: 0 };
 let draftAnswers = { mc:{}, matching:{}, written:{} };
 let ELIGIBLE_SETS = [];
 let ELIGIBLE_SETS_BY_KEY = {};
@@ -326,9 +330,10 @@ function saveSession(){
   const payload = {
     studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
     questionKey: app.questionKey, section: app.section,
-    attempts: app.attempts, examEndTime: app.examEndTime, examEnded: app.examEnded,
-    reloadCount: app.reloadCount, tabSwitches: state.tabSwitches, draftAnswers: draftAnswers,
-    eligibleSets: ELIGIBLE_SETS
+    submittedSections: app.submittedSections, examEndTime: app.examEndTime, examEnded: app.examEnded,
+    reloadCount: app.reloadCount, tabSwitches: state.tabSwitches,
+    rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    draftAnswers: draftAnswers, eligibleSets: ELIGIBLE_SETS
   };
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); }catch(e){}
 }
@@ -338,6 +343,40 @@ function loadSessionData(){
 }
 function clearSessionData(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
 window.addEventListener('beforeunload', ()=>{ if(app.questionKey && !app.examEnded) saveSession(); });
+
+/* ============ ANTI-CHEAT: block right-click & copy while exam is in progress ============ */
+document.addEventListener('contextmenu', (e)=>{
+  if(app.examInProgress){ e.preventDefault(); state.rightClickAttempts++; updateCheatTags(); scheduleSave(); }
+});
+document.addEventListener('copy', (e)=>{
+  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; updateCheatTags(); scheduleSave(); }
+});
+document.addEventListener('cut', (e)=>{
+  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; updateCheatTags(); scheduleSave(); }
+});
+function updateCheatTags(){
+  const rc = document.getElementById('rightClickTag');
+  const cp = document.getElementById('copyTag');
+  if(rc){ rc.textContent = 'คลิกขวา: '+state.rightClickAttempts+' ครั้ง'; rc.classList.toggle('badge-warn', state.rightClickAttempts>0); }
+  if(cp){ cp.textContent = 'คัดลอก: '+state.copyAttempts+' ครั้ง'; cp.classList.toggle('badge-warn', state.copyAttempts>0); }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden && app.examInProgress){
+    state.tabSwitches++;
+    const tag = document.getElementById('tabSwitchTag');
+    tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+    tag.classList.add('badge-warn');
+    scheduleSave();
+  }
+});
+
+/* ============ SPLIT SCREEN (scratch pad — does NOT count as switching away) ============ */
+document.getElementById('splitScreenBtn').addEventListener('click', ()=>{
+  const pane = document.getElementById('scratchPane');
+  const btn = document.getElementById('splitScreenBtn');
+  const showing = pane.classList.toggle('hidden');
+  btn.classList.toggle('active', !showing);
+});
 
 /* ============ SCREEN REFS ============ */
 const startScreen = document.getElementById('startScreen');
@@ -359,9 +398,7 @@ document.getElementById('goLoginBtn').addEventListener('click', ()=>{
   document.getElementById('studentIdInput').focus();
 });
 document.getElementById('backToStartBtn').addEventListener('click', ()=>{ hideAllTopScreens(); startScreen.classList.remove('hidden'); });
-document.getElementById('backToLoginBtn').addEventListener('click', ()=>{
-  hideAllTopScreens(); loginScreen.classList.remove('hidden');
-});
+document.getElementById('backToLoginBtn').addEventListener('click', ()=>{ hideAllTopScreens(); loginScreen.classList.remove('hidden'); });
 
 async function tryLogin(){
   const val = document.getElementById('studentIdInput').value.trim();
@@ -377,9 +414,7 @@ async function tryLogin(){
     hideAllTopScreens(); selectScreen.classList.remove('hidden');
     document.getElementById('identityBox').innerHTML = `ยืนยันตัวตน: <b>${escapeHtml(app.studentName)}</b> &nbsp;|&nbsp; รหัส ${escapeHtml(app.studentId)} &nbsp;|&nbsp; ห้อง ${escapeHtml(app.classRoom)}`;
     await refreshSelectScreen();
-  }catch(e){
-    errBox.textContent = e.message; errBox.style.display='block';
-  }
+  }catch(e){ errBox.textContent = e.message; errBox.style.display='block'; }
   btn.disabled = false; btn.textContent = 'ตรวจสอบสิทธิ์ →';
 }
 document.getElementById('checkIdBtn').addEventListener('click', tryLogin);
@@ -388,12 +423,8 @@ document.getElementById('studentIdInput').addEventListener('keydown', (e)=>{ if(
 let pickedKey = null;
 async function refreshSelectScreen(){
   document.getElementById('qgridWrap').innerHTML = '<div class="loading-note">กำลังโหลดรายวิชา...</div>';
-  try{
-    ELIGIBLE_SETS = await apiGetEligibleSets(app.classRoom);
-  }catch(e){
-    document.getElementById('qgridWrap').innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>';
-    return;
-  }
+  try{ ELIGIBLE_SETS = await apiGetEligibleSets(app.classRoom); }
+  catch(e){ document.getElementById('qgridWrap').innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
   ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
   renderQGrid();
 }
@@ -408,6 +439,7 @@ function renderQGrid(){
       <h3>${escapeHtml(q.title)}</h3>
       <p>${escapeHtml(q.desc||'')}</p>
       <div class="lvbadges">
+        ${q.examType ? `<span class="lvbadge examtype">${escapeHtml(q.examType)}</span>` : ''}
         <span class="lvbadge">${SECTION_ICON.mc} ปรนัย ${q.sections.mc.questions.length} ข้อ</span>
         <span class="lvbadge">${SECTION_ICON.matching} จับคู่ ${q.sections.matching.left.length} คู่</span>
         <span class="lvbadge">${SECTION_ICON.written} อัตนัย ${q.sections.written.questions.length} ข้อ</span>
@@ -445,9 +477,10 @@ function runCountdown(){
 }
 function beginExam(){
   examScreen.classList.remove('hidden');
+  app.examInProgress = true;
   document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
   document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
-  document.getElementById('hubQTagline').textContent = currentQuestion().tagline||'';
+  document.getElementById('hubQTagline').textContent = (currentQuestion().examType ? '['+currentQuestion().examType+'] ' : '') + (currentQuestion().tagline||'');
   app.timeLeft = 60*60;
   app.examEndTime = Date.now() + app.timeLeft*1000;
   updateReloadTag();
@@ -492,11 +525,11 @@ function showHub(){
 }
 function renderHubCards(){
   const grid = document.getElementById('lvGrid');
-  const descBy = {mc:'เลือกคำตอบที่ถูกต้องที่สุดในแต่ละข้อ', matching:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', written:'เขียนตอบด้วยคำพูดของตนเอง (รอครูตรวจยืนยันคะแนน)'};
+  const descBy = {mc:'เลือกคำตอบที่ถูกต้องที่สุดในแต่ละข้อ', matching:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', written:'เขียนตอบด้วยคำพูดของตนเอง'};
   grid.innerHTML = SECTION_KEYS.map(sec=>{
-    const att = app.attempts[sec];
-    const statusHtml = att ? `<span class="lv-status done">ส่งแล้ว · คะแนนสูงสุด ${att.best.total}/100</span>` : `<span class="lv-status todo">ยังไม่ทำ</span>`;
-    const btnLabel = att ? 'แก้ไขต่อ (คะแนนสูงสุดจะถูกเก็บไว้)' : 'เข้าทำส่วนนี้';
+    const done = app.submittedSections[sec];
+    const statusHtml = done ? `<span class="lv-status done">บันทึกคำตอบแล้ว</span>` : `<span class="lv-status todo">ยังไม่ทำ</span>`;
+    const btnLabel = done ? 'แก้ไขคำตอบต่อ' : 'เข้าทำส่วนนี้';
     return `<div class="lv-card">
       <h3>${SECTION_ICON[sec]} ${SECTION_TITLES[sec]}</h3>
       <div class="lv-desc">${descBy[sec]}</div>
@@ -505,27 +538,16 @@ function renderHubCards(){
     </div>`;
   }).join('');
   grid.querySelectorAll('[data-enter]').forEach(btn=>{ btn.addEventListener('click', ()=> enterSection(btn.dataset.enter)); });
-  const anyDone = SECTION_KEYS.some(sec=>app.attempts[sec]);
+  const anyDone = SECTION_KEYS.some(sec=>app.submittedSections[sec]);
   document.getElementById('endExamBtn').disabled = !anyDone;
 }
 document.getElementById('endExamBtn').addEventListener('click', ()=>{
-  if(confirm('ยืนยันจบการสอบ? หลังจากนี้จะไม่สามารถทำส่วนเพิ่มเติมได้ และระบบจะสร้างไฟล์ PDF ให้ดาวน์โหลด')){
+  if(confirm('ยืนยันจบการสอบและส่งคำตอบ? หลังจากนี้จะไม่สามารถแก้ไขคำตอบได้อีก')){
     clearInterval(app.globalTimerHandle);
     finalizeExam(false);
   }
 });
 document.getElementById('backToHubBtn').addEventListener('click', showHub);
-
-/* ============ ANTI-CHEAT ============ */
-document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden && !examScreen.classList.contains('hidden') && !app.examEnded){
-    state.tabSwitches++;
-    const tag = document.getElementById('tabSwitchTag');
-    tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
-    tag.classList.add('badge-warn');
-    scheduleSave();
-  }
-});
 
 /* ============ ENTER SECTION ============ */
 let matchPendingLeft = null;
@@ -554,13 +576,13 @@ function renderSection(){
         <label class="choice-item ${picked===ci?'picked':''}" data-qid="${qq.id}" data-ci="${ci}">
           <input type="radio" name="${qq.id}" ${picked===ci?'checked':''}> <span>${escapeHtml(c)}</span>
         </label>`).join('');
-      return `<div class="qblock"><div class="qnum">ข้อ ${i+1} (${qq.points} คะแนน)</div><div class="qtext">${escapeHtml(qq.text)}</div><div class="choice-list">${choicesHtml}</div></div>`;
+      return `<div class="qblock"><div class="qnum">ข้อ ${i+1}</div><div class="qtext">${escapeHtml(qq.text)}</div><div class="choice-list">${choicesHtml}</div></div>`;
     }).join('');
   } else if(sec==='matching'){
     const matched = draftAnswers.matching;
     const badgeFor = {}; let bi=1;
     Object.keys(matched).forEach(lid=>{ badgeFor[lid+'|'+matched[lid]] = bi++; });
-    html += `<div class="match-hint">คลิกรายการทางซ้าย 1 รายการ แล้วคลิกรายการทางขวาที่สัมพันธ์กันเพื่อจับคู่ (${s.pointsEach} คะแนน/คู่ที่ถูก)</div>`;
+    html += `<div class="match-hint">คลิกรายการทางซ้าย 1 รายการ แล้วคลิกรายการทางขวาที่สัมพันธ์กันเพื่อจับคู่</div>`;
     html += `<div class="match-wrap"><div class="match-col" id="matchLeftCol"><h4>รายการ ก</h4>`;
     html += s.left.map(item=>{
       const r = matched[item.id];
@@ -582,13 +604,12 @@ function renderSection(){
   } else if(sec==='written'){
     html += s.questions.map((qq,i)=>{
       const val = draftAnswers.written[qq.id] || '';
-      return `<div class="qblock"><div class="qnum">ข้อ ${i+1} (เต็ม ${qq.maxPoints} คะแนน)</div><div class="qtext">${escapeHtml(qq.text)}</div>
-        <textarea class="written-textarea" data-qid="${qq.id}" placeholder="พิมพ์คำตอบที่นี่...">${escapeHtml(val)}</textarea>
-        <div class="written-meta"><span>คะแนนเบื้องต้นจากระบบ ครูจะตรวจยืนยันอีกครั้ง</span></div></div>`;
+      return `<div class="qblock"><div class="qnum">ข้อ ${i+1}</div><div class="qtext">${escapeHtml(qq.text)}</div>
+        <textarea class="written-textarea" data-qid="${qq.id}" placeholder="พิมพ์คำตอบที่นี่...">${escapeHtml(val)}</textarea></div>`;
     }).join('');
   }
 
-  html += `<div class="section-actions"><button class="btn btn-primary" id="submitSectionBtn">ส่งคำตอบส่วนนี้</button></div>`;
+  html += `<div class="section-actions"><button class="btn btn-primary" id="submitSectionBtn">บันทึกคำตอบส่วนนี้</button></div>`;
   inner.innerHTML = html;
   bindSectionEvents();
 }
@@ -621,9 +642,7 @@ function bindSectionEvents(){
       });
     });
     const clearBtn = document.getElementById('clearMatchBtn');
-    if(clearBtn) clearBtn.addEventListener('click', ()=>{
-      draftAnswers.matching = {}; matchPendingLeft = null; scheduleSave(); renderSection();
-    });
+    if(clearBtn) clearBtn.addEventListener('click', ()=>{ draftAnswers.matching = {}; matchPendingLeft = null; scheduleSave(); renderSection(); });
   } else if(sec==='written'){
     document.querySelectorAll('.written-textarea').forEach(ta=>{
       ta.addEventListener('input', ()=>{ draftAnswers.written[ta.dataset.qid] = ta.value; scheduleSave(); });
@@ -633,222 +652,54 @@ function bindSectionEvents(){
   if(submitBtn) submitBtn.addEventListener('click', submitSection);
 }
 
-/* ============ GRADING ============ */
-function gradeMC(){
-  const s = currentQuestion().sections.mc;
-  let total = 0; const answers = {};
-  s.questions.forEach(qq=>{
-    const picked = draftAnswers.mc[qq.id];
-    answers[qq.id] = picked;
-    if(picked===qq.answer) total += qq.points;
-  });
-  return { total: Math.round(total), answers };
-}
-function gradeMatching(){
-  const s = currentQuestion().sections.matching;
-  let total = 0; const answers = Object.assign({}, draftAnswers.matching);
-  s.left.forEach(item=>{ if(answers[item.id] && answers[item.id]===s.correctMap[item.id]) total += s.pointsEach; });
-  return { total: Math.round(total), answers };
-}
-function keywordScore(text, keywords, maxPoints){
-  if(!text || !text.trim() || !keywords.length) return 0;
-  const norm = text.toLowerCase();
-  let hit = 0;
-  keywords.forEach(k=>{ if(norm.includes(k.toLowerCase())) hit++; });
-  return Math.round((hit/keywords.length)*maxPoints);
-}
-function gradeWritten(){
-  const s = currentQuestion().sections.written;
-  let total = 0; const answers = {};
-  s.questions.forEach(qq=>{
-    const text = draftAnswers.written[qq.id] || '';
-    const pts = keywordScore(text, qq.keywords, qq.maxPoints);
-    answers[qq.id] = { text, autoScore: pts };
-    total += pts;
-  });
-  return { total: Math.round(total), answers };
-}
-function graderFor(sec){ if(sec==='mc') return gradeMC; if(sec==='matching') return gradeMatching; return gradeWritten; }
-
-/* ============ SUBMIT SECTION ============ */
+/* ============ SUBMIT SECTION (local only — no score is computed or shown here) ============ */
 function submitSection(){
-  const sec = app.section;
-  const result = graderFor(sec)();
-  const existing = app.attempts[sec];
-  const isNewBest = !existing || result.total > existing.best.total;
-  const bestRecord = isNewBest ? result : existing.best;
-  app.attempts[sec] = { latest: result, best: bestRecord };
+  app.submittedSections[app.section] = true;
   saveSession();
-  showResultModal(sec, result, isNewBest, existing);
-}
-function showResultModal(sec, result, isNewBest, existing){
-  document.getElementById('modalTitle').textContent = SECTION_TITLES[sec] + ' — ผลคะแนน';
-  document.getElementById('modalScore').textContent = result.total + '/100';
-  const note = document.getElementById('modalBestNote');
-  if(existing){
-    note.textContent = isNewBest ? '🎉 คะแนนนี้สูงกว่าครั้งก่อน ระบบได้บันทึกเป็นคะแนนสูงสุดใหม่แล้ว' : 'คะแนนนี้ไม่สูงกว่าครั้งก่อน ระบบจึงเก็บคะแนนสูงสุดเดิม (' + existing.best.total + '/100) ไว้';
-    note.classList.toggle('is-new', isNewBest);
-  } else {
-    note.textContent = 'บันทึกคะแนนนี้เป็นคะแนนสูงสุดของส่วนนี้แล้ว';
-    note.classList.add('is-new');
-  }
-  document.getElementById('modalWrittenNote').classList.toggle('hidden', sec!=='written');
   document.getElementById('levelResultModal').classList.remove('hidden');
 }
 document.getElementById('modalStayBtn').addEventListener('click', ()=>{ document.getElementById('levelResultModal').classList.add('hidden'); });
 document.getElementById('modalHubBtn').addEventListener('click', ()=>{ document.getElementById('levelResultModal').classList.add('hidden'); showHub(); });
 
-/* ============ PDF GENERATION ============ */
-async function generateFinalPDF(){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:'pt', format:'a4'});
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 48;
-  let y = margin;
-  function ensureSpace(need){ if(y+need>pageH-margin){ doc.addPage(); y=margin; } }
-  function wrapText(text, size, font, style){ doc.setFont(font||'helvetica', style||'normal'); doc.setFontSize(size); return doc.splitTextToSize(text, pageW-margin*2); }
-  doc.setFont('helvetica','bold'); doc.setFontSize(20);
-  doc.text('Exam Result Report (Choice / Matching / Written)', margin, y); y+=30;
-  doc.setFont('helvetica','normal'); doc.setFontSize(12);
-  doc.text('Student ID: ' + (app.studentId||'-'), margin, y); y+=18;
-  doc.text('Student: ' + (app.studentName||'-') + '   Class: ' + (app.classRoom||'-'), margin, y); y+=18;
-  doc.text('Subject: ' + (currentQuestion()?.title||'-'), margin, y); y+=18;
-  doc.text('Subject teacher: ' + (currentQuestion()?.subjectTeacherName||'-'), margin, y); y+=18;
-  doc.text('Date: ' + new Date().toLocaleString('th-TH'), margin, y); y+=18;
-  doc.text('Page reloads during exam: ' + (app.reloadCount||0), margin, y); y+=18;
-  doc.text('Tab switches during exam: ' + (state.tabSwitches||0), margin, y); y+=26;
-
-  doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(`Overall Score: ${computeOverallScore20()} / 20`, margin, y); y+=22;
-  doc.setFont('helvetica','bold'); doc.setFontSize(13);
-  doc.text('Summary (per section)', margin, y); y+=18;
-  doc.setFont('helvetica','normal'); doc.setFontSize(11);
-  SECTION_KEYS.forEach(sec=>{
-    const att = app.attempts[sec];
-    doc.text(`${SECTION_TITLES[sec]}: ` + (att? `${att.best.total} / 100` : 'Not attempted'), margin+10, y);
-    y+=16;
-  });
-  y += 8;
-  doc.setFont('helvetica','italic'); doc.setFontSize(10);
-  doc.text('Note: Written-section scores are auto-estimated by keyword matching. Teacher must review and confirm final scores.', margin, y);
-  y += 20;
-
-  const q = currentQuestion();
-  const mcAtt = app.attempts.mc;
-  if(mcAtt){
-    doc.addPage(); y = margin;
-    doc.setFont('helvetica','bold'); doc.setFontSize(16);
-    doc.text('Section 1 - Multiple Choice (Best Attempt: ' + mcAtt.best.total + '/100)', margin, y); y+=24;
-    q.sections.mc.questions.forEach((qq,i)=>{
-      ensureSpace(60);
-      const picked = mcAtt.best.answers[qq.id];
-      const lines = wrapText(`${i+1}. ${qq.text}`, 11, 'helvetica', 'bold');
-      lines.forEach(l=>{ ensureSpace(14); doc.text(l, margin, y); y+=14; });
-      const pickedText = (picked!=null) ? qq.choices[picked] : '(ไม่ได้ตอบ / not answered)';
-      const ansLines = wrapText('Student answer: ' + pickedText, 10.5, 'helvetica','normal');
-      ansLines.forEach(l=>{ ensureSpace(13); doc.text(l, margin+10, y); y+=13; });
-      y += 8;
-    });
-  }
-  const matchAtt = app.attempts.matching;
-  if(matchAtt){
-    doc.addPage(); y = margin;
-    doc.setFont('helvetica','bold'); doc.setFontSize(16);
-    doc.text('Section 2 - Matching (Best Attempt: ' + matchAtt.best.total + '/100)', margin, y); y+=24;
-    doc.setFont('helvetica','normal'); doc.setFontSize(11);
-    q.sections.matching.left.forEach(item=>{
-      ensureSpace(16);
-      const rid = matchAtt.best.answers[item.id];
-      const rightItem = q.sections.matching.right.find(r=>r.id===rid);
-      doc.text(`${item.text}  ->  ${rightItem ? rightItem.text : '(ไม่ได้จับคู่ / not matched)'}`, margin+10, y);
-      y += 16;
-    });
-  }
-  const writtenAtt = app.attempts.written;
-  if(writtenAtt){
-    doc.addPage(); y = margin;
-    doc.setFont('helvetica','bold'); doc.setFontSize(16);
-    doc.text('Section 3 - Written (Auto Estimated: ' + writtenAtt.best.total + '/100)', margin, y); y+=24;
-    q.sections.written.questions.forEach((qq,i)=>{
-      ensureSpace(40);
-      const a = writtenAtt.best.answers[qq.id] || {text:'', autoScore:0};
-      const qLines = wrapText(`${i+1}. ${qq.text}  (auto score: ${a.autoScore}/${qq.maxPoints})`, 11, 'helvetica','bold');
-      qLines.forEach(l=>{ ensureSpace(14); doc.text(l, margin, y); y+=14; });
-      const ansLines = wrapText('Student answer: ' + (a.text || '(ไม่ได้ตอบ / not answered)'), 10.5, 'helvetica','normal');
-      ansLines.forEach(l=>{ ensureSpace(13); doc.text(l, margin+10, y); y+=13; });
-      y += 6;
-      doc.setDrawColor(226,232,240); doc.line(margin, y, pageW-margin, y); y += 12;
-    });
-  }
-  return doc;
-}
-
-/* ============ SAVE RESULT TO BACKEND (goes to the subject teacher's dashboard) ============ */
-async function saveResultRecord(){
-  const q = currentQuestion();
+/* ============ SUBMIT RESULT TO BACKEND (server grades; score is never sent back) ============ */
+async function submitFinalAnswers(){
   const record = {
-    studentId: app.studentId,
-    studentName: app.studentName,
-    classRoom: app.classRoom,
+    studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
     questionKey: app.questionKey,
-    questionTitle: q?.title || '-',
-    subjectTeacherName: q?.subjectTeacherName || '',
-    subjectTeacherEmail: q?.subjectTeacherEmail || '',
-    overallScore20: computeOverallScore20(),
-    sectionScores: {
-      mc: app.attempts.mc ? app.attempts.mc.best.total : null,
-      matching: app.attempts.matching ? app.attempts.matching.best.total : null,
-      written: app.attempts.written ? app.attempts.written.best.total : null
-    },
-    tabSwitches: state.tabSwitches,
-    reloadCount: app.reloadCount,
-    detail: { attempts: app.attempts }
+    tabSwitches: state.tabSwitches, reloadCount: app.reloadCount,
+    rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    answers: { mc: draftAnswers.mc, matching: draftAnswers.matching, written: draftAnswers.written }
   };
   try{ await apiSubmitResult(record); }
-  catch(e){ console.error('ส่งผลสอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ', e); showToast('บันทึกผลสอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ (ไฟล์ PDF ยังดาวน์โหลดได้ตามปกติ)'); }
+  catch(e){ console.error('ส่งคำตอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ', e); showToast('เกิดปัญหาในการส่งคำตอบ กรุณาลองใหม่ หรือแจ้งอาจารย์/ผู้ดูแลระบบ'); throw e; }
 }
 
 /* ============ END OF EXAM ============ */
 function forceTimeUp(){ finalizeExam(true); }
 async function finalizeExam(auto){
   app.examEnded = true;
+  app.examInProgress = false;
   clearInterval(app.globalTimerHandle);
   saveSession();
-  await saveResultRecord();
+  try{ await submitFinalAnswers(); }catch(e){ /* toast already shown */ }
   clearSessionData();
   examScreen.classList.add('hidden');
   finalScreen.classList.remove('hidden');
-  document.getElementById('finalHeadline').textContent = auto ? 'หมดเวลาสอบ' : 'ส่งข้อสอบเรียบร้อยแล้ว';
+  document.getElementById('finalHeadline').textContent = auto ? 'หมดเวลาสอบ — ส่งคำตอบอัตโนมัติแล้ว' : 'ส่งคำตอบเรียบร้อยแล้ว';
   document.getElementById('finalSummaryText').textContent = auto
-    ? 'ครบเวลา 60 นาทีแล้ว ระบบปิดการทำข้อสอบและสร้างไฟล์ PDF ให้อัตโนมัติ พร้อมส่งคะแนนให้อาจารย์ประจำวิชาเรียบร้อยแล้ว'
-    : 'ระบบได้บันทึกคะแนนสูงสุดของทุกส่วนที่ทำไว้ สร้างไฟล์ PDF ให้ดาวน์โหลด และส่งคะแนนให้อาจารย์ประจำวิชาเรียบร้อยแล้ว';
-  document.getElementById('finalOverallScore').textContent = computeOverallScore20()+'/20';
+    ? 'ครบเวลา 60 นาทีแล้ว ระบบปิดการทำข้อสอบและส่งคำตอบของคุณเข้าสู่ระบบให้อัตโนมัติ'
+    : 'ระบบได้บันทึกคำตอบทุกส่วนที่คุณทำไว้ และส่งเข้าสู่ระบบเรียบร้อยแล้ว';
   const list = document.getElementById('finalList');
   list.innerHTML = SECTION_KEYS.map(sec=>{
-    const att = app.attempts[sec];
-    return `<div class="final-row"><span>${SECTION_TITLES[sec]}</span><b>${att? att.best.total+'/100' : 'ไม่ได้ทำ'}</b></div>`;
+    const done = app.submittedSections[sec];
+    return `<div class="final-row"><span>${SECTION_TITLES[sec]}</span><b>${done ? 'ส่งคำตอบแล้ว' : 'ไม่ได้ทำ'}</b></div>`;
   }).join('');
-  const reloadNote = document.getElementById('finalReloadNote');
-  if(app.reloadCount>0){
-    reloadNote.textContent = '🔄 หมายเหตุ: มีการโหลดหน้าใหม่ระหว่างการสอบทั้งหมด ' + app.reloadCount + ' ครั้ง (ระบบทำต่อจากข้อมูลเดิมทุกครั้ง ไม่ได้เริ่มทำใหม่)';
-    reloadNote.classList.remove('hidden');
-  } else reloadNote.classList.add('hidden');
-  try{
-    const doc = await generateFinalPDF();
-    window.__examDoc = doc;
-    doc.save(`ผลสอบ_${(app.studentName||'student').replace(/\s+/g,'_')}.pdf`);
-  }catch(e){ console.error('PDF generation failed', e); }
 }
-document.getElementById('redownloadBtn').addEventListener('click', ()=>{
-  if(window.__examDoc) window.__examDoc.save(`ผลสอบ_${(app.studentName||'student').replace(/\s+/g,'_')}.pdf`);
-  else alert('ไม่พบไฟล์ PDF ที่สร้างไว้ ลองรีเฟรชหน้าใหม่');
-});
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   clearSessionData();
   hideAllTopScreens(); startScreen.classList.remove('hidden');
-  app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, attempts:{mc:null,matching:null,written:null}, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, reloadCount:0};
-  state = {tabSwitches:0};
+  app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, submittedSections:{mc:false,matching:false,written:false}, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
+  state = {tabSwitches:0, rightClickAttempts:0, copyAttempts:0};
   draftAnswers = {mc:{}, matching:{}, written:{}};
 });
 
@@ -859,40 +710,29 @@ function attemptResumeSession(){
   ELIGIBLE_SETS = saved.eligibleSets || [];
   ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
   if(!ELIGIBLE_SETS_BY_KEY[saved.questionKey]) return false;
+  if(saved.examEnded) return false; // already submitted — start fresh rather than showing a stale confirmation
 
   app.studentId = saved.studentId; app.studentName = saved.studentName || ''; app.classRoom = saved.classRoom || '';
   app.questionKey = saved.questionKey;
-  app.attempts = saved.attempts || {mc:null, matching:null, written:null};
-  app.examEnded = !!saved.examEnded;
+  app.submittedSections = saved.submittedSections || {mc:false, matching:false, written:false};
   app.examEndTime = saved.examEndTime;
   app.reloadCount = (saved.reloadCount||0) + 1;
   state.tabSwitches = saved.tabSwitches || 0;
+  state.rightClickAttempts = saved.rightClickAttempts || 0;
+  state.copyAttempts = saved.copyAttempts || 0;
   draftAnswers = saved.draftAnswers || {mc:{}, matching:{}, written:{}};
 
   hideAllTopScreens();
+  examScreen.classList.remove('hidden');
+  app.examInProgress = true;
   document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
   document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
   document.getElementById('hubQTagline').textContent = currentQuestion().tagline||'';
-  const tsTag = document.getElementById('tabSwitchTag');
-  tsTag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
-  if(state.tabSwitches>0) tsTag.classList.add('badge-warn');
+  document.getElementById('tabSwitchTag').textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+  if(state.tabSwitches>0) document.getElementById('tabSwitchTag').classList.add('badge-warn');
+  updateCheatTags();
   updateReloadTag();
 
-  if(app.examEnded){
-    finalScreen.classList.remove('hidden');
-    document.getElementById('finalHeadline').textContent = 'ส่งข้อสอบเรียบร้อยแล้ว';
-    document.getElementById('finalSummaryText').textContent = 'ตรวจพบว่าคุณได้ส่งข้อสอบชุดนี้ไปแล้วก่อนหน้านี้ ระบบจึงแสดงผลสรุปเดิมให้';
-    document.getElementById('finalOverallScore').textContent = computeOverallScore20()+'/20';
-    const list = document.getElementById('finalList');
-    list.innerHTML = SECTION_KEYS.map(sec=>{
-      const att = app.attempts[sec];
-      return `<div class="final-row"><span>${SECTION_TITLES[sec]}</span><b>${att? att.best.total+'/100' : 'ไม่ได้ทำ'}</b></div>`;
-    }).join('');
-    document.getElementById('finalReloadNote').classList.add('hidden');
-    return true;
-  }
-
-  examScreen.classList.remove('hidden');
   const remaining = app.examEndTime ? Math.max(0, Math.round((app.examEndTime - Date.now())/1000)) : 0;
   app.timeLeft = remaining;
   if(remaining<=0){ showHub(); saveSession(); forceTimeUp(); return true; }
@@ -910,7 +750,7 @@ function showToast(msg){
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(()=>t.remove(), 2600);
+  setTimeout(()=>t.remove(), 2800);
 }
 
 /* ============ INIT ============ */

@@ -44,23 +44,24 @@ button{font-family:inherit;cursor:pointer;}
 .admin-tab-btn{background:transparent;border:none;border-bottom:2.5px solid transparent;padding:10px 6px;font-weight:600;font-size:13.5px;color:var(--sub);}
 .admin-tab-btn.active{color:var(--blue);border-color:var(--blue);}
 .admin-body{flex:1;overflow-y:auto;padding:28px 24px 60px;display:flex;justify-content:center;}
-.admin-inner{max-width:1040px;width:100%;}
+.admin-inner{max-width:1100px;width:100%;}
 .admin-inner h2{font-size:19px;margin:0 0 4px;}
 .admin-inner .sub{color:var(--sub);font-size:13px;margin:0 0 20px;}
 .set-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-bottom:22px;}
-.set-card{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:8px;}
+.set-card{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:6px;}
 .set-card h3{font-size:15px;margin:0;}
 .set-card p{font-size:12px;color:var(--sub);margin:0;line-height:1.6;}
 .set-card .set-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.badge-pill{display:inline-block;font-size:11px;font-weight:600;background:var(--indigo);color:#fff;padding:3px 10px;border-radius:999px;width:fit-content;}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:18px;}
 .panel h3{font-size:14.5px;margin:0 0 4px;display:flex;align-items:center;justify-content:space-between;}
 .panel .panel-sub{font-size:12px;color:var(--sub);margin:0 0 16px;}
 .field-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
 .field{flex:1;min-width:160px;margin-bottom:14px;}
 .field label{display:block;font-size:12px;font-weight:600;color:var(--sub);margin-bottom:6px;}
-.field input[type=text],.field input[type=number],.field input[type=email],.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;}
+.field input[type=text],.field input[type=number],.field input[type=email],.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;}
 .field textarea{resize:vertical;min-height:60px;}
-.field input:focus,.field textarea:focus{outline:none;border-color:var(--blue);}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--blue);}
 .mini-card{background:var(--grid);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px;position:relative;}
 .mini-card .rm-btn{position:absolute;top:10px;right:10px;background:transparent;border:none;color:var(--red);font-size:16px;font-weight:700;}
 .choice-edit-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
@@ -68,13 +69,13 @@ button{font-family:inherit;cursor:pointer;}
 .choice-edit-row input[type=text]{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;}
 .add-row-btn{background:var(--surface);border:1.5px dashed var(--line);border-radius:10px;padding:9px 14px;font-size:12.5px;color:var(--blue);width:100%;}
 .add-row-btn:hover{border-color:var(--blue);}
-.editor-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;}
+.editor-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;align-items:center;}
 .match-edit-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
 .match-edit-row .idx{font-family:'Prompt',sans-serif;font-weight:700;font-size:12px;color:var(--blue);width:22px;flex:none;}
 .match-edit-row input[type=text]{flex:1;min-width:120px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;}
-.result-table{width:100%;border-collapse:collapse;font-size:13px;}
-.result-table th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--sub);border-bottom:1.5px solid var(--line);padding:8px 10px;}
-.result-table td{padding:10px;border-bottom:1px solid var(--line);}
+.result-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.result-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--sub);border-bottom:1.5px solid var(--line);padding:8px 8px;}
+.result-table td{padding:9px 8px;border-bottom:1px solid var(--line);}
 .result-table tr:hover td{background:var(--grid);}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;z-index:200;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);}
 .loading-note{font-size:13px;color:var(--sub);padding:30px;text-align:center;}
@@ -90,6 +91,15 @@ button{font-family:inherit;cursor:pointer;}
 .filter-select{padding:9px 12px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;background:var(--surface);}
 .import-report{font-size:12.5px;background:var(--grid);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;line-height:1.7;}
 .import-report .err{color:var(--red);}
+.total-indicator{font-size:13px;font-weight:700;padding:10px 14px;border-radius:10px;margin-bottom:16px;display:inline-block;}
+.total-indicator.ok{background:rgba(22,163,74,.1);color:var(--green);}
+.total-indicator.warn{background:rgba(217,119,6,.12);color:var(--amber);}
+.pub-pill{font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:none;}
+.pub-pill.pub-yes{background:rgba(22,163,74,.12);color:var(--green);}
+.pub-pill.pub-no{background:rgba(217,119,6,.12);color:var(--amber);}
+.detail-row td{background:var(--grid);padding:14px 16px;}
+.detail-block{font-size:12.5px;line-height:1.8;margin-bottom:10px;}
+.detail-block b{color:var(--indigo);}
 </style>
 </head>
 <body>
@@ -128,7 +138,7 @@ button{font-family:inherit;cursor:pointer;}
         <div class="toolbar-row">
           <div>
             <h2>ชุดข้อสอบทั้งหมด</h2>
-            <p class="sub" style="margin:0;">กำหนดได้ว่าห้องไหนมีสิทธิสอบวิชานี้ และใครคืออาจารย์ประจำวิชาที่จะได้รับคะแนน</p>
+            <p class="sub" style="margin:0;">กำหนดประเภทข้อสอบ (กลางภาค/ปลายภาค), ห้องที่มีสิทธิสอบ, อาจารย์ประจำวิชา และคะแนนเต็มรวม 20 คะแนน</p>
           </div>
           <button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button>
         </div>
@@ -141,10 +151,9 @@ button{font-family:inherit;cursor:pointer;}
         <div class="toolbar-row">
           <div>
             <h2>รายชื่อนักเรียน</h2>
-            <p class="sub" style="margin:0;">ข้อมูลนี้ใช้ตรวจสิทธิ์ตอนนักเรียนกรอกรหัสเข้าสอบ และดึงชื่อ-สกุล-ห้องมาแสดงอัตโนมัติ</p>
+            <p class="sub" style="margin:0;">ใช้ตรวจสิทธิ์ตอนนักเรียนกรอกรหัสเข้าสอบ และดึงชื่อ-สกุล-ห้องมาแสดงอัตโนมัติ</p>
           </div>
         </div>
-
         <div class="panel">
           <h3>นำเข้ารายชื่อแบบรวดเร็ว (วางจาก Excel)</h3>
           <p class="panel-sub">คัดลอกคอลัมน์ รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง จาก Excel แล้ววางที่นี่ (1 บรรทัดต่อ 1 คน) หากมีรหัสซ้ำในระบบอยู่แล้ว ระบบจะอัปเดตข้อมูลแทนการเพิ่มซ้ำ</p>
@@ -152,7 +161,6 @@ button{font-family:inherit;cursor:pointer;}
           <div class="editor-actions"><button class="btn btn-primary btn-sm" id="bulkImportBtn">นำเข้ารายชื่อ</button></div>
           <div id="importReport"></div>
         </div>
-
         <div class="panel">
           <h3>เพิ่มทีละคน</h3>
           <div class="field-row">
@@ -163,7 +171,6 @@ button{font-family:inherit;cursor:pointer;}
           </div>
           <button class="btn btn-primary btn-sm" id="addStudentBtn">+ เพิ่มนักเรียน</button>
         </div>
-
         <div class="toolbar-row">
           <select class="filter-select" id="classFilterSelect"><option value="">ทุกห้อง</option></select>
           <button class="btn btn-ghost btn-sm" id="refreshStudentsBtn">↻ รีเฟรช</button>
@@ -176,9 +183,10 @@ button{font-family:inherit;cursor:pointer;}
         <div class="toolbar-row">
           <div>
             <h2>ผลสอบที่นักเรียนส่งเข้ามา</h2>
-            <p class="sub" style="margin:0;">กรองตามรายวิชา แล้วส่งออกเป็น Excel เพื่อส่งให้อาจารย์ประจำวิชา</p>
+            <p class="sub" style="margin:0;">คะแนนเป็นความลับจนกว่าจะกด "ประกาศผล" — นักเรียนจะไม่เห็นคะแนนในระบบไม่ว่ากรณีใด ต้องแจ้งผลเองนอกระบบ</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select class="filter-select" id="examTypeFilterSelect"><option value="">ทุกประเภทข้อสอบ</option></select>
             <select class="filter-select" id="setFilterSelect"><option value="">ทุกรายวิชา</option></select>
             <button class="btn btn-ghost btn-sm" id="refreshResultsBtn">↻ รีเฟรช</button>
             <button class="btn btn-primary btn-sm" id="exportExcelBtn">⬇ ส่งออก Excel</button>
@@ -215,17 +223,25 @@ async function apiFetch(path, options){
   return res.json();
 }
 async function apiVerifyAdmin(key){ const res = await fetch(API_BASE+'/api/admin/verify', {method:'POST', headers:{'x-admin-key':key}}); return res.ok; }
-async function apiGetSets(){ return apiFetch('/api/sets'); }
+async function apiGetAdminSets(){ return apiFetch('/api/admin/sets', { admin:true }); }
 async function apiCreateSet(set){ return apiFetch('/api/sets', { method:'POST', body:set, admin:true }); }
 async function apiUpdateSet(key, set){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'PUT', body:set, admin:true }); }
 async function apiDuplicateSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', admin:true }); }
 async function apiDeleteSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'DELETE', admin:true }); }
-async function apiGetResults(setKey){ return apiFetch('/api/results'+(setKey?('?setKey='+encodeURIComponent(setKey)):''), { admin:true }); }
+async function apiGetResults(setKey, examType){
+  const qs = [];
+  if(setKey) qs.push('setKey='+encodeURIComponent(setKey));
+  if(examType) qs.push('examType='+encodeURIComponent(examType));
+  return apiFetch('/api/results'+(qs.length?('?'+qs.join('&')):''), { admin:true });
+}
 async function apiGetStudents(classRoom){ return apiFetch('/api/students'+(classRoom?('?classRoom='+encodeURIComponent(classRoom)):''), { admin:true }); }
 async function apiAddStudent(s){ return apiFetch('/api/students', { method:'POST', body:s, admin:true }); }
 async function apiBulkImportStudents(text){ return apiFetch('/api/students/bulk', { method:'POST', body:{text}, admin:true }); }
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiGetClasses(){ return apiFetch('/api/classes', { admin:true }); }
+async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
+async function apiSetPublished(id, published){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, admin:true }); }
+async function apiPublishAllForSet(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', admin:true }); }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -234,6 +250,8 @@ function showToast(msg){
   const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
   document.body.appendChild(t); setTimeout(()=>t.remove(), 2800);
 }
+
+let EXAM_TYPES = ['กลางภาค','ปลายภาค'];
 
 /* ============ LOGIN ============ */
 const adminLoginScreen = document.getElementById('adminLoginScreen');
@@ -274,7 +292,10 @@ async function initAdmin(){
   document.getElementById('setEditor').classList.add('hidden');
   document.getElementById('setEditor').innerHTML = '';
   document.getElementById('setListWrap').innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
-  ADMIN_SETS = await apiGetSets().catch(e=>{ showToast(e.message); return []; });
+  try{ EXAM_TYPES = await apiGetExamTypes(); }catch(e){}
+  const etSel = document.getElementById('examTypeFilterSelect');
+  etSel.innerHTML = '<option value="">ทุกประเภทข้อสอบ</option>' + EXAM_TYPES.map(t=>`<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
+  ADMIN_SETS = await apiGetAdminSets().catch(e=>{ showToast(e.message); return []; });
   renderSetList();
   populateSetFilterOptions();
 }
@@ -295,11 +316,14 @@ function renderSetList(){
   }
   wrap.innerHTML = `<div class="set-list">` + ADMIN_SETS.map(s=>{
     const classesText = (s.assignedClasses && s.assignedClasses.length) ? s.assignedClasses.join(', ') : 'ทุกห้อง (ยังไม่จำกัดสิทธิ์)';
+    const total = computeSetTotal(s);
     return `<div class="set-card">
+      <span class="badge-pill">${escapeHtml(s.examType||'-')}</span>
       <h3>${escapeHtml(s.title)}</h3>
       <p>${escapeHtml(s.desc||'')}</p>
       <p style="color:var(--blue);">🏫 ${escapeHtml(classesText)}</p>
       ${s.subjectTeacherName ? `<p>👤 อาจารย์: ${escapeHtml(s.subjectTeacherName)}</p>` : ''}
+      <p style="color:${total===20?'var(--green)':'var(--amber)'};">🎯 คะแนนเต็มรวม: ${total}/20 ${total!==20?'⚠️':'✓'}</p>
       <div class="set-actions">
         <button class="btn btn-ghost btn-sm" data-edit="${s.key}">แก้ไข</button>
         <button class="btn btn-ghost btn-sm" data-dup="${s.key}">ทำสำเนา</button>
@@ -311,23 +335,30 @@ function renderSetList(){
   wrap.querySelectorAll('[data-dup]').forEach(b=>b.addEventListener('click', ()=>duplicateSet(b.dataset.dup)));
   wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>deleteSet(b.dataset.del)));
 }
+function computeSetTotal(s){
+  let t = 0;
+  t += (s.sections.mc.questions||[]).reduce((a,q)=>a+(Number(q.points)||0),0);
+  t += (s.sections.matching.left||[]).length * (Number(s.sections.matching.pointsEach)||0);
+  t += (s.sections.written.questions||[]).reduce((a,q)=>a+(Number(q.maxPoints)||0),0);
+  return Math.round(t*100)/100;
+}
 async function duplicateSet(key){
-  try{ await apiDuplicateSetCall(key); ADMIN_SETS = await apiGetSets(); renderSetList(); populateSetFilterOptions(); showToast('ทำสำเนาชุดข้อสอบแล้ว'); }
+  try{ await apiDuplicateSetCall(key); ADMIN_SETS = await apiGetAdminSets(); renderSetList(); populateSetFilterOptions(); showToast('ทำสำเนาชุดข้อสอบแล้ว'); }
   catch(e){ showToast(e.message); }
 }
 async function deleteSet(key){
   if(!confirm('ยืนยันลบชุดข้อสอบนี้? การลบไม่สามารถย้อนกลับได้')) return;
-  try{ await apiDeleteSetCall(key); ADMIN_SETS = await apiGetSets(); renderSetList(); populateSetFilterOptions(); showToast('ลบชุดข้อสอบแล้ว'); }
+  try{ await apiDeleteSetCall(key); ADMIN_SETS = await apiGetAdminSets(); renderSetList(); populateSetFilterOptions(); showToast('ลบชุดข้อสอบแล้ว'); }
   catch(e){ showToast(e.message); }
 }
 document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(null));
 
 function blankSet(){
   return {
-    key: uid('set'), title:'', tagline:'', desc:'', assignedClasses:[], subjectTeacherName:'', subjectTeacherEmail:'',
+    key: uid('set'), title:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', assignedClasses:[], subjectTeacherName:'', subjectTeacherEmail:'',
     sections:{
       mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[] },
-      matching:{ title:'ส่วนที่ 2 — จับคู่', desc:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', left:[], right:[], correctMap:{}, pointsEach:20 },
+      matching:{ title:'ส่วนที่ 2 — จับคู่', desc:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', left:[], right:[], correctMap:{}, pointsEach:1 },
       written:{ title:'ส่วนที่ 3 — อัตนัย (เขียนตอบ)', desc:'ตอบคำถามด้วยคำพูดของตนเอง', questions:[] }
     }
   };
@@ -336,6 +367,7 @@ async function openEditor(key){
   editingIsNew = !key;
   editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : blankSet();
   if(!editingSet.assignedClasses) editingSet.assignedClasses = [];
+  if(!editingSet.examType) editingSet.examType = EXAM_TYPES[0]||'กลางภาค';
   try{ knownClasses = await apiGetClasses(); }catch(e){ knownClasses = []; }
   document.getElementById('setEditor').classList.remove('hidden');
   renderEditor();
@@ -355,6 +387,9 @@ function renderEditor(){
     <h3>ข้อมูลชุดข้อสอบ</h3>
     <div class="field-row">
       <div class="field"><label>ชื่อชุดข้อสอบ / รายวิชา</label><input type="text" id="fTitle" value="${escapeAttr(s.title)}" placeholder="เช่น ภาษาไทย ม.3 หน่วยที่ 1"></div>
+      <div class="field"><label>ประเภทข้อสอบ</label><select id="fExamType">${EXAM_TYPES.map(t=>`<option value="${escapeAttr(t)}" ${s.examType===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}</select></div>
+    </div>
+    <div class="field-row">
       <div class="field"><label>แท็กไลน์ (ถ้ามี)</label><input type="text" id="fTagline" value="${escapeAttr(s.tagline)}" placeholder="เช่น Unit 1 Quiz"></div>
     </div>
     <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
@@ -380,6 +415,8 @@ function renderEditor(){
     </div>
   </div>
 
+  <div id="totalIndicatorWrap"></div>
+
   <div class="panel">
     <h3>📝 ส่วนที่ 1 — ปรนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.mc.questions.length} ข้อ)</span></h3>
     <div id="mcList"></div>
@@ -389,7 +426,7 @@ function renderEditor(){
   <div class="panel">
     <h3>🔗 ส่วนที่ 2 — จับคู่ <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.matching.left.length} คู่)</span></h3>
     <div class="field-row">
-      <div class="field" style="max-width:200px;"><label>คะแนนต่อคู่ที่ถูก</label><input type="number" id="fMatchPoints" value="${s.sections.matching.pointsEach}" min="1"></div>
+      <div class="field" style="max-width:200px;"><label>คะแนนต่อคู่ที่ถูก</label><input type="number" step="0.5" id="fMatchPoints" value="${s.sections.matching.pointsEach}" min="0"></div>
     </div>
     <div id="matchList"></div>
     <button class="add-row-btn" id="addMatchBtn" type="button">+ เพิ่มคู่จับคู่</button>
@@ -407,8 +444,9 @@ function renderEditor(){
   </div>`;
   box.innerHTML = html;
 
-  renderClassChips(); renderMcList(); renderMatchList(); renderWrittenList();
+  renderClassChips(); renderMcList(); renderMatchList(); renderWrittenList(); updateTotalIndicator();
 
+  document.getElementById('fExamType').addEventListener('change', (e)=>{ s.examType = e.target.value; });
   document.getElementById('addClassBtn').addEventListener('click', ()=>{
     const inp = document.getElementById('addClassInput');
     const val = inp.value.trim();
@@ -419,25 +457,33 @@ function renderEditor(){
     if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
   });
   document.getElementById('addMcBtn').addEventListener('click', ()=>{
-    s.sections.mc.questions.push({id:uid('mc'), text:'', choices:['','','',''], answer:0, points:10});
-    renderMcList();
+    s.sections.mc.questions.push({id:uid('mc'), text:'', choices:['','','',''], answer:0, points:1});
+    renderMcList(); updateTotalIndicator();
   });
   document.getElementById('addMatchBtn').addEventListener('click', ()=>{
     const lid = uid('l'), rid = uid('r');
     s.sections.matching.left.push({id:lid, text:''});
     s.sections.matching.right.push({id:rid, text:''});
     s.sections.matching.correctMap[lid] = rid;
-    renderMatchList();
+    renderMatchList(); updateTotalIndicator();
   });
   document.getElementById('addWrittenBtn').addEventListener('click', ()=>{
-    s.sections.written.questions.push({id:uid('w'), text:'', keywords:[], maxPoints:20});
-    renderWrittenList();
+    s.sections.written.questions.push({id:uid('w'), text:'', keywords:[], maxPoints:1});
+    renderWrittenList(); updateTotalIndicator();
   });
-  document.getElementById('fMatchPoints').addEventListener('input', (e)=>{ s.sections.matching.pointsEach = parseInt(e.target.value,10) || 0; });
+  document.getElementById('fMatchPoints').addEventListener('input', (e)=>{ s.sections.matching.pointsEach = parseFloat(e.target.value) || 0; updateTotalIndicator(); });
   document.getElementById('cancelEditBtn').addEventListener('click', ()=>{
     if(confirm('ยกเลิกการแก้ไข? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
   });
   document.getElementById('saveSetBtn').addEventListener('click', saveEditingSet);
+}
+
+function updateTotalIndicator(){
+  const s = editingSet;
+  const total = computeSetTotal(s);
+  const ok = total === 20;
+  document.getElementById('totalIndicatorWrap').innerHTML =
+    `<div class="total-indicator ${ok?'ok':'warn'}">🎯 คะแนนเต็มรวมขณะนี้: ${total} / 20 ${ok ? '✓ ครบพอดี' : '⚠️ ยังไม่เท่ากับ 20 กรุณาปรับคะแนนแต่ละข้อ'}</div>`;
 }
 
 function renderClassChips(){
@@ -448,10 +494,7 @@ function renderClassChips(){
     return;
   }
   row.innerHTML = s.assignedClasses.map((c,i)=>`<span class="chip">${escapeHtml(c)}<button type="button" data-rmclass="${i}">✕</button></span>`).join('');
-  row.querySelectorAll('[data-rmclass]').forEach(b=>b.addEventListener('click', ()=>{
-    s.assignedClasses.splice(parseInt(b.dataset.rmclass,10),1);
-    renderClassChips();
-  }));
+  row.querySelectorAll('[data-rmclass]').forEach(b=>b.addEventListener('click', ()=>{ s.assignedClasses.splice(parseInt(b.dataset.rmclass,10),1); renderClassChips(); }));
 }
 
 function renderMcList(){
@@ -466,14 +509,14 @@ function renderMcList(){
           <input type="radio" name="mcAns${qi}" data-mc-ans="${qi}" data-ci="${ci}" ${qq.answer===ci?'checked':''} title="ทำเครื่องหมายคำตอบที่ถูกต้อง">
           <input type="text" data-mc-choice="${qi}" data-ci="${ci}" value="${escapeAttr(c)}" placeholder="ตัวเลือกที่ ${ci+1}">
         </div>`).join('')}
-      <div class="field" style="max-width:160px;margin-top:6px;margin-bottom:0;"><label>คะแนนข้อนี้</label><input type="number" data-mc-points="${qi}" value="${qq.points}" min="1"></div>
+      <div class="field" style="max-width:160px;margin-top:6px;margin-bottom:0;"><label>คะแนนข้อนี้</label><input type="number" step="0.5" data-mc-points="${qi}" value="${qq.points}" min="0"></div>
     </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีข้อปรนัย</p>`;
 
-  wrap.querySelectorAll('[data-rm-mc]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.mc.questions.splice(parseInt(b.dataset.rmMc,10),1); renderMcList(); }));
+  wrap.querySelectorAll('[data-rm-mc]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.mc.questions.splice(parseInt(b.dataset.rmMc,10),1); renderMcList(); updateTotalIndicator(); }));
   wrap.querySelectorAll('[data-mc-text]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcText,10)].text = el.value; }));
   wrap.querySelectorAll('[data-mc-choice]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcChoice,10)].choices[parseInt(el.dataset.ci,10)] = el.value; }));
   wrap.querySelectorAll('[data-mc-ans]').forEach(el=>el.addEventListener('change', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcAns,10)].answer = parseInt(el.dataset.ci,10); }));
-  wrap.querySelectorAll('[data-mc-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcPoints,10)].points = parseInt(el.value,10) || 0; }));
+  wrap.querySelectorAll('[data-mc-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcPoints,10)].points = parseFloat(el.value) || 0; updateTotalIndicator(); }));
 }
 
 function renderMatchList(){
@@ -496,7 +539,7 @@ function renderMatchList(){
     const lid = m.left[i].id;
     m.left.splice(i,1); m.right.splice(i,1);
     delete m.correctMap[lid];
-    renderMatchList();
+    renderMatchList(); updateTotalIndicator();
   }));
 }
 
@@ -508,13 +551,13 @@ function renderWrittenList(){
       <button class="rm-btn" data-rm-w="${qi}" type="button">✕</button>
       <div class="field" style="margin-bottom:10px;"><label>โจทย์ข้อ ${qi+1}</label><textarea data-w-text="${qi}" placeholder="พิมพ์คำถาม...">${escapeHtml(qq.text)}</textarea></div>
       <div class="field" style="margin-bottom:10px;"><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" data-w-keywords="${qi}" value="${escapeAttr((qq.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์, จับต้องได้"></div>
-      <div class="field" style="max-width:160px;margin-bottom:0;"><label>คะแนนเต็มข้อนี้</label><input type="number" data-w-points="${qi}" value="${qq.maxPoints}" min="1"></div>
+      <div class="field" style="max-width:160px;margin-bottom:0;"><label>คะแนนเต็มข้อนี้</label><input type="number" step="0.5" data-w-points="${qi}" value="${qq.maxPoints}" min="0"></div>
     </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีข้ออัตนัย</p>`;
 
-  wrap.querySelectorAll('[data-rm-w]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.written.questions.splice(parseInt(b.dataset.rmW,10),1); renderWrittenList(); }));
+  wrap.querySelectorAll('[data-rm-w]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.written.questions.splice(parseInt(b.dataset.rmW,10),1); renderWrittenList(); updateTotalIndicator(); }));
   wrap.querySelectorAll('[data-w-text]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wText,10)].text = el.value; }));
   wrap.querySelectorAll('[data-w-keywords]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wKeywords,10)].keywords = el.value.split(',').map(k=>k.trim()).filter(Boolean); }));
-  wrap.querySelectorAll('[data-w-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wPoints,10)].maxPoints = parseInt(el.value,10) || 0; }));
+  wrap.querySelectorAll('[data-w-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wPoints,10)].maxPoints = parseFloat(el.value) || 0; updateTotalIndicator(); }));
 }
 
 async function saveEditingSet(){
@@ -522,17 +565,22 @@ async function saveEditingSet(){
   s.title = document.getElementById('fTitle').value.trim();
   s.tagline = document.getElementById('fTagline').value.trim();
   s.desc = document.getElementById('fDesc').value.trim();
+  s.examType = document.getElementById('fExamType').value;
   s.subjectTeacherName = document.getElementById('fTeacherName').value.trim();
   s.subjectTeacherEmail = document.getElementById('fTeacherEmail').value.trim();
   if(!s.title){ alert('กรุณากรอกชื่อชุดข้อสอบ'); return; }
   if(s.sections.mc.questions.some(q=>!q.text.trim())){ alert('มีข้อปรนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
   if(s.sections.written.questions.some(q=>!q.text.trim())){ alert('มีข้ออัตนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
+  const total = computeSetTotal(s);
+  if(total !== 20){
+    if(!confirm(`คะแนนเต็มรวมขณะนี้คือ ${total} คะแนน ไม่เท่ากับ 20 พอดี ต้องการบันทึกต่อหรือไม่?`)) return;
+  }
 
   const saveBtn = document.getElementById('saveSetBtn');
   saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...';
   try{
     if(editingIsNew) await apiCreateSet(s); else await apiUpdateSet(s.key, s);
-    ADMIN_SETS = await apiGetSets();
+    ADMIN_SETS = await apiGetAdminSets();
     closeEditor(); renderSetList(); populateSetFilterOptions();
     showToast('บันทึกชุดข้อสอบเรียบร้อยแล้ว นักเรียนในห้องที่กำหนดจะเห็นวิชานี้ทันที');
   }catch(e){
@@ -614,7 +662,7 @@ document.getElementById('bulkImportBtn').addEventListener('click', async ()=>{
 });
 
 /* ======================================================================
-   RESULTS + EXCEL EXPORT
+   RESULTS + EXCEL EXPORT + PUBLISH
    ====================================================================== */
 function populateSetFilterOptions(){
   const sel = document.getElementById('setFilterSelect');
@@ -622,55 +670,116 @@ function populateSetFilterOptions(){
   sel.innerHTML = '<option value="">ทุกรายวิชา</option>' + ADMIN_SETS.map(s=>`<option value="${escapeAttr(s.key)}">${escapeHtml(s.title)}</option>`).join('');
   sel.value = current;
 }
+let LAST_RESULTS = [];
 async function refreshResults(){
   const wrap = document.getElementById('resultsWrap');
   wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
   const setKey = document.getElementById('setFilterSelect').value;
+  const examType = document.getElementById('examTypeFilterSelect').value;
   let records;
-  try{ records = await apiGetResults(setKey || undefined); }
+  try{ records = await apiGetResults(setKey || undefined, examType || undefined); }
   catch(e){ wrap.innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
+  LAST_RESULTS = records;
   if(!records || !records.length){
     wrap.innerHTML = '<div class="empty-note">ยังไม่มีผลสอบส่งเข้ามา</div>';
     return;
   }
   wrap.innerHTML = `<table class="result-table"><thead><tr>
-      <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>รายวิชา</th><th>อาจารย์</th>
-      <th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม (/20)</th><th></th>
+      <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>ประเภท</th><th>รายวิชา</th><th>อาจารย์</th>
+      <th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม/20</th><th>คลิกขวา</th><th>คัดลอก</th><th>สลับแท็บ</th><th>ประกาศผล</th><th></th>
     </tr></thead><tbody>` + records.map(r=>`
-      <tr>
+      <tr data-row-id="${r.id}">
         <td>${new Date(r.submittedAt).toLocaleString('th-TH')}</td>
         <td>${escapeHtml(r.studentId)}</td>
         <td>${escapeHtml(r.studentName)}</td>
         <td>${escapeHtml(r.classRoom)}</td>
+        <td>${escapeHtml(r.examType||'-')}</td>
         <td>${escapeHtml(r.questionTitle)}</td>
         <td>${escapeHtml(r.subjectTeacherName||'-')}</td>
-        <td>${r.sectionScores.mc!=null ? r.sectionScores.mc+'/100' : '-'}</td>
-        <td>${r.sectionScores.matching!=null ? r.sectionScores.matching+'/100' : '-'}</td>
-        <td>${r.sectionScores.written!=null ? r.sectionScores.written+'/100' : '-'}</td>
+        <td>${r.sectionScores.mc}</td>
+        <td>${r.sectionScores.matching}</td>
+        <td>${r.sectionScores.written}</td>
         <td><b>${r.overallScore20}</b></td>
-        <td><button class="btn btn-danger btn-sm" data-delres="${r.id}">ลบ</button></td>
+        <td>${r.rightClickAttempts||0}</td>
+        <td>${r.copyAttempts||0}</td>
+        <td>${r.tabSwitches||0}</td>
+        <td><button class="pub-pill ${r.published?'pub-yes':'pub-no'}" data-togglepub="${r.id}">${r.published?'ประกาศแล้ว ✅':'ยังไม่ประกาศ 🔒'}</button></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" data-viewdetail="${r.id}">ดูรายละเอียด</button>
+          <button class="btn btn-danger btn-sm" data-delres="${r.id}">ลบ</button>
+        </td>
       </tr>`).join('') + `</tbody></table>`;
   wrap.querySelectorAll('[data-delres]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบผลสอบรายการนี้?')) return;
     try{ await apiFetch('/api/results/'+encodeURIComponent(b.dataset.delres), { method:'DELETE', admin:true }); refreshResults(); }
     catch(e){ showToast(e.message); }
   }));
+  wrap.querySelectorAll('[data-togglepub]').forEach(b=>b.addEventListener('click', async ()=>{
+    const rec = LAST_RESULTS.find(x=>x.id===b.dataset.togglepub);
+    try{ await apiSetPublished(b.dataset.togglepub, !rec.published); refreshResults(); }
+    catch(e){ showToast(e.message); }
+  }));
+  wrap.querySelectorAll('[data-viewdetail]').forEach(b=>b.addEventListener('click', ()=> toggleDetailRow(b.dataset.viewdetail)));
+}
+function toggleDetailRow(resultId){
+  const existing = document.querySelector(`tr.detail-row[data-for="${resultId}"]`);
+  if(existing){ existing.remove(); return; }
+  const rec = LAST_RESULTS.find(x=>x.id===resultId);
+  const set = ADMIN_SETS.find(s=>s.key===rec.questionKey);
+  const rowEl = document.querySelector(`tr[data-row-id="${resultId}"]`);
+  if(!rowEl) return;
+  const tr = document.createElement('tr');
+  tr.className = 'detail-row'; tr.dataset.for = resultId;
+  const td = document.createElement('td'); td.colSpan = 15;
+  if(!set){
+    td.innerHTML = '<div class="detail-block">ไม่พบข้อมูลชุดข้อสอบต้นฉบับ (อาจถูกลบไปแล้ว)</div>';
+  }else{
+    const answers = (rec.detail && rec.detail.answers) || {mc:{},matching:{},written:{}};
+    let html = '';
+    html += `<div class="detail-block"><b>ปรนัย (${rec.sectionScores.mc} คะแนน)</b><br>` + set.sections.mc.questions.map((qq,i)=>{
+      const picked = answers.mc ? answers.mc[qq.id] : undefined;
+      const pickedText = (picked!=null && qq.choices[picked]!=null) ? qq.choices[picked] : '(ไม่ได้ตอบ)';
+      const correctText = qq.choices[qq.answer];
+      const isCorrect = picked===qq.answer;
+      return `${i+1}. ${escapeHtml(qq.text)}<br>&nbsp;&nbsp;ตอบ: ${escapeHtml(pickedText)} ${isCorrect?'✅':'❌ (เฉลย: '+escapeHtml(correctText)+')'}`;
+    }).join('<br>') + `</div>`;
+    html += `<div class="detail-block"><b>จับคู่ (${rec.sectionScores.matching} คะแนน)</b><br>` + set.sections.matching.left.map(item=>{
+      const rid = answers.matching ? answers.matching[item.id] : undefined;
+      const rightItem = set.sections.matching.right.find(r=>r.id===rid);
+      const correctRightItem = set.sections.matching.right.find(r=>r.id===set.sections.matching.correctMap[item.id]);
+      const isCorrect = rid === set.sections.matching.correctMap[item.id];
+      return `${escapeHtml(item.text)} → ${rightItem?escapeHtml(rightItem.text):'(ไม่ได้จับคู่)'} ${isCorrect?'✅':'❌ (เฉลย: '+escapeHtml(correctRightItem?correctRightItem.text:'-')+')'}`;
+    }).join('<br>') + `</div>`;
+    html += `<div class="detail-block"><b>อัตนัย (${rec.sectionScores.written} คะแนน โดยประมาณจากคำสำคัญ)</b><br>` + set.sections.written.questions.map((qq,i)=>{
+      const text = (answers.written && answers.written[qq.id]) || '(ไม่ได้ตอบ)';
+      const pts = (rec.detail && rec.detail.writtenPerQuestion) ? rec.detail.writtenPerQuestion[qq.id] : '-';
+      return `${i+1}. ${escapeHtml(qq.text)} (auto: ${pts}/${qq.maxPoints})<br>&nbsp;&nbsp;คำตอบ: ${escapeHtml(text)}`;
+    }).join('<br><br>') + `</div>`;
+    td.innerHTML = html;
+  }
+  tr.appendChild(td);
+  rowEl.after(tr);
 }
 document.getElementById('refreshResultsBtn').addEventListener('click', refreshResults);
 document.getElementById('setFilterSelect').addEventListener('change', refreshResults);
+document.getElementById('examTypeFilterSelect').addEventListener('change', refreshResults);
 document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
   const setKey = document.getElementById('setFilterSelect').value;
+  const examType = document.getElementById('examTypeFilterSelect').value;
   const btn = document.getElementById('exportExcelBtn');
   btn.disabled = true; btn.textContent = 'กำลังสร้างไฟล์...';
   try{
-    const url = '/api/export/results.xlsx' + (setKey ? ('?setKey='+encodeURIComponent(setKey)) : '');
+    const qs = [];
+    if(setKey) qs.push('setKey='+encodeURIComponent(setKey));
+    if(examType) qs.push('examType='+encodeURIComponent(examType));
+    const url = '/api/export/results.xlsx' + (qs.length?('?'+qs.join('&')):'');
     const res = await fetch(url, { headers: { 'x-admin-key': adminKey || '' } });
     if(!res.ok){ throw new Error('ส่งออก Excel ไม่สำเร็จ (HTTP '+res.status+')'); }
     const blob = await res.blob();
     const a = document.createElement('a');
     const dlUrl = URL.createObjectURL(blob);
     a.href = dlUrl;
-    a.download = setKey ? 'ผลสอบ.xlsx' : 'ผลสอบทั้งหมด.xlsx';
+    a.download = (setKey||examType) ? 'ผลสอบ.xlsx' : 'ผลสอบทั้งหมด.xlsx';
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(dlUrl);
     showToast('ดาวน์โหลดไฟล์ Excel แล้ว');

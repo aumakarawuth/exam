@@ -2,6 +2,10 @@
    Exam System Backend
    - Express REST API
    - Simple JSON-file database (no native modules required)
+   - Grading happens SERVER-SIDE ONLY. The public /api/sets endpoint never
+     sends answer keys (correct choice / correct pairs / keywords) to the
+     browser, since these are now formal midterm/final exams where scores
+     must stay confidential until the teacher announces them.
    - Serves two separate frontend pages:
        /        -> public/student.html  (students)
        /admin   -> public/admin.html    (teachers / admin)
@@ -18,6 +22,7 @@ const ADMIN_KEY = process.env.ADMIN_KEY || 'aunaum11';
 if (ADMIN_KEY === 'aunaum11') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
 }
+const EXAM_TYPES = ['กลางภาค', 'ปลายภาค'];
 
 /* ---------------------------- DATABASE (JSON file) ---------------------------- */
 const DATA_DIR = path.join(__dirname, 'data');
@@ -52,8 +57,9 @@ function writeDB(db) {
 function newId(prefix) {
   return prefix + '_' + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex');
 }
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 
-/* Seed one example exam set + a couple of example students on first run */
+/* Seed one example exam set (full score = 20) + example students on first run */
 function seedIfEmpty() {
   const db = readDB();
   if (db.sets.length > 0) return;
@@ -62,7 +68,8 @@ function seedIfEmpty() {
     key: 'set_seed_sample1',
     title: 'ความรู้พื้นฐานคอมพิวเตอร์ (ตัวอย่าง)',
     tagline: 'Sample Question Set',
-    desc: 'ชุดข้อสอบตัวอย่างสำหรับทดสอบระบบ ผู้ดูแลระบบสามารถแก้ไขหรือลบชุดนี้ได้',
+    desc: 'ชุดข้อสอบตัวอย่างสำหรับทดสอบระบบ ผู้ดูแลระบบสามารถแก้ไขหรือลบชุดนี้ได้ คะแนนเต็มรวม 20 คะแนน',
+    examType: 'กลางภาค',
     assignedClasses: [],
     subjectTeacherName: 'อาจารย์ตัวอย่าง',
     subjectTeacherEmail: '',
@@ -71,11 +78,11 @@ function seedIfEmpty() {
         title: 'ส่วนที่ 1 — ปรนัย (เลือกตอบ)',
         desc: 'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ',
         questions: [
-          { id: 'mc1', text: 'อุปกรณ์ใดต่อไปนี้ทำหน้าที่เป็นหน่วยประมวลผลกลางของคอมพิวเตอร์?', choices: ['RAM', 'CPU', 'HDD', 'PSU'], answer: 1, points: 20 },
-          { id: 'mc2', text: 'ข้อใดคือความหมายของคำว่า "Software"?', choices: ['อุปกรณ์ที่จับต้องได้ของคอมพิวเตอร์', 'ชุดคำสั่งหรือโปรแกรมที่สั่งให้คอมพิวเตอร์ทำงาน', 'สายไฟที่เชื่อมต่ออุปกรณ์', 'จอแสดงผล'], answer: 1, points: 20 },
-          { id: 'mc3', text: 'หน่วยความจำชนิดใดที่ข้อมูลจะหายไปเมื่อปิดเครื่อง?', choices: ['ROM', 'RAM', 'Hard Disk', 'Flash Drive'], answer: 1, points: 20 },
-          { id: 'mc4', text: 'ระบบปฏิบัติการ (Operating System) มีหน้าที่หลักคืออะไร?', choices: ['จัดการทรัพยากรของเครื่องและเป็นตัวกลางระหว่างผู้ใช้กับฮาร์ดแวร์', 'ต่ออินเทอร์เน็ตเท่านั้น', 'พิมพ์เอกสารเท่านั้น', 'เล่นเกมเท่านั้น'], answer: 0, points: 20 },
-          { id: 'mc5', text: 'ข้อใดเป็นตัวอย่างของอุปกรณ์ Input?', choices: ['จอภาพ', 'เครื่องพิมพ์', 'คีย์บอร์ด', 'ลำโพง'], answer: 2, points: 20 }
+          { id: 'mc1', text: 'อุปกรณ์ใดต่อไปนี้ทำหน้าที่เป็นหน่วยประมวลผลกลางของคอมพิวเตอร์?', choices: ['RAM', 'CPU', 'HDD', 'PSU'], answer: 1, points: 2 },
+          { id: 'mc2', text: 'ข้อใดคือความหมายของคำว่า "Software"?', choices: ['อุปกรณ์ที่จับต้องได้ของคอมพิวเตอร์', 'ชุดคำสั่งหรือโปรแกรมที่สั่งให้คอมพิวเตอร์ทำงาน', 'สายไฟที่เชื่อมต่ออุปกรณ์', 'จอแสดงผล'], answer: 1, points: 2 },
+          { id: 'mc3', text: 'หน่วยความจำชนิดใดที่ข้อมูลจะหายไปเมื่อปิดเครื่อง?', choices: ['ROM', 'RAM', 'Hard Disk', 'Flash Drive'], answer: 1, points: 2 },
+          { id: 'mc4', text: 'ระบบปฏิบัติการ (Operating System) มีหน้าที่หลักคืออะไร?', choices: ['จัดการทรัพยากรของเครื่องและเป็นตัวกลางระหว่างผู้ใช้กับฮาร์ดแวร์', 'ต่ออินเทอร์เน็ตเท่านั้น', 'พิมพ์เอกสารเท่านั้น', 'เล่นเกมเท่านั้น'], answer: 0, points: 2 },
+          { id: 'mc5', text: 'ข้อใดเป็นตัวอย่างของอุปกรณ์ Input?', choices: ['จอภาพ', 'เครื่องพิมพ์', 'คีย์บอร์ด', 'ลำโพง'], answer: 2, points: 2 }
         ]
       },
       matching: {
@@ -84,14 +91,14 @@ function seedIfEmpty() {
         left: [{ id: 'l1', text: 'CPU' }, { id: 'l2', text: 'RAM' }, { id: 'l3', text: 'Hard Disk' }, { id: 'l4', text: 'Keyboard' }, { id: 'l5', text: 'Monitor' }],
         right: [{ id: 'r1', text: 'อุปกรณ์แสดงผลภาพ' }, { id: 'r2', text: 'หน่วยประมวลผลกลาง' }, { id: 'r3', text: 'อุปกรณ์รับข้อมูลชนิดปุ่มกด' }, { id: 'r4', text: 'หน่วยความจำสำรองแบบถาวร' }, { id: 'r5', text: 'หน่วยความจำหลักชั่วคราว' }],
         correctMap: { l1: 'r2', l2: 'r5', l3: 'r4', l4: 'r3', l5: 'r1' },
-        pointsEach: 20
+        pointsEach: 1
       },
       written: {
         title: 'ส่วนที่ 3 — อัตนัย (เขียนตอบ)',
         desc: 'ตอบคำถามด้วยคำพูดของตนเองให้ครบถ้วน',
         questions: [
-          { id: 'w1', text: 'จงอธิบายความแตกต่างระหว่าง Hardware และ Software พร้อมยกตัวอย่างอย่างละ 2 ชนิด', keywords: ['ฮาร์ดแวร์', 'Hardware', 'ซอฟต์แวร์', 'Software', 'จับต้องได้', 'คำสั่ง', 'โปรแกรม'], maxPoints: 50 },
-          { id: 'w2', text: 'เพราะเหตุใดคอมพิวเตอร์จึงจำเป็นต้องมีทั้งหน่วยความจำหลัก (RAM) และหน่วยความจำสำรอง (Storage)?', keywords: ['RAM', 'ชั่วคราว', 'ถาวร', 'ความเร็ว', 'เก็บข้อมูล', 'ปิดเครื่อง', 'หาย'], maxPoints: 50 }
+          { id: 'w1', text: 'จงอธิบายความแตกต่างระหว่าง Hardware และ Software พร้อมยกตัวอย่างอย่างละ 2 ชนิด', keywords: ['ฮาร์ดแวร์', 'Hardware', 'ซอฟต์แวร์', 'Software', 'จับต้องได้', 'คำสั่ง', 'โปรแกรม'], maxPoints: 2.5 },
+          { id: 'w2', text: 'เพราะเหตุใดคอมพิวเตอร์จึงจำเป็นต้องมีทั้งหน่วยความจำหลัก (RAM) และหน่วยความจำสำรอง (Storage)?', keywords: ['RAM', 'ชั่วคราว', 'ถาวร', 'ความเร็ว', 'เก็บข้อมูล', 'ปิดเครื่อง', 'หาย'], maxPoints: 2.5 }
         ]
       }
     },
@@ -106,6 +113,64 @@ function seedIfEmpty() {
   writeDB(db);
 }
 seedIfEmpty();
+
+/* ---------------------------- GRADING (server-side only) ---------------------------- */
+function gradeMC(section, answers) {
+  answers = answers || {};
+  let total = 0;
+  (section.questions || []).forEach(qq => { if (answers[qq.id] === qq.answer) total += (qq.points || 0); });
+  return round2(total);
+}
+function gradeMatching(section, answers) {
+  answers = answers || {};
+  let total = 0;
+  (section.left || []).forEach(item => {
+    if (answers[item.id] && answers[item.id] === section.correctMap[item.id]) total += (section.pointsEach || 0);
+  });
+  return round2(total);
+}
+function keywordScore(text, keywords, maxPoints) {
+  if (!text || !text.trim() || !keywords || !keywords.length) return 0;
+  const norm = text.toLowerCase();
+  let hit = 0;
+  keywords.forEach(k => { if (norm.includes(String(k).toLowerCase())) hit++; });
+  return round2((hit / keywords.length) * (maxPoints || 0));
+}
+function gradeWritten(section, answers) {
+  answers = answers || {};
+  let total = 0;
+  const perQuestion = {};
+  (section.questions || []).forEach(qq => {
+    const text = answers[qq.id] || '';
+    const pts = keywordScore(text, qq.keywords, qq.maxPoints);
+    perQuestion[qq.id] = pts;
+    total += pts;
+  });
+  return { total: round2(total), perQuestion };
+}
+/* strip answer keys before sending a set to a student's browser */
+function sanitizeSetForStudent(s) {
+  return {
+    key: s.key, title: s.title, tagline: s.tagline, desc: s.desc,
+    examType: s.examType || '', assignedClasses: s.assignedClasses || [],
+    subjectTeacherName: s.subjectTeacherName || '',
+    sections: {
+      mc: {
+        title: s.sections.mc.title, desc: s.sections.mc.desc,
+        questions: s.sections.mc.questions.map(q => ({ id: q.id, text: q.text, choices: q.choices, points: q.points }))
+      },
+      matching: {
+        title: s.sections.matching.title, desc: s.sections.matching.desc,
+        left: s.sections.matching.left, right: s.sections.matching.right,
+        pointsEach: s.sections.matching.pointsEach
+      },
+      written: {
+        title: s.sections.written.title, desc: s.sections.written.desc,
+        questions: s.sections.written.questions.map(q => ({ id: q.id, text: q.text, maxPoints: q.maxPoints }))
+      }
+    }
+  };
+}
 
 /* ---------------------------- APP SETUP ---------------------------- */
 const app = express();
@@ -132,15 +197,12 @@ app.post('/api/admin/verify', (req, res) => {
 });
 
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */
-// Public: student types their student ID to log in -> look up name/surname/class
 app.get('/api/students/:studentId', (req, res) => {
   const db = readDB();
   const s = db.students.find(x => x.studentId === req.params.studentId.trim());
   if (!s) return res.status(404).json({ error: 'not_found', message: 'ไม่พบรหัสนักเรียนนี้ในระบบ กรุณาตรวจสอบรหัส หรือติดต่อผู้ดูแลระบบ' });
   res.json(s);
 });
-
-// Admin: list all students (optionally filter by classRoom)
 app.get('/api/students', requireAdmin, (req, res) => {
   const db = readDB();
   let list = db.students;
@@ -148,8 +210,6 @@ app.get('/api/students', requireAdmin, (req, res) => {
   list = [...list].sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId));
   res.json(list);
 });
-
-// Admin: add one student
 app.post('/api/students', requireAdmin, async (req, res) => {
   const b = req.body;
   if (!b || !b.studentId || !b.firstName || !b.lastName || !b.classRoom) {
@@ -163,8 +223,6 @@ app.post('/api/students', requireAdmin, async (req, res) => {
   await writeDB(db);
   res.status(201).json({ ok: true });
 });
-
-// Admin: bulk import (paste CSV / tab-separated text: studentId, firstName, lastName, classRoom per line)
 app.post('/api/students/bulk', requireAdmin, async (req, res) => {
   const text = (req.body && req.body.text) || '';
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -192,8 +250,6 @@ app.post('/api/students/bulk', requireAdmin, async (req, res) => {
   await writeDB(db);
   res.json({ imported, updated, errors });
 });
-
-// Admin: edit a student
 app.put('/api/students/:studentId', requireAdmin, async (req, res) => {
   const db = readDB();
   const s = db.students.find(x => x.studentId === req.params.studentId);
@@ -203,16 +259,12 @@ app.put('/api/students/:studentId', requireAdmin, async (req, res) => {
   await writeDB(db);
   res.json({ ok: true });
 });
-
-// Admin: delete a student
 app.delete('/api/students/:studentId', requireAdmin, async (req, res) => {
   const db = readDB();
   db.students = db.students.filter(x => x.studentId !== req.params.studentId);
   await writeDB(db);
   res.json({ ok: true });
 });
-
-// Admin: distinct list of classrooms currently in the roster (for the "assign classes" picker)
 app.get('/api/classes', requireAdmin, (req, res) => {
   const db = readDB();
   const classes = [...new Set(db.students.map(s => s.classRoom))].sort();
@@ -220,13 +272,12 @@ app.get('/api/classes', requireAdmin, (req, res) => {
 });
 
 /* ---------------------------- EXAM SETS ---------------------------- */
-// Public: list exam sets. Optional ?classRoom=xxx to only return sets that classroom is eligible for.
+app.get('/api/exam-types', (req, res) => res.json(EXAM_TYPES));
+
+// Public: list exam sets WITHOUT answer keys. Optional ?classRoom= to filter by eligibility.
 app.get('/api/sets', (req, res) => {
   const db = readDB();
-  let list = db.sets.map(s => ({
-    key: s.key, title: s.title, tagline: s.tagline, desc: s.desc, sections: s.sections,
-    assignedClasses: s.assignedClasses || [], subjectTeacherName: s.subjectTeacherName || ''
-  }));
+  let list = db.sets.map(sanitizeSetForStudent);
   if (req.query.classRoom) {
     const cr = req.query.classRoom;
     list = list.filter(s => !s.assignedClasses.length || s.assignedClasses.includes(cr));
@@ -234,11 +285,10 @@ app.get('/api/sets', (req, res) => {
   res.json(list);
 });
 
-app.get('/api/sets/:key', (req, res) => {
+// Admin: full sets INCLUDING answer keys (for editing + reviewing submissions)
+app.get('/api/admin/sets', requireAdmin, (req, res) => {
   const db = readDB();
-  const s = db.sets.find(x => x.key === req.params.key);
-  if (!s) return res.status(404).json({ error: 'not_found' });
-  res.json(s);
+  res.json(db.sets);
 });
 
 app.post('/api/sets', requireAdmin, async (req, res) => {
@@ -249,6 +299,7 @@ app.post('/api/sets', requireAdmin, async (req, res) => {
   const now = new Date().toISOString();
   db.sets.push({
     key, title: body.title, tagline: body.tagline || '', desc: body.desc || '',
+    examType: EXAM_TYPES.includes(body.examType) ? body.examType : EXAM_TYPES[0],
     assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
     sections: body.sections, createdAt: now, updatedAt: now
@@ -265,6 +316,7 @@ app.put('/api/sets/:key', requireAdmin, async (req, res) => {
   const now = new Date().toISOString();
   db.sets[idx] = Object.assign({}, db.sets[idx], {
     title: body.title, tagline: body.tagline || '', desc: body.desc || '',
+    examType: EXAM_TYPES.includes(body.examType) ? body.examType : (db.sets[idx].examType || EXAM_TYPES[0]),
     assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
     sections: body.sections, updatedAt: now
@@ -294,40 +346,51 @@ app.delete('/api/sets/:key', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-/* ---------------------------- RESULTS ---------------------------- */
+/* ---------------------------- RESULTS (server grades; score is never sent back) ---------------------------- */
 app.post('/api/results', async (req, res) => {
   const r = req.body;
   if (!r || !r.studentId || !r.questionKey) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลผลสอบไม่ครบถ้วน' });
   const db = readDB();
+  const set = db.sets.find(x => x.key === r.questionKey);
+  if (!set) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
+
+  const answers = r.answers || {};
+  const mcScore = gradeMC(set.sections.mc, answers.mc);
+  const matchingScore = gradeMatching(set.sections.matching, answers.matching);
+  const writtenResult = gradeWritten(set.sections.written, answers.written);
+  const overallScore20 = round2(mcScore + matchingScore + writtenResult.total);
+
   const record = {
     id: newId('result'),
     studentId: r.studentId,
     studentName: r.studentName,
     classRoom: r.classRoom || '',
     questionKey: r.questionKey,
-    questionTitle: r.questionTitle || '-',
-    subjectTeacherName: r.subjectTeacherName || '',
-    subjectTeacherEmail: r.subjectTeacherEmail || '',
-    overallScore20: r.overallScore20 || 0,
-    sectionScores: {
-      mc: r.sectionScores?.mc ?? null,
-      matching: r.sectionScores?.matching ?? null,
-      written: r.sectionScores?.written ?? null
-    },
+    questionTitle: set.title,
+    examType: set.examType || '',
+    subjectTeacherName: set.subjectTeacherName || '',
+    subjectTeacherEmail: set.subjectTeacherEmail || '',
+    overallScore20,
+    sectionScores: { mc: mcScore, matching: matchingScore, written: writtenResult.total },
     tabSwitches: r.tabSwitches || 0,
     reloadCount: r.reloadCount || 0,
-    detail: r.detail || {},
+    rightClickAttempts: r.rightClickAttempts || 0,
+    copyAttempts: r.copyAttempts || 0,
+    published: false,
+    detail: { answers, writtenPerQuestion: writtenResult.perQuestion },
     submittedAt: new Date().toISOString()
   };
   db.results.push(record);
   await writeDB(db);
-  res.status(201).json({ id: record.id });
+  // Score is intentionally NOT returned to the student — kept confidential until the teacher announces it.
+  res.status(201).json({ id: record.id, message: 'บันทึกคำตอบเรียบร้อยแล้ว' });
 });
 
 app.get('/api/results', requireAdmin, (req, res) => {
   const db = readDB();
   let rows = [...db.results];
   if (req.query.setKey) rows = rows.filter(r => r.questionKey === req.query.setKey);
+  if (req.query.examType) rows = rows.filter(r => r.examType === req.query.examType);
   rows.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
   res.json(rows);
 });
@@ -339,29 +402,53 @@ app.delete('/api/results/:id', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin: mark a result as officially announced/published (or revert to hidden)
+app.patch('/api/results/:id', requireAdmin, async (req, res) => {
+  const db = readDB();
+  const r = db.results.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: 'not_found' });
+  if (typeof req.body.published === 'boolean') r.published = req.body.published;
+  await writeDB(db);
+  res.json({ ok: true, published: r.published });
+});
+
+// Admin: bulk-publish every result for one exam set at once
+app.post('/api/sets/:key/publish', requireAdmin, async (req, res) => {
+  const db = readDB();
+  let count = 0;
+  db.results.forEach(r => { if (r.questionKey === req.params.key) { r.published = true; count++; } });
+  await writeDB(db);
+  res.json({ ok: true, count });
+});
+
 /* ---------------------------- EXCEL EXPORT ---------------------------- */
 app.get('/api/export/results.xlsx', requireAdmin, (req, res) => {
   const db = readDB();
   let rows = [...db.results];
   if (req.query.setKey) rows = rows.filter(r => r.questionKey === req.query.setKey);
+  if (req.query.examType) rows = rows.filter(r => r.examType === req.query.examType);
   rows.sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
 
   const sheetData = rows.map(r => ({
     'รหัสนักเรียน': r.studentId,
     'ชื่อ-สกุล': r.studentName,
     'ห้อง': r.classRoom,
+    'ประเภทข้อสอบ': r.examType,
     'รายวิชา': r.questionTitle,
     'อาจารย์ประจำวิชา': r.subjectTeacherName,
-    'ปรนัย (/100)': r.sectionScores.mc,
-    'จับคู่ (/100)': r.sectionScores.matching,
-    'อัตนัย (/100)': r.sectionScores.written,
-    'คะแนนรวม (/20)': r.overallScore20,
+    'ปรนัย': r.sectionScores.mc,
+    'จับคู่': r.sectionScores.matching,
+    'อัตนัย': r.sectionScores.written,
+    'คะแนนรวม (เต็ม 20)': r.overallScore20,
+    'ประกาศผลแล้ว': r.published ? 'ใช่' : 'ยังไม่ประกาศ',
+    'คลิกขวา (ครั้ง)': r.rightClickAttempts,
+    'พยายามคัดลอก (ครั้ง)': r.copyAttempts,
     'สลับแท็บ (ครั้ง)': r.tabSwitches,
     'โหลดหน้าใหม่ (ครั้ง)': r.reloadCount,
     'วันเวลาที่ส่ง': new Date(r.submittedAt).toLocaleString('th-TH')
   }));
   const ws = XLSX.utils.json_to_sheet(sheetData.length ? sheetData : [{ 'หมายเหตุ': 'ยังไม่มีผลสอบ' }]);
-  ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 20 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 28 }, { wch: 20 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 20 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'ผลสอบ');
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
