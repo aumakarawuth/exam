@@ -94,6 +94,21 @@ button{font-family:inherit;cursor:pointer;}
 .total-indicator{font-size:13px;font-weight:700;padding:10px 14px;border-radius:10px;margin-bottom:16px;display:inline-block;}
 .total-indicator.ok{background:rgba(22,163,74,.1);color:var(--green);}
 .total-indicator.warn{background:rgba(217,119,6,.12);color:var(--amber);}
+.section-manager-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.section-tag{display:inline-flex;align-items:center;gap:8px;background:var(--grid);border:1px solid var(--line);border-radius:999px;padding:6px 8px 6px 14px;font-size:12.5px;font-weight:600;}
+.section-tag button{background:transparent;border:none;color:var(--red);font-weight:700;padding:2px 6px;cursor:pointer;}
+.add-section-dropdown{position:relative;display:inline-block;}
+.add-section-menu{position:absolute;top:110%;left:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px -8px rgba(0,0,0,.25);z-index:20;min-width:180px;overflow:hidden;}
+.add-section-menu button{display:block;width:100%;text-align:left;padding:10px 14px;background:transparent;border:none;font-size:13px;color:var(--ink);cursor:pointer;}
+.add-section-menu button:hover{background:var(--grid);}
+.compact-list{margin-bottom:12px;}
+.compact-row{display:flex;align-items:center;gap:10px;background:var(--grid);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px;font-size:13px;}
+.compact-idx{font-family:'Prompt',sans-serif;font-weight:700;color:var(--blue);flex:none;width:20px;}
+.compact-text{flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.compact-meta{font-size:11.5px;color:var(--sub);flex:none;background:var(--surface);border:1px solid var(--line);padding:2px 8px;border-radius:999px;}
+.muted-note{color:var(--sub);font-size:12.5px;margin:4px 0 10px;}
+.q-editor-panel{background:var(--surface);border:2px solid var(--blue);border-radius:12px;padding:16px;margin-top:10px;}
+.q-editor-panel .q-editor-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:13px;color:var(--blue);margin-bottom:12px;}
 .pub-pill{font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:none;}
 .pub-pill.pub-yes{background:rgba(22,163,74,.12);color:var(--green);}
 .pub-pill.pub-no{background:rgba(217,119,6,.12);color:var(--amber);}
@@ -354,17 +369,51 @@ async function deleteSet(key){
 }
 document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(null));
 
+function round2(n){ return Math.round((n+Number.EPSILON)*100)/100; }
+function distributeEvenly(total, count){
+  total = Number(total)||0;
+  if(count<=0) return [];
+  const per = Math.floor((total/count)*100)/100;
+  const arr = new Array(count).fill(per);
+  const diff = round2(total - round2(per*count));
+  arr[count-1] = round2(arr[count-1] + diff);
+  return arr;
+}
+function applyPointDistribution(sec){
+  const s = editingSet.sections[sec];
+  const total = Number(s.sectionPointsTotal)||0;
+  if(sec==='mc'){
+    const arr = distributeEvenly(total, s.questions.length);
+    s.questions.forEach((q,i)=>{ q.points = arr[i]!==undefined?arr[i]:0; });
+  } else if(sec==='matching'){
+    s.pointsEach = s.left.length>0 ? round2(total/s.left.length) : 0;
+  } else if(sec==='written'){
+    const arr = distributeEvenly(total, s.questions.length);
+    s.questions.forEach((q,i)=>{ q.maxPoints = arr[i]!==undefined?arr[i]:0; });
+  }
+}
+function truncateText(t,n){ t=t||''; return t.length>n ? t.slice(0,n)+'…' : t; }
+function toDatetimeLocalValue(iso){
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  const pad = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function blankSet(){
   return {
     key: uid('set'), title:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', assignedClasses:[], subjectTeacherName:'', subjectTeacherEmail:'',
-    shuffleQuestions:false, shuffleChoices:false, publishMode:'manual',
+    shuffleQuestions:false, shuffleChoices:false, publishMode:'manual', availableUntil:'', lateAccessCode:'',
     sections:{
-      mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[] },
-      matching:{ title:'ส่วนที่ 2 — จับคู่', desc:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', left:[], right:[], correctMap:{}, pointsEach:1 },
-      written:{ title:'ส่วนที่ 3 — อัตนัย (เขียนตอบ)', desc:'ตอบคำถามด้วยคำพูดของตนเอง', questions:[] }
+      mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[], sectionPointsTotal:0 },
+      matching:{ title:'ส่วนที่ 2 — จับคู่', desc:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0 },
+      written:{ title:'ส่วนที่ 3 — อัตนัย (เขียนตอบ)', desc:'ตอบคำถามด้วยคำพูดของตนเอง', questions:[], sectionPointsTotal:0 }
     }
   };
 }
+let editingUiEnabled = {mc:true, matching:false, written:false};
+let openQEditor = null; // {section:'mc'|'matching'|'written', index:number|null} — null index = adding new
+
 async function openEditor(key){
   editingIsNew = !key;
   editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : blankSet();
@@ -373,6 +422,14 @@ async function openEditor(key){
   if(editingSet.shuffleQuestions===undefined) editingSet.shuffleQuestions = false;
   if(editingSet.shuffleChoices===undefined) editingSet.shuffleChoices = false;
   if(!editingSet.publishMode) editingSet.publishMode = 'manual';
+  if(editingSet.availableUntil===undefined) editingSet.availableUntil = '';
+  if(editingSet.lateAccessCode===undefined) editingSet.lateAccessCode = '';
+  // backfill section point totals for sets saved before this feature existed
+  if(editingSet.sections.mc.sectionPointsTotal===undefined) editingSet.sections.mc.sectionPointsTotal = round2(editingSet.sections.mc.questions.reduce((a,q)=>a+(Number(q.points)||0),0));
+  if(editingSet.sections.matching.sectionPointsTotal===undefined) editingSet.sections.matching.sectionPointsTotal = round2((Number(editingSet.sections.matching.pointsEach)||0) * editingSet.sections.matching.left.length);
+  if(editingSet.sections.written.sectionPointsTotal===undefined) editingSet.sections.written.sectionPointsTotal = round2(editingSet.sections.written.questions.reduce((a,q)=>a+(Number(q.maxPoints)||0),0));
+  editingUiEnabled = { mc:true, matching: editingSet.sections.matching.left.length>0, written: editingSet.sections.written.questions.length>0 };
+  openQEditor = null;
   try{ knownClasses = await apiGetClasses(); }catch(e){ knownClasses = []; }
   document.getElementById('setEditor').classList.remove('hidden');
   renderEditor();
@@ -380,6 +437,7 @@ async function openEditor(key){
 }
 function closeEditor(){
   editingSet = null;
+  openQEditor = null;
   document.getElementById('setEditor').classList.add('hidden');
   document.getElementById('setEditor').innerHTML = '';
 }
@@ -421,6 +479,15 @@ function renderEditor(){
   </div>
 
   <div class="panel">
+    <h3>⏰ เวลาลงทะเบียนสอบ และรหัสเข้าสอบย้อนหลัง</h3>
+    <p class="panel-sub">ไม่กำหนด = สอบได้ตลอดโดยไม่ต้องใช้รหัส ถ้ากำหนดเวลาสิ้นสุด นักเรียนที่มาหลังเวลานั้นต้องกรอกรหัสพิเศษก่อนจึงจะเริ่มสอบได้</p>
+    <div class="field-row">
+      <div class="field"><label>เวลาสิ้นสุดการลงทะเบียนสอบตามปกติ</label><input type="datetime-local" id="fAvailableUntil" value="${s.availableUntil?toDatetimeLocalValue(s.availableUntil):''}"></div>
+      <div class="field"><label>รหัสเข้าสอบกรณีเกินเวลา</label><input type="text" id="fLateCode" value="${escapeAttr(s.lateAccessCode||'')}" placeholder="เช่น LATE2569"></div>
+    </div>
+  </div>
+
+  <div class="panel">
     <h3>⚙️ การประกาศผลและการสุ่มข้อสอบ</h3>
     <div class="field-row">
       <div class="field">
@@ -442,25 +509,14 @@ function renderEditor(){
   <div id="totalIndicatorWrap"></div>
 
   <div class="panel">
-    <h3>📝 ส่วนที่ 1 — ปรนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.mc.questions.length} ข้อ)</span></h3>
-    <div id="mcList"></div>
-    <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
+    <h3>ส่วนของข้อสอบ</h3>
+    <p class="panel-sub">ปรนัยเป็นส่วนพื้นฐานที่มีเสมอ เพิ่มส่วนจับคู่หรืออัตนัยได้ตามต้องการ — ถ้าไม่เพิ่ม นักเรียนจะไม่เห็นส่วนนั้นเลยตอนสอบ</p>
+    <div class="section-manager-row" id="sectionManagerRow"></div>
   </div>
 
-  <div class="panel">
-    <h3>🔗 ส่วนที่ 2 — จับคู่ <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.matching.left.length} คู่)</span></h3>
-    <div class="field-row">
-      <div class="field" style="max-width:200px;"><label>คะแนนต่อคู่ที่ถูก</label><input type="number" step="0.5" id="fMatchPoints" value="${s.sections.matching.pointsEach}" min="0"></div>
-    </div>
-    <div id="matchList"></div>
-    <button class="add-row-btn" id="addMatchBtn" type="button">+ เพิ่มคู่จับคู่</button>
-  </div>
-
-  <div class="panel">
-    <h3>✍️ ส่วนที่ 3 — อัตนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.sections.written.questions.length} ข้อ)</span></h3>
-    <div id="writtenList"></div>
-    <button class="add-row-btn" id="addWrittenBtn" type="button">+ เพิ่มข้ออัตนัย</button>
-  </div>
+  <div id="mcPanelWrap"></div>
+  <div id="matchingPanelWrap"></div>
+  <div id="writtenPanelWrap"></div>
 
   <div class="editor-actions">
     <button class="btn btn-ghost" id="cancelEditBtn">ยกเลิก</button>
@@ -468,9 +524,14 @@ function renderEditor(){
   </div>`;
   box.innerHTML = html;
 
-  renderClassChips(); renderMcList(); renderMatchList(); renderWrittenList(); updateTotalIndicator();
+  renderClassChips();
+  renderSectionManager();
+  renderMcPanel(); renderMatchingPanel(); renderWrittenPanel();
+  updateTotalIndicator();
 
   document.getElementById('fExamType').addEventListener('change', (e)=>{ s.examType = e.target.value; });
+  document.getElementById('fAvailableUntil').addEventListener('change', (e)=>{ s.availableUntil = e.target.value ? new Date(e.target.value).toISOString() : ''; });
+  document.getElementById('fLateCode').addEventListener('input', (e)=>{ s.lateAccessCode = e.target.value; });
   document.getElementById('addClassBtn').addEventListener('click', ()=>{
     const inp = document.getElementById('addClassInput');
     const val = inp.value.trim();
@@ -480,22 +541,6 @@ function renderEditor(){
   document.getElementById('addClassInput').addEventListener('keydown', (e)=>{
     if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
   });
-  document.getElementById('addMcBtn').addEventListener('click', ()=>{
-    s.sections.mc.questions.push({id:uid('mc'), text:'', choices:['','','',''], answer:0, points:1});
-    renderMcList(); updateTotalIndicator();
-  });
-  document.getElementById('addMatchBtn').addEventListener('click', ()=>{
-    const lid = uid('l'), rid = uid('r');
-    s.sections.matching.left.push({id:lid, text:''});
-    s.sections.matching.right.push({id:rid, text:''});
-    s.sections.matching.correctMap[lid] = rid;
-    renderMatchList(); updateTotalIndicator();
-  });
-  document.getElementById('addWrittenBtn').addEventListener('click', ()=>{
-    s.sections.written.questions.push({id:uid('w'), text:'', keywords:[], maxPoints:1});
-    renderWrittenList(); updateTotalIndicator();
-  });
-  document.getElementById('fMatchPoints').addEventListener('input', (e)=>{ s.sections.matching.pointsEach = parseFloat(e.target.value) || 0; updateTotalIndicator(); });
   document.getElementById('cancelEditBtn').addEventListener('click', ()=>{
     if(confirm('ยกเลิกการแก้ไข? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
   });
@@ -507,7 +552,7 @@ function updateTotalIndicator(){
   const total = computeSetTotal(s);
   const ok = total === 20;
   document.getElementById('totalIndicatorWrap').innerHTML =
-    `<div class="total-indicator ${ok?'ok':'warn'}">🎯 คะแนนเต็มรวมขณะนี้: ${total} / 20 ${ok ? '✓ ครบพอดี' : '⚠️ ยังไม่เท่ากับ 20 กรุณาปรับคะแนนแต่ละข้อ'}</div>`;
+    `<div class="total-indicator ${ok?'ok':'warn'}">🎯 คะแนนเต็มรวมขณะนี้: ${total} / 20 ${ok ? '✓ ครบพอดี' : '⚠️ ยังไม่เท่ากับ 20 กรุณาปรับคะแนนรวมแต่ละส่วน'}</div>`;
 }
 
 function renderClassChips(){
@@ -521,67 +566,305 @@ function renderClassChips(){
   row.querySelectorAll('[data-rmclass]').forEach(b=>b.addEventListener('click', ()=>{ s.assignedClasses.splice(parseInt(b.dataset.rmclass,10),1); renderClassChips(); }));
 }
 
-function renderMcList(){
-  const s = editingSet;
-  const wrap = document.getElementById('mcList');
-  wrap.innerHTML = s.sections.mc.questions.map((qq,qi)=>`
-    <div class="mini-card" data-mc-idx="${qi}">
-      <button class="rm-btn" data-rm-mc="${qi}" type="button">✕</button>
-      <div class="field" style="margin-bottom:10px;"><label>โจทย์ข้อ ${qi+1}</label><textarea data-mc-text="${qi}" placeholder="พิมพ์คำถาม...">${escapeHtml(qq.text)}</textarea></div>
-      ${qq.choices.map((c,ci)=>`
-        <div class="choice-edit-row">
-          <input type="radio" name="mcAns${qi}" data-mc-ans="${qi}" data-ci="${ci}" ${qq.answer===ci?'checked':''} title="ทำเครื่องหมายคำตอบที่ถูกต้อง">
-          <input type="text" data-mc-choice="${qi}" data-ci="${ci}" value="${escapeAttr(c)}" placeholder="ตัวเลือกที่ ${ci+1}">
-        </div>`).join('')}
-      <div class="field" style="max-width:160px;margin-top:6px;margin-bottom:0;"><label>คะแนนข้อนี้</label><input type="number" step="0.5" data-mc-points="${qi}" value="${qq.points}" min="0"></div>
-    </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีข้อปรนัย</p>`;
+/* ---------- section manager (add/remove matching & written sections) ---------- */
+function renderSectionManager(){
+  const row = document.getElementById('sectionManagerRow');
+  const labels = {mc:'📝 ปรนัย (พื้นฐาน)', matching:'🔗 จับคู่', written:'✍️ อัตนัย'};
+  let html = '';
+  ['mc','matching','written'].forEach(sec=>{
+    if(!editingUiEnabled[sec]) return;
+    const removable = sec!=='mc';
+    html += `<span class="section-tag">${labels[sec]}${removable?`<button type="button" data-rmsection="${sec}" title="ลบส่วนนี้">✕</button>`:''}</span>`;
+  });
+  const missing = ['matching','written'].filter(sec=>!editingUiEnabled[sec]);
+  if(missing.length){
+    html += `<div class="add-section-dropdown">
+      <button class="btn btn-ghost btn-sm" id="addSectionBtn" type="button">+ เพิ่มส่วน</button>
+      <div class="add-section-menu hidden" id="addSectionMenu">
+        ${missing.map(sec=>`<button type="button" data-addsection="${sec}">${sec==='matching'?'🔗 เพิ่มส่วนจับคู่':'✍️ เพิ่มส่วนอัตนัย'}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+  row.innerHTML = html;
+  row.querySelectorAll('[data-rmsection]').forEach(b=>b.addEventListener('click', ()=>{
+    const sec = b.dataset.rmsection;
+    if(!confirm('ลบส่วนนี้? ข้อสอบทั้งหมดในส่วนนี้จะถูกลบไปด้วย')) return;
+    editingUiEnabled[sec] = false;
+    if(sec==='matching'){ Object.assign(editingSet.sections.matching, {left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0}); }
+    if(sec==='written'){ Object.assign(editingSet.sections.written, {questions:[], sectionPointsTotal:0}); }
+    if(openQEditor && openQEditor.section===sec) openQEditor = null;
+    renderSectionManager(); renderMatchingPanel(); renderWrittenPanel(); updateTotalIndicator();
+  }));
+  const addBtn = document.getElementById('addSectionBtn');
+  if(addBtn) addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); document.getElementById('addSectionMenu').classList.toggle('hidden'); });
+  row.querySelectorAll('[data-addsection]').forEach(b=>b.addEventListener('click', ()=>{
+    editingUiEnabled[b.dataset.addsection] = true;
+    renderSectionManager(); renderMatchingPanel(); renderWrittenPanel();
+  }));
+}
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('addSectionMenu');
+  const btn = document.getElementById('addSectionBtn');
+  if(menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && e.target!==btn){ menu.classList.add('hidden'); }
+});
 
-  wrap.querySelectorAll('[data-rm-mc]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.mc.questions.splice(parseInt(b.dataset.rmMc,10),1); renderMcList(); updateTotalIndicator(); }));
-  wrap.querySelectorAll('[data-mc-text]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcText,10)].text = el.value; }));
-  wrap.querySelectorAll('[data-mc-choice]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcChoice,10)].choices[parseInt(el.dataset.ci,10)] = el.value; }));
-  wrap.querySelectorAll('[data-mc-ans]').forEach(el=>el.addEventListener('change', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcAns,10)].answer = parseInt(el.dataset.ci,10); }));
-  wrap.querySelectorAll('[data-mc-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.mc.questions[parseInt(el.dataset.mcPoints,10)].points = parseFloat(el.value) || 0; updateTotalIndicator(); }));
+/* ---------- shared one-at-a-time question editor ---------- */
+function openQuestionEditor(section, index){
+  openQEditor = { section, index };
+  renderMcPanel(); renderMatchingPanel(); renderWrittenPanel();
+  setTimeout(()=>{ const el = document.querySelector('.q-editor-panel'); if(el) el.scrollIntoView({behavior:'smooth', block:'center'}); }, 30);
+}
+function closeQuestionEditor(){
+  openQEditor = null;
+  renderMcPanel(); renderMatchingPanel(); renderWrittenPanel();
+}
+function bindEditorPanelEvents(section, index){
+  document.getElementById('qeCancelBtn').addEventListener('click', closeQuestionEditor);
+  document.getElementById('qeSaveBtn').addEventListener('click', ()=>{
+    if(section==='mc') saveMcQuestionFromEditor(index);
+    else if(section==='matching') saveMatchingPairFromEditor(index);
+    else if(section==='written') saveWrittenQuestionFromEditor(index);
+  });
 }
 
-function renderMatchList(){
-  const s = editingSet;
-  const m = s.sections.matching;
-  const wrap = document.getElementById('matchList');
-  wrap.innerHTML = m.left.map((item,i)=>`
-    <div class="match-edit-row" data-match-idx="${i}">
-      <span class="idx">${i+1}.</span>
-      <input type="text" data-match-left="${i}" value="${escapeAttr(item.text)}" placeholder="รายการฝั่งซ้าย (โจทย์)">
-      <span style="color:var(--sub);">คู่กับ →</span>
-      <input type="text" data-match-right="${i}" value="${escapeAttr(m.right[i].text)}" placeholder="รายการฝั่งขวา (คำตอบ)">
-      <button class="rm-btn" style="position:static;" data-rm-match="${i}" type="button">✕</button>
-    </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีคู่จับคู่</p>`;
+/* ---------- MC section ---------- */
+function renderMcPanel(){
+  const wrap = document.getElementById('mcPanelWrap');
+  if(!editingUiEnabled.mc){ wrap.innerHTML=''; return; }
+  const s = editingSet.sections.mc;
+  wrap.innerHTML = `<div class="panel">
+    <h3>📝 ส่วนที่ 1 — ปรนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.questions.length} ข้อ)</span></h3>
+    <div class="field-row">
+      <div class="field" style="max-width:260px;"><label>คะแนนรวมส่วนนี้ (หารเท่ากันทุกข้อ)</label><input type="number" step="0.5" id="mcSectionPoints" value="${s.sectionPointsTotal||0}" min="0"></div>
+    </div>
+    <div class="compact-list" id="mcCompactList"></div>
+    <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
+    <div id="mcEditorSlot"></div>
+  </div>`;
+  renderMcCompactList();
+  document.getElementById('mcSectionPoints').addEventListener('input', (e)=>{
+    s.sectionPointsTotal = parseFloat(e.target.value)||0;
+    applyPointDistribution('mc'); renderMcCompactList(); updateTotalIndicator();
+  });
+  document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
+  renderOpenEditorIfNeeded('mc');
+}
+function renderMcCompactList(){
+  const s = editingSet.sections.mc;
+  const wrap = document.getElementById('mcCompactList');
+  if(!wrap) return;
+  wrap.innerHTML = s.questions.map((q,i)=>`
+    <div class="compact-row">
+      <span class="compact-idx">${i+1}.</span>
+      <span class="compact-text">${escapeHtml(truncateText(q.text||'(ยังไม่ได้กรอกคำถาม)',70))}</span>
+      <span class="compact-meta">${q.points||0} คะแนน</span>
+      <button class="btn btn-ghost btn-sm" data-editq="${i}" type="button">แก้ไข</button>
+      <button class="btn btn-danger btn-sm" data-delq="${i}" type="button">ลบ</button>
+    </div>`).join('') || `<p class="muted-note">ยังไม่มีข้อปรนัย</p>`;
+  wrap.querySelectorAll('[data-editq]').forEach(b=>b.addEventListener('click', ()=> openQuestionEditor('mc', parseInt(b.dataset.editq,10))));
+  wrap.querySelectorAll('[data-delq]').forEach(b=>b.addEventListener('click', ()=>{
+    const i = parseInt(b.dataset.delq,10);
+    if(!confirm('ลบข้อนี้?')) return;
+    s.questions.splice(i,1);
+    applyPointDistribution('mc');
+    if(openQEditor && openQEditor.section==='mc' && openQEditor.index===i) openQEditor=null;
+    renderMcPanel(); updateTotalIndicator();
+  }));
+}
+function mcEditorPanelHtml(index){
+  const s = editingSet.sections.mc;
+  const isNew = index===null;
+  const q = isNew ? {text:'', choices:['','','',''], answer:0} : s.questions[index];
+  return `<div class="q-editor-panel">
+    <div class="q-editor-title">${isNew?'เพิ่มข้อปรนัยใหม่':'แก้ไขข้อที่ '+(index+1)}</div>
+    <div class="field"><label>โจทย์</label><textarea id="qeMcText" placeholder="พิมพ์คำถาม...">${escapeHtml(q.text)}</textarea></div>
+    ${q.choices.map((c,ci)=>`
+      <div class="choice-edit-row">
+        <input type="radio" name="qeMcAns" data-ci="${ci}" ${q.answer===ci?'checked':''} title="ทำเครื่องหมายคำตอบที่ถูกต้อง">
+        <input type="text" class="qeMcChoice" data-ci="${ci}" value="${escapeAttr(c)}" placeholder="ตัวเลือกที่ ${ci+1}">
+      </div>`).join('')}
+    <div class="editor-actions">
+      <button class="btn btn-ghost btn-sm" id="qeCancelBtn" type="button">ยกเลิก</button>
+      <button class="btn btn-primary btn-sm" id="qeSaveBtn" type="button">${isNew?'เพิ่มข้อนี้':'บันทึกการแก้ไข'}</button>
+    </div>
+  </div>`;
+}
+function saveMcQuestionFromEditor(index){
+  const text = document.getElementById('qeMcText').value.trim();
+  if(!text){ alert('กรุณากรอกคำถาม'); return; }
+  const choices = Array.from(document.querySelectorAll('.qeMcChoice')).map(el=>el.value.trim());
+  if(choices.some(c=>!c)){ alert('กรุณากรอกตัวเลือกให้ครบทุกช่อง'); return; }
+  const answerRadio = document.querySelector('input[name="qeMcAns"]:checked');
+  const answer = answerRadio ? parseInt(answerRadio.dataset.ci,10) : 0;
+  const s = editingSet.sections.mc;
+  if(index===null) s.questions.push({id:uid('mc'), text, choices, answer, points:0});
+  else Object.assign(s.questions[index], {text, choices, answer});
+  applyPointDistribution('mc');
+  closeQuestionEditor();
+  updateTotalIndicator();
+}
 
-  wrap.querySelectorAll('[data-match-left]').forEach(el=>el.addEventListener('input', ()=>{ m.left[parseInt(el.dataset.matchLeft,10)].text = el.value; }));
-  wrap.querySelectorAll('[data-match-right]').forEach(el=>el.addEventListener('input', ()=>{ m.right[parseInt(el.dataset.matchRight,10)].text = el.value; }));
-  wrap.querySelectorAll('[data-rm-match]').forEach(b=>b.addEventListener('click', ()=>{
-    const i = parseInt(b.dataset.rmMatch,10);
+/* ---------- Matching section ---------- */
+function renderMatchingPanel(){
+  const wrap = document.getElementById('matchingPanelWrap');
+  if(!editingUiEnabled.matching){ wrap.innerHTML=''; return; }
+  const m = editingSet.sections.matching;
+  wrap.innerHTML = `<div class="panel">
+    <h3>🔗 ส่วนที่ 2 — จับคู่ <span style="font-weight:400;color:var(--sub);font-size:12px;">(${m.left.length} คู่)</span></h3>
+    <div class="field-row">
+      <div class="field" style="max-width:260px;"><label>คะแนนรวมส่วนนี้ (หารเท่ากันทุกคู่)</label><input type="number" step="0.5" id="matchSectionPoints" value="${m.sectionPointsTotal||0}" min="0"></div>
+    </div>
+    <div class="compact-list" id="matchCompactList"></div>
+    <button class="add-row-btn" id="addMatchBtn" type="button">+ เพิ่มคู่จับคู่</button>
+    <div id="matchingEditorSlot"></div>
+  </div>`;
+  renderMatchCompactList();
+  document.getElementById('matchSectionPoints').addEventListener('input', (e)=>{
+    m.sectionPointsTotal = parseFloat(e.target.value)||0;
+    applyPointDistribution('matching'); renderMatchCompactList(); updateTotalIndicator();
+  });
+  document.getElementById('addMatchBtn').addEventListener('click', ()=> openQuestionEditor('matching', null));
+  renderOpenEditorIfNeeded('matching');
+}
+function renderMatchCompactList(){
+  const m = editingSet.sections.matching;
+  const wrap = document.getElementById('matchCompactList');
+  if(!wrap) return;
+  wrap.innerHTML = m.left.map((item,i)=>`
+    <div class="compact-row">
+      <span class="compact-idx">${i+1}.</span>
+      <span class="compact-text">${escapeHtml(truncateText(item.text||'(ว่าง)',30))} ↔ ${escapeHtml(truncateText(m.right[i].text||'(ว่าง)',30))}</span>
+      <span class="compact-meta">${m.pointsEach||0} คะแนน</span>
+      <button class="btn btn-ghost btn-sm" data-editq="${i}" type="button">แก้ไข</button>
+      <button class="btn btn-danger btn-sm" data-delq="${i}" type="button">ลบ</button>
+    </div>`).join('') || `<p class="muted-note">ยังไม่มีคู่จับคู่</p>`;
+  wrap.querySelectorAll('[data-editq]').forEach(b=>b.addEventListener('click', ()=> openQuestionEditor('matching', parseInt(b.dataset.editq,10))));
+  wrap.querySelectorAll('[data-delq]').forEach(b=>b.addEventListener('click', ()=>{
+    const i = parseInt(b.dataset.delq,10);
+    if(!confirm('ลบคู่นี้?')) return;
     const lid = m.left[i].id;
     m.left.splice(i,1); m.right.splice(i,1);
     delete m.correctMap[lid];
-    renderMatchList(); updateTotalIndicator();
+    applyPointDistribution('matching');
+    if(openQEditor && openQEditor.section==='matching' && openQEditor.index===i) openQEditor=null;
+    renderMatchingPanel(); updateTotalIndicator();
   }));
 }
+function matchingEditorPanelHtml(index){
+  const m = editingSet.sections.matching;
+  const isNew = index===null;
+  const leftText = isNew ? '' : m.left[index].text;
+  const rightText = isNew ? '' : m.right[index].text;
+  return `<div class="q-editor-panel">
+    <div class="q-editor-title">${isNew?'เพิ่มคู่จับคู่ใหม่':'แก้ไขคู่ที่ '+(index+1)}</div>
+    <div class="field-row">
+      <div class="field"><label>รายการฝั่งซ้าย (โจทย์)</label><input type="text" id="qeMLeft" value="${escapeAttr(leftText)}" placeholder="เช่น CPU"></div>
+      <div class="field"><label>รายการฝั่งขวา (คำตอบ)</label><input type="text" id="qeMRight" value="${escapeAttr(rightText)}" placeholder="เช่น หน่วยประมวลผลกลาง"></div>
+    </div>
+    <div class="editor-actions">
+      <button class="btn btn-ghost btn-sm" id="qeCancelBtn" type="button">ยกเลิก</button>
+      <button class="btn btn-primary btn-sm" id="qeSaveBtn" type="button">${isNew?'เพิ่มคู่นี้':'บันทึกการแก้ไข'}</button>
+    </div>
+  </div>`;
+}
+function saveMatchingPairFromEditor(index){
+  const leftText = document.getElementById('qeMLeft').value.trim();
+  const rightText = document.getElementById('qeMRight').value.trim();
+  if(!leftText || !rightText){ alert('กรุณากรอกทั้งสองฝั่ง'); return; }
+  const m = editingSet.sections.matching;
+  if(index===null){
+    const lid = uid('l'), rid = uid('r');
+    m.left.push({id:lid, text:leftText});
+    m.right.push({id:rid, text:rightText});
+    m.correctMap[lid] = rid;
+  } else {
+    m.left[index].text = leftText;
+    m.right[index].text = rightText;
+  }
+  applyPointDistribution('matching');
+  closeQuestionEditor();
+  updateTotalIndicator();
+}
 
-function renderWrittenList(){
-  const s = editingSet;
-  const wrap = document.getElementById('writtenList');
-  wrap.innerHTML = s.sections.written.questions.map((qq,qi)=>`
-    <div class="mini-card" data-w-idx="${qi}">
-      <button class="rm-btn" data-rm-w="${qi}" type="button">✕</button>
-      <div class="field" style="margin-bottom:10px;"><label>โจทย์ข้อ ${qi+1}</label><textarea data-w-text="${qi}" placeholder="พิมพ์คำถาม...">${escapeHtml(qq.text)}</textarea></div>
-      <div class="field" style="margin-bottom:10px;"><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" data-w-keywords="${qi}" value="${escapeAttr((qq.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์, จับต้องได้"></div>
-      <div class="field" style="max-width:160px;margin-bottom:0;"><label>คะแนนเต็มข้อนี้</label><input type="number" step="0.5" data-w-points="${qi}" value="${qq.maxPoints}" min="0"></div>
-    </div>`).join('') || `<p style="color:var(--sub);font-size:12.5px;">ยังไม่มีข้ออัตนัย</p>`;
+/* ---------- Written section ---------- */
+function renderWrittenPanel(){
+  const wrap = document.getElementById('writtenPanelWrap');
+  if(!editingUiEnabled.written){ wrap.innerHTML=''; return; }
+  const s = editingSet.sections.written;
+  wrap.innerHTML = `<div class="panel">
+    <h3>✍️ ส่วนที่ 3 — อัตนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.questions.length} ข้อ)</span></h3>
+    <div class="field-row">
+      <div class="field" style="max-width:260px;"><label>คะแนนรวมส่วนนี้ (หารเท่ากันทุกข้อ)</label><input type="number" step="0.5" id="writtenSectionPoints" value="${s.sectionPointsTotal||0}" min="0"></div>
+    </div>
+    <div class="compact-list" id="writtenCompactList"></div>
+    <button class="add-row-btn" id="addWrittenBtn" type="button">+ เพิ่มข้ออัตนัย</button>
+    <div id="writtenEditorSlot"></div>
+  </div>`;
+  renderWrittenCompactList();
+  document.getElementById('writtenSectionPoints').addEventListener('input', (e)=>{
+    s.sectionPointsTotal = parseFloat(e.target.value)||0;
+    applyPointDistribution('written'); renderWrittenCompactList(); updateTotalIndicator();
+  });
+  document.getElementById('addWrittenBtn').addEventListener('click', ()=> openQuestionEditor('written', null));
+  renderOpenEditorIfNeeded('written');
+}
+function renderWrittenCompactList(){
+  const s = editingSet.sections.written;
+  const wrap = document.getElementById('writtenCompactList');
+  if(!wrap) return;
+  wrap.innerHTML = s.questions.map((q,i)=>`
+    <div class="compact-row">
+      <span class="compact-idx">${i+1}.</span>
+      <span class="compact-text">${escapeHtml(truncateText(q.text||'(ยังไม่ได้กรอกคำถาม)',70))}</span>
+      <span class="compact-meta">${q.maxPoints||0} คะแนน</span>
+      <button class="btn btn-ghost btn-sm" data-editq="${i}" type="button">แก้ไข</button>
+      <button class="btn btn-danger btn-sm" data-delq="${i}" type="button">ลบ</button>
+    </div>`).join('') || `<p class="muted-note">ยังไม่มีข้ออัตนัย</p>`;
+  wrap.querySelectorAll('[data-editq]').forEach(b=>b.addEventListener('click', ()=> openQuestionEditor('written', parseInt(b.dataset.editq,10))));
+  wrap.querySelectorAll('[data-delq]').forEach(b=>b.addEventListener('click', ()=>{
+    const i = parseInt(b.dataset.delq,10);
+    if(!confirm('ลบข้อนี้?')) return;
+    s.questions.splice(i,1);
+    applyPointDistribution('written');
+    if(openQEditor && openQEditor.section==='written' && openQEditor.index===i) openQEditor=null;
+    renderWrittenPanel(); updateTotalIndicator();
+  }));
+}
+function writtenEditorPanelHtml(index){
+  const s = editingSet.sections.written;
+  const isNew = index===null;
+  const q = isNew ? {text:'', keywords:[]} : s.questions[index];
+  return `<div class="q-editor-panel">
+    <div class="q-editor-title">${isNew?'เพิ่มข้ออัตนัยใหม่':'แก้ไขข้อที่ '+(index+1)}</div>
+    <div class="field"><label>โจทย์</label><textarea id="qeWText" placeholder="พิมพ์คำถาม...">${escapeHtml(q.text)}</textarea></div>
+    <div class="field"><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" id="qeWKeywords" value="${escapeAttr((q.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์"></div>
+    <div class="editor-actions">
+      <button class="btn btn-ghost btn-sm" id="qeCancelBtn" type="button">ยกเลิก</button>
+      <button class="btn btn-primary btn-sm" id="qeSaveBtn" type="button">${isNew?'เพิ่มข้อนี้':'บันทึกการแก้ไข'}</button>
+    </div>
+  </div>`;
+}
+function saveWrittenQuestionFromEditor(index){
+  const text = document.getElementById('qeWText').value.trim();
+  if(!text){ alert('กรุณากรอกคำถาม'); return; }
+  const keywords = document.getElementById('qeWKeywords').value.split(',').map(k=>k.trim()).filter(Boolean);
+  const s = editingSet.sections.written;
+  if(index===null) s.questions.push({id:uid('w'), text, keywords, maxPoints:0});
+  else Object.assign(s.questions[index], {text, keywords});
+  applyPointDistribution('written');
+  closeQuestionEditor();
+  updateTotalIndicator();
+}
 
-  wrap.querySelectorAll('[data-rm-w]').forEach(b=>b.addEventListener('click', ()=>{ s.sections.written.questions.splice(parseInt(b.dataset.rmW,10),1); renderWrittenList(); updateTotalIndicator(); }));
-  wrap.querySelectorAll('[data-w-text]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wText,10)].text = el.value; }));
-  wrap.querySelectorAll('[data-w-keywords]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wKeywords,10)].keywords = el.value.split(',').map(k=>k.trim()).filter(Boolean); }));
-  wrap.querySelectorAll('[data-w-points]').forEach(el=>el.addEventListener('input', ()=>{ s.sections.written.questions[parseInt(el.dataset.wPoints,10)].maxPoints = parseFloat(el.value) || 0; updateTotalIndicator(); }));
+function renderOpenEditorIfNeeded(section){
+  const slotId = section==='mc' ? 'mcEditorSlot' : section==='matching' ? 'matchingEditorSlot' : 'writtenEditorSlot';
+  const slot = document.getElementById(slotId);
+  if(!slot) return;
+  if(!openQEditor || openQEditor.section!==section){ slot.innerHTML=''; return; }
+  if(section==='mc') slot.innerHTML = mcEditorPanelHtml(openQEditor.index);
+  if(section==='matching') slot.innerHTML = matchingEditorPanelHtml(openQEditor.index);
+  if(section==='written') slot.innerHTML = writtenEditorPanelHtml(openQEditor.index);
+  bindEditorPanelEvents(section, openQEditor.index);
 }
 
 async function saveEditingSet(){
@@ -595,9 +878,11 @@ async function saveEditingSet(){
   s.publishMode = document.getElementById('fPublishMode').value;
   s.shuffleQuestions = document.getElementById('fShuffleQuestions').checked;
   s.shuffleChoices = document.getElementById('fShuffleChoices').checked;
+  if(!editingUiEnabled.matching) Object.assign(s.sections.matching, {left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0});
+  if(!editingUiEnabled.written) Object.assign(s.sections.written, {questions:[], sectionPointsTotal:0});
+  applyPointDistribution('mc'); applyPointDistribution('matching'); applyPointDistribution('written');
   if(!s.title){ alert('กรุณากรอกชื่อชุดข้อสอบ'); return; }
-  if(s.sections.mc.questions.some(q=>!q.text.trim())){ alert('มีข้อปรนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
-  if(s.sections.written.questions.some(q=>!q.text.trim())){ alert('มีข้ออัตนัยที่ยังไม่ได้กรอกคำถาม กรุณาตรวจสอบ'); return; }
+  if(s.sections.mc.questions.length===0){ alert('กรุณาเพิ่มข้อปรนัยอย่างน้อย 1 ข้อ'); return; }
   const total = computeSetTotal(s);
   if(total !== 20){
     if(!confirm(`คะแนนเต็มรวมขณะนี้คือ ${total} คะแนน ไม่เท่ากับ 20 พอดี ต้องการบันทึกต่อหรือไม่?`)) return;

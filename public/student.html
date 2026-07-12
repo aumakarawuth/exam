@@ -53,7 +53,7 @@ button{font-family:inherit;cursor:pointer;}
 .link-btn{background:none;border:none;color:var(--blue);font-size:13px;text-decoration:underline;padding:0;}
 
 .qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:8px;}
-.qcard{background:var(--grid);border:1.5px solid var(--line);border-radius:14px;padding:18px;text-align:left;color:var(--ink);}
+.qcard{background:var(--grid);border:1.5px solid var(--line);border-radius:14px;padding:18px;text-align:left;color:var(--ink);cursor:pointer;}
 .qcard:hover{border-color:var(--blue);}
 .qcard.selected{border-color:var(--blue);background:rgba(37,99,235,.08);}
 .qcard h3{font-size:15px;margin:0 0 6px;font-family:'Prompt',sans-serif;}
@@ -390,7 +390,7 @@ const SECTION_ICON = {mc:'📝', matching:'🔗', written:'✍️'};
 /* ============ APP / SESSION STATE ============ */
 let app = {
   studentId: null, studentName: '', classRoom: '',
-  questionKey: null, section: null,
+  questionKey: null, section: null, lateCode: null,
   submittedSections: {mc:false, matching:false, written:false},
   mcState: null, /* {forKey, order:[qid...], choiceOrder:{qid:[origIdx...]}, currentIndex} */
   timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
@@ -429,7 +429,7 @@ function saveSession(){
   if(!app.questionKey) return;
   const payload = {
     studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
-    questionKey: app.questionKey, section: app.section,
+    questionKey: app.questionKey, section: app.section, lateCode: app.lateCode || null,
     submittedSections: app.submittedSections, mcState: app.mcState,
     examEndTime: app.examEndTime, examEnded: app.examEnded,
     reloadCount: app.reloadCount, tabSwitches: state.tabSwitches,
@@ -573,6 +573,9 @@ async function refreshSelectScreen(){
   }catch(e){ COMPLETED_KEYS = new Set(); }
   renderQGrid();
 }
+let lateCodeVerified = {}; // {questionKey: code} once verified this session
+async function apiVerifyLateCode(key, code){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/verify-late-code', { method:'POST', body:{code} }); }
+
 function renderQGrid(){
   const wrap = document.getElementById('qgridWrap');
   if(!ELIGIBLE_SETS.length){
@@ -581,25 +584,59 @@ function renderQGrid(){
   }
   wrap.innerHTML = `<div class="qgrid">` + ELIGIBLE_SETS.map(q=>{
     const done = COMPLETED_KEYS.has(q.key);
-    return `<button class="qcard" data-key="${q.key}" ${done?'disabled style="opacity:.55;cursor:not-allowed;"':''}>
+    const locked = q.lateAccessRequired && !lateCodeVerified[q.key];
+    const disabled = done || locked;
+    return `<div class="qcard" data-key="${q.key}" ${disabled?'style="opacity:.7;cursor:default;"':''}>
       <h3>${escapeHtml(q.title)}</h3>
       <p>${escapeHtml(q.desc||'')}</p>
       <div class="lvbadges">
         ${done ? `<span class="lvbadge" style="background:var(--green);color:#fff;border-color:var(--green);">✅ ทำข้อสอบแล้ว</span>` : ''}
+        ${locked ? `<span class="lvbadge" style="background:var(--red);color:#fff;border-color:var(--red);">🔒 หมดเวลาลงทะเบียนสอบ</span>` : ''}
         ${q.examType ? `<span class="lvbadge examtype">${escapeHtml(q.examType)}</span>` : ''}
         <span class="lvbadge">${SECTION_ICON.mc} ปรนัย ${q.sections.mc.questions.length} ข้อ</span>
-        <span class="lvbadge">${SECTION_ICON.matching} จับคู่ ${q.sections.matching.left.length} คู่</span>
-        <span class="lvbadge">${SECTION_ICON.written} อัตนัย ${q.sections.written.questions.length} ข้อ</span>
+        ${q.sections.matching.left.length>0 ? `<span class="lvbadge">${SECTION_ICON.matching} จับคู่ ${q.sections.matching.left.length} คู่</span>` : ''}
+        ${q.sections.written.questions.length>0 ? `<span class="lvbadge">${SECTION_ICON.written} อัตนัย ${q.sections.written.questions.length} ข้อ</span>` : ''}
         ${q.subjectTeacherName ? `<span class="lvbadge">👤 ${escapeHtml(q.subjectTeacherName)}</span>` : ''}
       </div>
-    </button>`;
+      ${locked ? `
+        <div class="late-code-box" data-latebox="${q.key}" style="margin-top:10px;">
+          <p style="font-size:11.5px;color:var(--sub);margin:0 0 6px;">หมดเวลาลงทะเบียนสอบตามปกติแล้ว (${q.availableUntil?new Date(q.availableUntil).toLocaleString('th-TH'):''}) กรุณาขอรหัสพิเศษจากอาจารย์ผู้สอนเพื่อเข้าสอบย้อนหลัง</p>
+          <div style="display:flex;gap:6px;">
+            <input type="text" class="name-input" style="margin:0;padding:8px 10px;font-size:13px;" placeholder="รหัสพิเศษ" data-latecode-input="${q.key}">
+            <button class="btn btn-ghost btn-sm" data-verify-late="${q.key}" type="button">ยืนยัน</button>
+          </div>
+          <div class="id-error" data-lateerr="${q.key}" style="margin:6px 0 0;"></div>
+        </div>` : ''}
+    </div>`;
   }).join('') + `</div>`;
-  wrap.querySelectorAll('.qcard:not(:disabled)').forEach(card=>{
+
+  wrap.querySelectorAll('.qcard').forEach(card=>{
+    const key = card.dataset.key;
+    const done = COMPLETED_KEYS.has(key);
+    const locked = ELIGIBLE_SETS_BY_KEY[key].lateAccessRequired && !lateCodeVerified[key];
+    if(done || locked) return; // not directly selectable
     card.addEventListener('click', ()=>{
       wrap.querySelectorAll('.qcard').forEach(c=>c.classList.remove('selected'));
       card.classList.add('selected');
-      pickedKey = card.dataset.key;
+      pickedKey = key;
       document.getElementById('confirmQBtn').disabled = false;
+    });
+  });
+  wrap.querySelectorAll('[data-verify-late]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const key = btn.dataset.verifyLate;
+      const input = wrap.querySelector(`[data-latecode-input="${key}"]`);
+      const errBox = wrap.querySelector(`[data-lateerr="${key}"]`);
+      const code = input.value.trim();
+      if(!code){ errBox.textContent='กรุณากรอกรหัส'; errBox.style.display='block'; return; }
+      btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+      try{
+        const res = await apiVerifyLateCode(key, code);
+        if(res.ok){ lateCodeVerified[key] = code; renderQGrid(); }
+        else { errBox.textContent = 'รหัสไม่ถูกต้อง กรุณาตรวจสอบกับอาจารย์ผู้สอนอีกครั้ง'; errBox.style.display='block'; }
+      }catch(err){ errBox.textContent = err.message; errBox.style.display='block'; }
+      btn.disabled = false; btn.textContent = 'ยืนยัน';
     });
   });
 }
@@ -607,6 +644,7 @@ document.getElementById('confirmQBtn').addEventListener('click', ()=>{
   if(!pickedKey) return;
   if(COMPLETED_KEYS.has(pickedKey)){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
   app.questionKey = pickedKey;
+  app.lateCode = lateCodeVerified[pickedKey] || null;
   selectScreen.classList.add('hidden');
   runCountdown();
 });
@@ -672,10 +710,18 @@ function showHub(){
   renderHubCards();
   saveSession();
 }
+function getActiveSections(){
+  const q = currentQuestion();
+  const active = ['mc'];
+  if(q.sections.matching.left.length>0) active.push('matching');
+  if(q.sections.written.questions.length>0) active.push('written');
+  return active;
+}
 function renderHubCards(){
   const grid = document.getElementById('lvGrid');
   const descBy = {mc:'เลือกคำตอบที่ถูกต้องที่สุดในแต่ละข้อ', matching:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', written:'เขียนตอบด้วยคำพูดของตนเอง'};
-  grid.innerHTML = SECTION_KEYS.map(sec=>{
+  const active = getActiveSections();
+  grid.innerHTML = active.map(sec=>{
     const done = app.submittedSections[sec];
     const statusHtml = done ? `<span class="lv-status done">บันทึกคำตอบแล้ว</span>` : `<span class="lv-status todo">ยังไม่ทำ</span>`;
     const btnLabel = done ? 'แก้ไขคำตอบต่อ' : 'เข้าทำส่วนนี้';
@@ -687,7 +733,7 @@ function renderHubCards(){
     </div>`;
   }).join('');
   grid.querySelectorAll('[data-enter]').forEach(btn=>{ btn.addEventListener('click', ()=> enterSection(btn.dataset.enter)); });
-  const anyDone = SECTION_KEYS.some(sec=>app.submittedSections[sec]);
+  const anyDone = active.some(sec=>app.submittedSections[sec]);
   document.getElementById('endExamBtn').disabled = !anyDone;
 }
 function attemptEndExam(){
@@ -705,8 +751,7 @@ function attemptEndExam(){
 document.getElementById('endExamBtn').addEventListener('click', attemptEndExam);
 document.getElementById('backToHubBtn').addEventListener('click', showHub);
 function isOnlyMcSection(){
-  const q = currentQuestion();
-  return q.sections.matching.left.length===0 && q.sections.written.questions.length===0;
+  return getActiveSections().length===1;
 }
 
 /* ============ COMPLETENESS CHECK ============ */
@@ -938,7 +983,7 @@ document.getElementById('modalHubBtn').addEventListener('click', ()=>{ document.
 async function submitFinalAnswers(autoSubmit){
   const record = {
     studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
-    questionKey: app.questionKey, autoSubmit: !!autoSubmit,
+    questionKey: app.questionKey, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
     tabSwitches: state.tabSwitches, reloadCount: app.reloadCount,
     rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
     answers: { mc: draftAnswers.mc, matching: draftAnswers.matching, written: draftAnswers.written }
@@ -965,12 +1010,16 @@ async function submitFinalAnswers(autoSubmit){
 function forceTimeUp(){ finalizeExam('timeup'); }
 async function finalizeExam(reason){
   const auto = reason !== 'manual';
+  const activeSections = getActiveSections();
   app.examEnded = true;
   app.examInProgress = false;
   clearInterval(app.globalTimerHandle);
   saveSession();
   try{ await submitFinalAnswers(auto); }catch(e){ /* toast already shown */ }
   clearSessionData();
+  // Once this subject's exam has ended, the anti-cheat counters for it are done being tracked —
+  // clear them immediately so they never carry over into a different subject or a shared device.
+  state = { tabSwitches: 0, rightClickAttempts: 0, copyAttempts: 0 };
   examScreen.classList.add('hidden');
   setFloatingThemeButtonVisible(true);
   finalScreen.classList.remove('hidden');
@@ -987,7 +1036,7 @@ async function finalizeExam(reason){
   document.getElementById('finalHeadline').textContent = headlines[reason] || headlines.manual;
   document.getElementById('finalSummaryText').textContent = summaries[reason] || summaries.manual;
   const list = document.getElementById('finalList');
-  list.innerHTML = SECTION_KEYS.map(sec=>{
+  list.innerHTML = activeSections.map(sec=>{
     const done = app.submittedSections[sec];
     return `<div class="final-row"><span>${SECTION_TITLES[sec]}</span><b>${done ? 'ส่งคำตอบแล้ว' : 'ไม่ได้ทำ'}</b></div>`;
   }).join('');
@@ -995,7 +1044,7 @@ async function finalizeExam(reason){
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   clearSessionData();
   hideAllTopScreens(); startScreen.classList.remove('hidden');
-  app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
+  app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
   state = {tabSwitches:0, rightClickAttempts:0, copyAttempts:0};
   draftAnswers = {mc:{}, matching:{}, written:{}};
 });
@@ -1010,7 +1059,7 @@ function attemptResumeSession(){
   if(saved.examEnded) return false; // already submitted — start fresh rather than showing a stale confirmation
 
   app.studentId = saved.studentId; app.studentName = saved.studentName || ''; app.classRoom = saved.classRoom || '';
-  app.questionKey = saved.questionKey;
+  app.questionKey = saved.questionKey; app.lateCode = saved.lateCode || null;
   app.submittedSections = saved.submittedSections || {mc:false, matching:false, written:false};
   app.mcState = saved.mcState || null;
   app.examEndTime = saved.examEndTime;

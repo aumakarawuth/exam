@@ -149,12 +149,17 @@ function gradeWritten(section, answers) {
   return { total: round2(total), perQuestion };
 }
 /* strip answer keys before sending a set to a student's browser */
+function isPastDeadline(s) {
+  return !!(s.availableUntil && Date.now() > new Date(s.availableUntil).getTime());
+}
 function sanitizeSetForStudent(s) {
   return {
     key: s.key, title: s.title, tagline: s.tagline, desc: s.desc,
     examType: s.examType || '', assignedClasses: s.assignedClasses || [],
     subjectTeacherName: s.subjectTeacherName || '',
     shuffleQuestions: !!s.shuffleQuestions, shuffleChoices: !!s.shuffleChoices,
+    availableUntil: s.availableUntil || null,
+    lateAccessRequired: isPastDeadline(s),
     sections: {
       mc: {
         title: s.sections.mc.title, desc: s.sections.mc.desc,
@@ -322,6 +327,7 @@ app.post('/api/sets', requireAdmin, async (req, res) => {
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
     shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
     publishMode: body.publishMode === 'auto' ? 'auto' : 'manual',
+    availableUntil: body.availableUntil || null, lateAccessCode: body.lateAccessCode || '',
     sections: body.sections, createdAt: now, updatedAt: now
   });
   await writeDB(db);
@@ -341,10 +347,22 @@ app.put('/api/sets/:key', requireAdmin, async (req, res) => {
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
     shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
     publishMode: body.publishMode === 'auto' ? 'auto' : 'manual',
+    availableUntil: body.availableUntil || null, lateAccessCode: body.lateAccessCode || '',
     sections: body.sections, updatedAt: now
   });
   await writeDB(db);
   res.json({ ok: true });
+});
+
+// Public: verify a late-access code for an exam past its normal deadline (never echoes the real code back)
+app.post('/api/sets/:key/verify-late-code', (req, res) => {
+  const db = readDB();
+  const set = db.sets.find(x => x.key === req.params.key);
+  if (!set) return res.status(404).json({ ok: false });
+  if (!isPastDeadline(set)) return res.json({ ok: true }); // not actually locked — nothing to verify
+  const submitted = (req.body && req.body.code) || '';
+  const ok = !!set.lateAccessCode && submitted === set.lateAccessCode;
+  res.json({ ok });
 });
 
 app.post('/api/sets/:key/duplicate', requireAdmin, async (req, res) => {
@@ -379,6 +397,14 @@ app.post('/api/results', async (req, res) => {
   // One attempt per student per exam — reject if this student already has a result for this set
   if (db.results.some(x => x.studentId === r.studentId && x.questionKey === r.questionKey)) {
     return res.status(409).json({ error: 'already_submitted', message: 'รหัสนักเรียนนี้ได้ทำข้อสอบวิชานี้ไปแล้ว ระบบอนุญาตให้ทำได้เพียง 1 ครั้งเท่านั้น' });
+  }
+
+  // Deadline enforcement — if past the normal window, a valid late-access code is required
+  if (isPastDeadline(set)) {
+    const providedCode = r.lateCode || '';
+    if (!set.lateAccessCode || providedCode !== set.lateAccessCode) {
+      return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาลงทะเบียนสอบตามปกติแล้ว กรุณาขอรหัสเข้าสอบจากอาจารย์ผู้สอน' });
+    }
   }
 
   const answers = r.answers || {};
