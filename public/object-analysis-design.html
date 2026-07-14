@@ -1817,12 +1817,27 @@ async function submitObjectAnalysisResult(){
   if(!response.ok){ const body = await response.json().catch(()=>({})); throw new Error(body.message || 'ไม่สามารถบันทึกคำตอบได้'); }
   submittedToBackend = true;
 }
-window.startObjectAnalysisExam = function(student){
+window.startObjectAnalysisExam = async function(student){
+  try {
+    const response = await fetch('/api/students/' + encodeURIComponent(student.studentId) + '/results');
+    if(!response.ok) throw new Error('ไม่สามารถตรวจสอบสิทธิ์เข้าสอบได้');
+    const results = await response.json();
+    if(results.some(result => result.questionKey === 'object_analysis_design_dfd')){
+      if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+      alert('รหัสนักเรียนนี้ทำข้อสอบ Data Flow Diagram ไปแล้ว จึงไม่สามารถเริ่มทำซ้ำได้');
+      return false;
+    }
+  } catch(error) {
+    if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+    alert(error.message || 'ไม่สามารถตรวจสอบสิทธิ์เข้าสอบได้ กรุณาลองใหม่อีกครั้ง');
+    return false;
+  }
   app.studentId = student.studentId; app.studentName = student.firstName + ' ' + student.lastName; app.classRoom = student.classRoom;
   document.getElementById('startScreen').classList.add('hidden');
   QUESTIONS.coffee.title = 'การวิเคราะห์และออกแบบเชิงวัตถุ: Data Flow Diagram';
   QUESTIONS.coffee.tagline = 'Object Analysis & Design';
   app.questionKey = 'coffee'; requestDfdFullscreen(); beginCountdown();
+  return true;
 };
 window.submitObjectAnalysisResult = submitObjectAnalysisResult;
 window.requestDfdFullscreen = requestDfdFullscreen;
