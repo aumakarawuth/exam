@@ -178,7 +178,7 @@ button{font-family:inherit;cursor:pointer;}
   <div class="admin-topbar">
     <div class="brand">🧑‍🏫 ระบบข้อสอบของฉัน (<span id="teacherNameLabel"></span>)</div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button class="btn btn-ghost btn-sm" id="pageRefreshBtn" title="โหลดข้อมูลและหน้าเว็บใหม่">↻ รีเฟรชหน้า</button>
+      <button class="btn btn-ghost btn-sm" id="pageRefreshBtn" title="โหลดข้อมูลล่าสุดโดยไม่ออกจากระบบ">↻ รีเฟรชข้อมูล</button>
       <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
     </div>
   </div>
@@ -314,13 +314,18 @@ async function tryAdminLogin(){
 }
 document.getElementById('adminLoginBtn').addEventListener('click', tryAdminLogin);
 document.getElementById('teacherPasswordInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
-document.getElementById('pageRefreshBtn').addEventListener('click', ()=>location.reload());
+document.getElementById('pageRefreshBtn').addEventListener('click', refreshCurrentPageData);
 document.getElementById('adminExitBtn').addEventListener('click', ()=>{
   teacherToken = null; teacherInfo = null;
   adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
   document.getElementById('teacherUsernameInput').value=''; document.getElementById('teacherPasswordInput').value='';
   document.getElementById('adminLoginError').style.display='none';
 });
+
+function refreshCurrentPageData(){
+  const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset.atab;
+  return activeTab==='results' ? refreshResults() : initAdmin();
+}
 
 /* ============ TABS ============ */
 document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
