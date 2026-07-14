@@ -733,7 +733,8 @@ function renderHubCards(){
   });
   grid.querySelectorAll('.lv-status.done').forEach(status => { status.textContent = 'ส่งคำตอบแล้ว'; });
   const anyDone = [0,1,2].some(lv=>app.attempts[lv]);
-  document.getElementById('endExamBtn').disabled = !anyDone;
+  document.getElementById('endExamBtn').disabled = false;
+  document.getElementById('endExamBtn').title = 'จบการสอบและบันทึกคำตอบที่ทำไว้';
 }
 document.getElementById('endExamBtn').addEventListener('click', ()=>{
   if(confirm('ยืนยันจบการสอบ? หลังจากนี้จะไม่สามารถทำ Level เพิ่มเติมได้ และระบบจะสร้างไฟล์ PDF ให้ดาวน์โหลด')){
