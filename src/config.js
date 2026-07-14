@@ -9,6 +9,7 @@ module.exports = {
   LEGACY_DB_PATH: path.join(ROOT_DIR, 'data', 'db.json'),
   PUBLIC_DIR: path.join(ROOT_DIR, 'public'),
   PORT: process.env.PORT || 3000,
+  DATABASE_URL: process.env.DATABASE_URL || '',
   ADMIN_KEY: process.env.ADMIN_KEY || 'changeme123',
   EXAM_TYPES: ['กลางภาค', 'ปลายภาค']
 };

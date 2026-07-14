@@ -15,7 +15,7 @@ const crypto = require('crypto');
 const express = require('express');
 const XLSX = require('xlsx');
 const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR } = require('./src/config');
-const { readDB, writeDB } = require('./src/database');
+const { readDB, writeDB, databaseReady } = require('./src/database');
 const { hashPassword, verifyPassword, requireTeacher, requireAdmin, createTeacherSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
 const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, sanitizeSetForStudent } = require('./src/grading');
 const { registerPages, registerFallback } = require('./src/pages');
@@ -30,7 +30,8 @@ function newId(prefix) {
   return prefix + '_' + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex');
 }
 /* Seed one example exam set (full score = 20) + example students on first run */
-function seedIfEmpty() {
+async function seedIfEmpty() {
+  await databaseReady;
   const db = readDB();
   if (db.sets.length > 0) return;
   const now = new Date().toISOString();
@@ -82,9 +83,9 @@ function seedIfEmpty() {
     { studentId: '10002', firstName: 'สมหญิง', lastName: 'รักเรียน', classRoom: 'ม.3/1', createdAt: now },
     { studentId: '10003', firstName: 'วิชัย', lastName: 'ตั้งใจ', classRoom: 'ม.3/2', createdAt: now }
   );
-  writeDB(db);
+  await writeDB(db);
 }
-seedIfEmpty();
+const seedReady = seedIfEmpty();
 
 /* ---------------------------- APP SETUP ---------------------------- */
 const app = express();
@@ -568,9 +569,14 @@ app.get('/api/export/results.xlsx', requireAdmin, (req, res) => {
 registerFallback(app, PUBLIC_DIR);
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Exam system backend running at http://localhost:${PORT}  (admin: http://localhost:${PORT}/admin)`);
-  });
+  Promise.all([databaseReady, seedReady])
+    .then(() => app.listen(PORT, () => {
+      console.log(`Exam system backend running at http://localhost:${PORT}  (admin: http://localhost:${PORT}/admin)`);
+    }))
+    .catch(error => {
+      console.error('Database initialization failed.', error);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = app;
