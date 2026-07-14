@@ -226,6 +226,38 @@ button{font-family:inherit;cursor:pointer;}
   </div>
 </div>
 
+<!-- ================= PIN SETUP ================= -->
+<div id="pinSetupScreen" class="screen-wrap hidden">
+  <div class="card">
+    <span class="eyebrow">ตั้งค่า PIN</span>
+    <h1>ตั้งรหัส PIN สำหรับเข้าสอบ</h1>
+    <p class="lead">กรุณาตั้ง PIN ตัวเลข 4-6 หลัก และเก็บไว้ให้ดี หากลืมต้องติดต่อผู้ดูแลระบบเพื่อรีเซ็ต</p>
+    <input type="password" class="name-input" id="pinSetupInput" placeholder="ตั้ง PIN (4-6 หลัก)" inputmode="numeric" maxlength="6">
+    <input type="password" class="name-input" id="pinSetupConfirmInput" placeholder="ยืนยัน PIN" inputmode="numeric" maxlength="6">
+    <div class="id-error" id="pinSetupError"></div>
+    <div class="start-actions">
+      <button class="btn btn-ghost" id="pinSetupBackBtn">← กลับ</button>
+      <button class="btn btn-primary" id="pinSetupConfirmBtn">ตั้งค่า PIN →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PIN VERIFY ================= -->
+<div id="pinVerifyScreen" class="screen-wrap hidden">
+  <div class="card">
+    <span class="eyebrow">ยืนยันตัวตน</span>
+    <h1>กรอก PIN เพื่อเข้าสอบ</h1>
+    <p class="lead">กรอก PIN ที่คุณตั้งไว้</p>
+    <input type="password" class="name-input" id="pinVerifyInput" placeholder="PIN" inputmode="numeric" maxlength="6">
+    <div class="id-error" id="pinVerifyError"></div>
+    <p style="font-size:12.5px;color:var(--sub);margin:-10px 0 16px;">ลืม PIN? กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ต</p>
+    <div class="start-actions">
+      <button class="btn btn-ghost" id="pinVerifyBackBtn">← กลับ</button>
+      <button class="btn btn-primary" id="pinVerifyConfirmBtn">ยืนยัน →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ================= CHECK SCORE ================= -->
 <div id="checkScoreScreen" class="screen-wrap hidden">
   <div class="card" style="max-width:760px;">
@@ -379,6 +411,8 @@ async function apiFetch(path, options){
   return res.json();
 }
 async function apiLookupStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id)); }
+async function apiSetPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/set-pin', { method:'POST', body:{pin} }); }
+async function apiVerifyPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/verify-pin', { method:'POST', body:{pin} }); }
 async function apiGetEligibleSets(classRoom){ return apiFetch('/api/sets?classRoom='+encodeURIComponent(classRoom)); }
 async function apiSubmitResult(record){ return apiFetch('/api/results', { method:'POST', body:record }); }
 async function apiGetMyResults(studentId){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/results'); }
@@ -488,6 +522,8 @@ const startScreen = document.getElementById('startScreen');
 const loginScreen = document.getElementById('loginScreen');
 const checkScoreScreen = document.getElementById('checkScoreScreen');
 const selectScreen = document.getElementById('selectScreen');
+const pinSetupScreen = document.getElementById('pinSetupScreen');
+const pinVerifyScreen = document.getElementById('pinVerifyScreen');
 const countdownOverlay = document.getElementById('countdownOverlay');
 const examScreen = document.getElementById('examScreen');
 const finalScreen = document.getElementById('finalScreen');
@@ -495,7 +531,7 @@ const hubView = document.getElementById('hubView');
 const sectionView = document.getElementById('sectionView');
 const hubActions = document.getElementById('hubActions');
 const sectionActions = document.getElementById('sectionActions');
-function hideAllTopScreens(){ [startScreen,loginScreen,checkScoreScreen,selectScreen,examScreen,finalScreen].forEach(s=>s.classList.add('hidden')); }
+function hideAllTopScreens(){ [startScreen,loginScreen,checkScoreScreen,selectScreen,examScreen,finalScreen,pinSetupScreen,pinVerifyScreen].forEach(s=>s.classList.add('hidden')); }
 
 /* ============ START -> LOGIN / CHECK SCORE ============ */
 document.getElementById('goLoginBtn').addEventListener('click', ()=>{
@@ -551,14 +587,51 @@ async function tryLogin(){
     app.studentId = student.studentId;
     app.studentName = student.firstName + ' ' + student.lastName;
     app.classRoom = student.classRoom;
-    hideAllTopScreens(); selectScreen.classList.remove('hidden');
-    document.getElementById('identityBox').innerHTML = `ยืนยันตัวตน: <b>${escapeHtml(app.studentName)}</b> &nbsp;|&nbsp; รหัส ${escapeHtml(app.studentId)} &nbsp;|&nbsp; ห้อง ${escapeHtml(app.classRoom)}`;
-    await refreshSelectScreen();
+    hideAllTopScreens();
+    const screen = student.hasPin ? pinVerifyScreen : pinSetupScreen;
+    screen.classList.remove('hidden');
+    const input = document.getElementById(student.hasPin ? 'pinVerifyInput' : 'pinSetupInput');
+    input.value = '';
+    document.getElementById(student.hasPin ? 'pinVerifyError' : 'pinSetupError').style.display = 'none';
+    input.focus();
   }catch(e){ errBox.textContent = e.message; errBox.style.display='block'; }
   btn.disabled = false; btn.textContent = 'ตรวจสอบสิทธิ์ →';
 }
 document.getElementById('checkIdBtn').addEventListener('click', tryLogin);
 document.getElementById('studentIdInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
+
+async function proceedToSelectScreen(){
+  hideAllTopScreens(); selectScreen.classList.remove('hidden');
+  document.getElementById('identityBox').innerHTML = `ยืนยันตัวตน: <b>${escapeHtml(app.studentName)}</b> &nbsp;|&nbsp; รหัส ${escapeHtml(app.studentId)} &nbsp;|&nbsp; ห้อง ${escapeHtml(app.classRoom)}`;
+  await refreshSelectScreen();
+}
+document.getElementById('pinSetupBackBtn').addEventListener('click', ()=>{ hideAllTopScreens(); loginScreen.classList.remove('hidden'); });
+document.getElementById('pinSetupConfirmBtn').addEventListener('click', async ()=>{
+  const pin = document.getElementById('pinSetupInput').value.trim();
+  const confirmPin = document.getElementById('pinSetupConfirmInput').value.trim();
+  const error = document.getElementById('pinSetupError');
+  if(!/^\d{4,6}$/.test(pin)){ error.textContent='PIN ต้องเป็นตัวเลข 4-6 หลัก'; error.style.display='block'; return; }
+  if(pin !== confirmPin){ error.textContent='PIN ทั้งสองช่องไม่ตรงกัน'; error.style.display='block'; return; }
+  const button = document.getElementById('pinSetupConfirmBtn'); button.disabled=true;
+  try{ await apiSetPin(app.studentId, pin); error.style.display='none'; await proceedToSelectScreen(); }
+  catch(e){ error.textContent=e.message; error.style.display='block'; }
+  button.disabled=false;
+});
+document.getElementById('pinSetupConfirmInput').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('pinSetupConfirmBtn').click(); });
+document.getElementById('pinVerifyBackBtn').addEventListener('click', ()=>{ hideAllTopScreens(); loginScreen.classList.remove('hidden'); });
+document.getElementById('pinVerifyConfirmBtn').addEventListener('click', async ()=>{
+  const pin = document.getElementById('pinVerifyInput').value.trim();
+  const error = document.getElementById('pinVerifyError');
+  if(!pin){ error.textContent='กรุณากรอก PIN'; error.style.display='block'; return; }
+  const button = document.getElementById('pinVerifyConfirmBtn'); button.disabled=true;
+  try{
+    const result = await apiVerifyPin(app.studentId, pin);
+    if(result.ok){ error.style.display='none'; await proceedToSelectScreen(); }
+    else { error.textContent=result.locked ? 'PIN ถูกล็อก กรุณาติดต่อผู้ดูแลระบบ' : `PIN ไม่ถูกต้อง (เหลือ ${result.remainingAttempts} ครั้ง)`; error.style.display='block'; }
+  }catch(e){ error.textContent=e.message; error.style.display='block'; }
+  button.disabled=false;
+});
+document.getElementById('pinVerifyInput').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('pinVerifyConfirmBtn').click(); });
 
 let pickedKey = null;
 let COMPLETED_KEYS = new Set();

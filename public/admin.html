@@ -304,6 +304,7 @@ async function apiGetStudents(classRoom){ return apiFetch('/api/students'+(class
 async function apiAddStudent(s){ return apiFetch('/api/students', { method:'POST', body:s, admin:true }); }
 async function apiBulkImportStudents(text){ return apiFetch('/api/students/bulk', { method:'POST', body:{text}, admin:true }); }
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
+async function apiResetStudentPin(id){ return apiFetch('/api/students/'+encodeURIComponent(id)+'/reset-pin', { method:'POST', admin:true }); }
 async function apiGetClasses(){ return apiFetch('/api/classes', { admin:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, admin:true }); }
@@ -1144,9 +1145,33 @@ async function refreshStudents(){
         <td>${escapeHtml(s.classRoom)}</td>
         <td><button class="btn btn-danger btn-sm" data-delstu="${escapeAttr(s.studentId)}">ลบ</button></td>
       </tr>`).join('') + `</tbody></table>`;
+  const header = document.createElement('th');
+  header.textContent = 'PIN';
+  wrap.querySelector('thead tr').insertBefore(header, wrap.querySelector('thead tr').lastElementChild);
+  wrap.querySelectorAll('tbody tr').forEach((row, index)=>{
+    const student = students[index];
+    const pinCell = document.createElement('td');
+    const actionCell = row.lastElementChild;
+    if(student.hasPin){
+      pinCell.innerHTML = '<span class="pub-pill pub-yes">ตั้งแล้ว</span>';
+      const resetButton = document.createElement('button');
+      resetButton.className = 'btn btn-ghost btn-sm';
+      resetButton.textContent = 'รีเซ็ต PIN';
+      resetButton.dataset.resetpin = student.studentId;
+      actionCell.prepend(resetButton, document.createTextNode(' '));
+    } else {
+      pinCell.innerHTML = '<span class="pub-pill pub-no">ยังไม่ตั้ง</span>';
+    }
+    row.insertBefore(pinCell, actionCell);
+  });
   wrap.querySelectorAll('[data-delstu]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบนักเรียนรหัส '+b.dataset.delstu+' ออกจากระบบ?')) return;
     try{ await apiDeleteStudent(b.dataset.delstu); refreshStudents(); showToast('ลบนักเรียนแล้ว'); }
+    catch(e){ showToast(e.message); }
+  }));
+  wrap.querySelectorAll('[data-resetpin]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('รีเซ็ต PIN ของนักเรียนรหัส '+b.dataset.resetpin+'? นักเรียนจะต้องตั้ง PIN ใหม่')) return;
+    try{ await apiResetStudentPin(b.dataset.resetpin); refreshStudents(); showToast('รีเซ็ต PIN แล้ว'); }
     catch(e){ showToast(e.message); }
   }));
 }
