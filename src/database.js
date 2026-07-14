@@ -6,7 +6,7 @@ const { DATA_DIR, SQLITE_PATH, LEGACY_DB_PATH } = require('./config');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 function emptyDatabase() {
-  return { sets: [], results: [], students: [], teachers: [] };
+  return { sets: [], results: [], students: [], teachers: [], questionBank: [] };
 }
 
 function normalizeDatabase(db) {
@@ -14,7 +14,8 @@ function normalizeDatabase(db) {
     sets: Array.isArray(db?.sets) ? db.sets : [],
     results: Array.isArray(db?.results) ? db.results : [],
     students: Array.isArray(db?.students) ? db.students : [],
-    teachers: Array.isArray(db?.teachers) ? db.teachers : []
+    teachers: Array.isArray(db?.teachers) ? db.teachers : [],
+    questionBank: Array.isArray(db?.questionBank) ? db.questionBank : []
   };
 }
 
@@ -25,6 +26,7 @@ sqlite.exec(`
   CREATE TABLE IF NOT EXISTS exam_sets (key TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS students (student_id TEXT PRIMARY KEY, class_room TEXT, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS teachers (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS question_bank (id TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS results (
     id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL,
     submitted_at TEXT, published INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL,
@@ -45,7 +47,8 @@ function readSqliteDatabase() {
       sets: parseSqliteRows(sqlite.prepare('SELECT data FROM exam_sets ORDER BY rowid')),
       results: parseSqliteRows(sqlite.prepare('SELECT data FROM results ORDER BY rowid')),
       students: parseSqliteRows(sqlite.prepare('SELECT data FROM students ORDER BY rowid')),
-      teachers: parseSqliteRows(sqlite.prepare('SELECT data FROM teachers ORDER BY rowid'))
+      teachers: parseSqliteRows(sqlite.prepare('SELECT data FROM teachers ORDER BY rowid')),
+      questionBank: parseSqliteRows(sqlite.prepare('SELECT data FROM question_bank ORDER BY rowid'))
     };
   } catch (error) {
     console.error('Failed to read SQLite database, returning an empty database.', error);
@@ -58,15 +61,17 @@ function replaceSqliteDatabase(db) {
   const insertStudent = sqlite.prepare('INSERT INTO students (student_id, class_room, data) VALUES (?, ?, ?)');
   const insertTeacher = sqlite.prepare('INSERT INTO teachers (id, username, data) VALUES (?, ?, ?)');
   const insertResult = sqlite.prepare('INSERT INTO results (id, student_id, question_key, submitted_at, published, data) VALUES (?, ?, ?, ?, ?, ?)');
+  const insertBankQuestion = sqlite.prepare('INSERT INTO question_bank (id, data) VALUES (?, ?)');
   const clean = normalizeDatabase(db);
 
   sqlite.exec('BEGIN IMMEDIATE');
   try {
-    sqlite.exec('DELETE FROM results; DELETE FROM exam_sets; DELETE FROM students; DELETE FROM teachers;');
+    sqlite.exec('DELETE FROM results; DELETE FROM exam_sets; DELETE FROM students; DELETE FROM teachers; DELETE FROM question_bank;');
     for (const set of clean.sets) insertSet.run(set.key, JSON.stringify(set));
     for (const student of clean.students) insertStudent.run(student.studentId, student.classRoom || null, JSON.stringify(student));
     for (const teacher of clean.teachers) insertTeacher.run(teacher.id, teacher.username, JSON.stringify(teacher));
     for (const result of clean.results) insertResult.run(result.id, result.studentId, result.questionKey, result.submittedAt || null, result.published ? 1 : 0, JSON.stringify(result));
+    for (const question of clean.questionBank) insertBankQuestion.run(question.id, JSON.stringify(question));
     sqlite.exec('COMMIT');
   } catch (error) {
     sqlite.exec('ROLLBACK');
@@ -76,7 +81,7 @@ function replaceSqliteDatabase(db) {
 
 function migrateLegacyJsonToSqlite() {
   const sqliteData = readSqliteDatabase();
-  if (sqliteData.sets.length || sqliteData.results.length || sqliteData.students.length || sqliteData.teachers.length || !fs.existsSync(LEGACY_DB_PATH)) return;
+  if (sqliteData.sets.length || sqliteData.results.length || sqliteData.students.length || sqliteData.teachers.length || sqliteData.questionBank.length || !fs.existsSync(LEGACY_DB_PATH)) return;
   try {
     replaceSqliteDatabase(JSON.parse(fs.readFileSync(LEGACY_DB_PATH, 'utf8')));
     console.log(`Migrated legacy JSON data to SQLite: ${SQLITE_PATH}`);
@@ -93,7 +98,7 @@ let currentDatabase = DATABASE_URL ? emptyDatabase() : readSqliteDatabase();
 let writeChain = Promise.resolve();
 
 function hasData(db) {
-  return db.sets.length || db.results.length || db.students.length || db.teachers.length;
+  return db.sets.length || db.results.length || db.students.length || db.teachers.length || db.questionBank.length;
 }
 
 async function persistPostgres(db) {

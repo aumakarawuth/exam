@@ -89,6 +89,8 @@ const seedReady = seedIfEmpty();
 
 /* ---------------------------- APP SETUP ---------------------------- */
 const app = express();
+// Railway sits behind a reverse proxy; trust its first hop so login rate limits use the visitor IP.
+app.set('trust proxy', 1);
 app.use(applySecurityHeaders);
 app.use(express.json({ limit: '2mb' }));
 

@@ -16,12 +16,17 @@ function verifyPassword(password, stored) {
 }
 
 const teacherSessions = new Map();
+const TEACHER_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
 function requireTeacher(req, res, next) {
   const token = req.get('x-teacher-token');
-  const teacherId = token && teacherSessions.get(token);
-  if (!teacherId) return res.status(401).json({ error: 'unauthorized', message: 'กรุณาเข้าสู่ระบบอาจารย์ใหม่อีกครั้ง' });
-  req.teacherId = teacherId;
+  const session = token && teacherSessions.get(token);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) teacherSessions.delete(token);
+    return res.status(401).json({ error: 'unauthorized', message: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอาจารย์ใหม่อีกครั้ง' });
+  }
+  session.expiresAt = Date.now() + TEACHER_SESSION_TTL_MS;
+  req.teacherId = session.teacherId;
   next();
 }
 
@@ -35,17 +40,17 @@ function requireAdmin(req, res, next) {
 
 function createTeacherSession(teacherId) {
   const token = crypto.randomBytes(24).toString('hex');
-  teacherSessions.set(token, teacherId);
+  teacherSessions.set(token, { teacherId, expiresAt: Date.now() + TEACHER_SESSION_TTL_MS });
   return token;
 }
 
 function removeTeacherSessions(teacherId) {
-  for (const [token, currentTeacherId] of teacherSessions) {
-    if (currentTeacherId === teacherId) teacherSessions.delete(token);
+  for (const [token, session] of teacherSessions) {
+    if (session.teacherId === teacherId) teacherSessions.delete(token);
   }
 }
 
 module.exports = {
   hashPassword, verifyPassword, requireTeacher, requireAdmin,
-  createTeacherSession, removeTeacherSessions, teacherSessions
+  createTeacherSession, removeTeacherSessions, teacherSessions, TEACHER_SESSION_TTL_MS
 };

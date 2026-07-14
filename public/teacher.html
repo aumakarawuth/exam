@@ -152,6 +152,18 @@ button{font-family:inherit;cursor:pointer;}
 .detail-row td{background:var(--grid);padding:14px 16px;}
 .detail-block{font-size:12.5px;line-height:1.8;margin-bottom:10px;}
 .detail-block b{color:var(--indigo);}
+.dfd-review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:12px;}
+.dfd-review-card{background:#fff;border:1px solid #BFDBFE;border-radius:14px;padding:14px;}
+.dfd-review-card h4{font-family:'Prompt',sans-serif;margin:0;color:var(--blue-dark);font-size:14px;}
+.dfd-review-meta{font-size:12px;color:var(--sub);margin:4px 0 10px;}
+.dfd-review-card svg{width:100%;height:auto;border:1px solid var(--line);border-radius:9px;background:#F8FAFC;display:block;}
+.dfd-score-input{width:78px;padding:7px 8px;border:1.5px solid #BFDBFE;border-radius:8px;font-family:inherit;text-align:center;font-weight:700;}
+.integrity-review{background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:12px 14px;margin-bottom:14px;}
+.integrity-review.ok{background:#F0FDF4;border-color:#BBF7D0;}
+.integrity-review h4{margin:0 0 7px;font-family:'Prompt',sans-serif;font-size:13px;color:#9A3412;}
+.integrity-review.ok h4{color:#166534;}
+.integrity-summary{font-size:12.5px;line-height:1.7;color:#475569;}
+.integrity-events{margin:8px 0 0;padding-left:18px;font-size:12px;color:#64748B;line-height:1.65;}
 .password-dialog{border:1px solid #BFDBFE;border-radius:20px;padding:0;width:min(440px,calc(100% - 32px));background:var(--surface);box-shadow:0 24px 60px -20px rgba(15,23,42,.4);overflow:hidden;}
 .password-dialog::backdrop{background:rgba(15,23,42,.42);}
 .password-dialog form{padding:26px;background:linear-gradient(145deg,#FFFFFF,#F8FBFF);}
@@ -303,6 +315,7 @@ async function apiGetResults(setKey, examType){
 async function apiGetClasses(){ return apiFetch('/api/teacher/classes', { auth:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, auth:true }); }
+async function apiUpdateDfdScores(id, dfdLevelScores){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores}, auth:true }); }
 async function apiPublishAllForSet(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', auth:true }); }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -846,6 +859,7 @@ function renderMcPanel(){
     </div>
     <div class="compact-list" id="mcCompactList"></div>
     <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
+    <div class="editor-actions" style="justify-content:flex-start;"><button class="btn btn-ghost btn-sm" id="saveMcToBankBtn" type="button">💾 เก็บข้อในชุดลงคลัง</button><button class="btn btn-ghost btn-sm" id="loadMcFromBankBtn" type="button">📚 เลือกข้อจากคลัง</button></div>
     <button class="add-row-btn" id="toggleMcImportBtn" type="button" style="margin-top:8px;border-color:#A78BFA;color:var(--indigo);">✨ นำเข้าข้อปรนัยจาก ChatGPT</button>
     <div class="mc-import-box hidden" id="mcImportBox">
       <h4>1. สร้างข้อสอบด้วย ChatGPT</h4><p>คัดลอก Prompt นี้ไปวางใน ChatGPT แล้วแก้ไขหัวข้อหรือจำนวนข้อได้ตามต้องการ</p>
@@ -865,9 +879,28 @@ function renderMcPanel(){
     applyPointDistribution('mc'); renderMcCompactList();
   });
   document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
+  bindQuestionBankEvents();
   bindMcImportEvents();
   document.getElementById('saveSetFromMcBtn').addEventListener('click', saveEditingSet);
   renderOpenEditorIfNeeded('mc');
+}
+function bindQuestionBankEvents(){
+  document.getElementById('saveMcToBankBtn').addEventListener('click', async ()=>{
+    if(!editingSet.sections.mc.questions.length){ showToast('ยังไม่มีข้อปรนัยให้เก็บ'); return; }
+    try{ const result=await apiFetch('/api/teacher/question-bank',{method:'POST',body:{questions:editingSet.sections.mc.questions.map(question=>({...question,courseName:editingSet.courseName||editingSet.title||''}))},auth:true}); showToast(`เพิ่มเข้าคลัง ${result.added} ข้อ`); }catch(error){ showToast(error.message); }
+  });
+  document.getElementById('loadMcFromBankBtn').addEventListener('click', async ()=>{
+    try{
+      const questions=await apiFetch('/api/teacher/question-bank',{auth:true});
+      if(!questions.length){ showToast('คลังข้อสอบยังว่าง'); return; }
+      const choices=questions.map((question,index)=>`${index+1}. ${question.text}`).join('\n');
+      const selected=prompt(`พิมพ์หมายเลขข้อที่ต้องการ คั่นด้วยจุลภาค\n\n${choices}`); if(!selected) return;
+      const indexes=[...new Set(selected.split(',').map(value=>parseInt(value.trim(),10)-1).filter(index=>index>=0&&index<questions.length))];
+      if(!indexes.length){ showToast('ไม่พบหมายเลขข้อที่เลือก'); return; }
+      editingSet.sections.mc.questions.push(...indexes.map(index=>{const question=questions[index];return {id:uid('mc'),text:question.text,choices:question.choices.slice(),answer:question.answer,points:0};}));
+      applyPointDistribution('mc'); renderMcPanel(); showToast(`เพิ่มจากคลัง ${indexes.length} ข้อแล้ว`);
+    }catch(error){ showToast(error.message); }
+  });
 }
 function parseChatGptMc(text){
   const questions=[]; const errors=[]; let current=null; let target=null;
@@ -1228,9 +1261,19 @@ function toggleDetailRow(resultId){
   if(!rowEl) return;
   const tr = document.createElement('tr');
   tr.className = 'detail-row'; tr.dataset.for = resultId;
-  const td = document.createElement('td'); td.colSpan = 15;
-  if(!set){
-    td.innerHTML = '<div class="detail-block">ไม่พบข้อมูลชุดข้อสอบต้นฉบับ (อาจถูกลบไปแล้ว)</div>';
+  const td = document.createElement('td'); td.colSpan = 16;
+  if(rec.detail?.type==='dfd'){
+    td.innerHTML = renderDfdReview(rec);
+    td.querySelector('[data-save-dfd-score]').addEventListener('click', async (event)=>{
+      const button=event.currentTarget;
+      const scores=[0,1,2].map(level=>Number(td.querySelector(`[data-dfd-score-level="${level}"]`).value));
+      if(scores.some(score=>!Number.isFinite(score)||score<0||score>100)){ showToast('แต่ละ Level ต้องมีคะแนน 0–100'); return; }
+      button.disabled=true; button.textContent='กำลังบันทึก...';
+      try{ await apiUpdateDfdScores(rec.id, scores); showToast('ปรับคะแนน DFD แล้ว ระบบคำนวณรวม /20 ใหม่แล้ว'); refreshResults(); }
+      catch(error){ showToast(error.message); button.disabled=false; button.textContent='บันทึกคะแนนที่ปรับ'; }
+    });
+  }else if(!set){
+    td.innerHTML = renderIntegrityReview(rec) + '<div class="detail-block">ไม่พบข้อมูลชุดข้อสอบต้นฉบับ (อาจถูกลบไปแล้ว)</div>';
   }else{
     const answers = (rec.detail && rec.detail.answers) || {mc:{},matching:{},written:{}};
     let html = '';
@@ -1253,10 +1296,31 @@ function toggleDetailRow(resultId){
       const pts = (rec.detail && rec.detail.writtenPerQuestion) ? rec.detail.writtenPerQuestion[qq.id] : '-';
       return `${i+1}. ${escapeHtml(qq.text)} (auto: ${pts}/${qq.maxPoints})<br>&nbsp;&nbsp;คำตอบ: ${escapeHtml(text)}`;
     }).join('<br><br>') + `</div>`;
-    td.innerHTML = html;
+    td.innerHTML = renderIntegrityReview(rec) + html;
   }
   tr.appendChild(td);
   rowEl.after(tr);
+}
+function renderDfdReview(rec){
+  const levels=rec.detail?.levels || [];
+  const scores=rec.detail?.levelScores || [0,0,0];
+  const svgFor=level=>{
+    const shapes=Array.isArray(level?.shapes)?level.shapes:[];
+    const connections=Array.isArray(level?.connections)?level.connections:[];
+    const byId=Object.fromEntries(shapes.map(shape=>[shape.id,shape]));
+    const center=shape=>({x:(Number(shape.x)||0)+(Number(shape.w)||140)/2,y:(Number(shape.y)||0)+(Number(shape.h)||70)/2});
+    const lines=connections.map(conn=>{ const from=byId[conn.fromId],to=byId[conn.toId]; if(!from||!to) return ''; const a=center(from),b=center(to); return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#64748B" stroke-width="2"/><text x="${(a.x+b.x)/2}" y="${(a.y+b.y)/2-5}" text-anchor="middle" font-size="12" fill="#334155">${escapeHtml(conn.label||'')}</text>`; }).join('');
+    const nodes=shapes.map(shape=>{ const x=Number(shape.x)||0,y=Number(shape.y)||0,w=Number(shape.w)||140,h=Number(shape.h)||70,label=escapeHtml(shape.label||shape.num||''); const figure=shape.type==='process'?`<ellipse cx="${x+w/2}" cy="${y+h/2}" rx="${w/2}" ry="${h/2}" fill="#DBEAFE" stroke="#2563EB"/>`:`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${shape.type==='store'?0:8}" fill="#FFFFFF" stroke="#2563EB"/>`; return `${figure}<text x="${x+w/2}" y="${y+h/2+4}" text-anchor="middle" font-size="13" fill="#0F172A">${label}</text>`; }).join('');
+    return `<svg viewBox="0 0 1000 650" role="img" aria-label="แผนภาพ DFD">${lines}${nodes}</svg>`;
+  };
+  return renderIntegrityReview(rec) + `<div class="detail-block"><b>🧩 ตรวจงาน Data Flow Diagram</b><br>คะแนนรวมปัจจุบัน <b>${rec.overallScore20}/20</b> (Level 0–2 รวม 300 คะแนน แล้วแปลงเป็น 20 คะแนน)</div><div class="dfd-review-grid">${[0,1,2].map(level=>{const data=levels.find(item=>Number(item.level)===level);const shapes=data?.shapes?.length||0,flows=data?.connections?.length||0;return `<section class="dfd-review-card"><h4>Level ${level}</h4><div class="dfd-review-meta">สัญลักษณ์ ${shapes} · เส้นข้อมูล ${flows}</div>${svgFor(data)}<div class="editor-actions"><label>คะแนน /100 <input class="dfd-score-input" data-dfd-score-level="${level}" type="number" min="0" max="100" step="0.5" value="${Number(scores[level])||0}"></label></div></section>`;}).join('')}</div><div class="editor-actions"><button class="btn btn-primary btn-sm" data-save-dfd-score>บันทึกคะแนนที่ปรับ</button></div>`;
+}
+function renderIntegrityReview(rec){
+  const events=Array.isArray(rec.integrityEvents)?rec.integrityEvents:[];
+  const labels={tab_switch:'สลับแท็บ/หน้าจอ',fullscreen_exit:'ออกจากโหมดเต็มจอ',right_click:'พยายามคลิกขวา',copy:'พยายามคัดลอก',reload:'โหลดหน้าใหม่'};
+  const counts=`สลับแท็บ ${rec.tabSwitches||0} · ออกจากเต็มจอ ${rec.fullscreenExitAttempts||0} · คลิกขวา ${rec.rightClickAttempts||0} · คัดลอก ${rec.copyAttempts||0} · โหลดหน้าใหม่ ${rec.reloadCount||0}`;
+  const alert=(rec.tabSwitches||0)+(rec.fullscreenExitAttempts||0)+(rec.rightClickAttempts||0)+(rec.copyAttempts||0)+(rec.reloadCount||0)>0;
+  return `<section class="integrity-review ${alert?'':'ok'}"><h4>${alert?'⚠ ประวัติเหตุการณ์ระหว่างสอบ':'✓ ไม่พบเหตุการณ์ผิดปกติที่ระบบตรวจจับได้'}</h4><div class="integrity-summary">${counts}</div>${events.length?`<ol class="integrity-events">${events.map(event=>`<li>${escapeHtml(labels[event.type]||event.type)} — ${new Date(event.at).toLocaleString('th-TH')}</li>`).join('')}</ol>`:'<div class="integrity-events">ผลสอบเก่านี้ไม่มีบันทึกเวลารายเหตุการณ์</div>'}</section>`;
 }
 document.getElementById('refreshResultsBtn').addEventListener('click', refreshResults);
 document.getElementById('setFilterSelect').addEventListener('change', refreshResults);

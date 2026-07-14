@@ -73,6 +73,8 @@ button{font-family:inherit;cursor:pointer;}
 .topbar-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
 .topbar-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:15px;}
 .tag{font-size:11px;background:var(--grid);color:var(--sub);padding:3px 9px;border-radius:999px;border:1px solid var(--line);}
+.tag.autosave{background:rgba(22,163,74,.1);color:var(--green);border-color:rgba(22,163,74,.28);}
+.tag.autosave.saving{background:rgba(37,99,235,.1);color:var(--blue);border-color:rgba(37,99,235,.28);}
 .name-tag{font-size:12px;background:rgba(37,99,235,.1);color:var(--blue);padding:4px 11px;border-radius:999px;font-weight:600;}
 .timer{font-family:'Prompt',sans-serif;font-weight:700;font-size:20px;background:var(--grid);border:1px solid var(--line);border-radius:10px;padding:6px 16px;min-width:96px;text-align:center;}
 .timer.warn{color:var(--amber);border-color:var(--amber);}
@@ -305,6 +307,7 @@ button{font-family:inherit;cursor:pointer;}
       <span class="tag" id="rightClickTag">คลิกขวา: 0 ครั้ง</span>
       <span class="tag" id="copyTag">คัดลอก: 0 ครั้ง</span>
       <span class="tag badge-warn" id="reloadTag" style="display:none;"></span>
+      <span class="tag autosave" id="autosaveTag">💾 บันทึกอัตโนมัติพร้อมใช้งาน</span>
     </div>
     <div class="timer" id="timerDisplay">60:00</div>
     <div class="topbar-right">
@@ -431,7 +434,7 @@ let app = {
   timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
   examEnded: false, examInProgress: false, reloadCount: 0
 };
-let state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0 };
+let state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0, integrityEvents: [] };
 let draftAnswers = { mc:{}, matching:{}, written:{} };
 let ELIGIBLE_SETS = [];
 let ELIGIBLE_SETS_BY_KEY = {};
@@ -471,11 +474,25 @@ function saveSession(){
     examEndTime: app.examEndTime, examEnded: app.examEnded,
     reloadCount: app.reloadCount, tabSwitches: state.tabSwitches, tabWarningAcknowledged: state.tabWarningAcknowledged,
     fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    integrityEvents: state.integrityEvents,
     draftAnswers: draftAnswers, eligibleSets: ELIGIBLE_SETS
   };
-  try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); }catch(e){}
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); updateAutosaveTag('saved'); }
+  catch(e){ updateAutosaveTag('error'); }
 }
-function scheduleSave(){ clearTimeout(_saveDebounceHandle); _saveDebounceHandle = setTimeout(saveSession, 500); }
+function updateAutosaveTag(status){
+  const tag = document.getElementById('autosaveTag');
+  if(!tag) return;
+  if(status==='saving'){
+    tag.textContent='💾 กำลังบันทึกอัตโนมัติ...'; tag.classList.add('saving'); return;
+  }
+  if(status==='error'){
+    tag.textContent='⚠ บันทึกอัตโนมัติไม่สำเร็จ'; tag.classList.remove('saving'); tag.classList.add('badge-warn'); return;
+  }
+  const time = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  tag.textContent='💾 บันทึกอัตโนมัติแล้ว '+time; tag.classList.remove('saving','badge-warn');
+}
+function scheduleSave(){ updateAutosaveTag('saving'); clearTimeout(_saveDebounceHandle); _saveDebounceHandle = setTimeout(saveSession, 500); }
 function loadSessionData(){
   try{ const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
 }
@@ -484,16 +501,20 @@ window.addEventListener('beforeunload', ()=>{ pageIsLeaving = true; if(app.quest
 function requestExamFullscreen(){
   if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
 }
+function recordIntegrityEvent(type){
+  state.integrityEvents.push({type, at:new Date().toISOString()});
+  if(state.integrityEvents.length>50) state.integrityEvents.shift();
+}
 
 /* ============ ANTI-CHEAT: block right-click & copy while exam is in progress ============ */
 document.addEventListener('contextmenu', (e)=>{
-  if(app.examInProgress){ e.preventDefault(); state.rightClickAttempts++; updateCheatTags(); scheduleSave(); }
+  if(app.examInProgress){ e.preventDefault(); state.rightClickAttempts++; recordIntegrityEvent('right_click'); updateCheatTags(); scheduleSave(); }
 });
 document.addEventListener('copy', (e)=>{
-  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; updateCheatTags(); scheduleSave(); }
+  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; recordIntegrityEvent('copy'); updateCheatTags(); scheduleSave(); }
 });
 document.addEventListener('cut', (e)=>{
-  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; updateCheatTags(); scheduleSave(); }
+  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; recordIntegrityEvent('copy'); updateCheatTags(); scheduleSave(); }
 });
 function updateCheatTags(){
   const fs = document.getElementById('fullscreenExitTag');
@@ -509,6 +530,7 @@ document.addEventListener('visibilitychange', ()=>{
     tabSwitchCheckTimer = setTimeout(()=>{
       if(pageIsLeaving || !document.hidden || !app.examInProgress || app.examEnded) return;
       state.tabSwitches++;
+      recordIntegrityEvent('tab_switch');
       const tag = document.getElementById('tabSwitchTag');
       tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
       tag.classList.add('badge-warn');
@@ -535,6 +557,7 @@ document.addEventListener('fullscreenchange', ()=>{
   if(document.fullscreenElement){ fullscreenWasActive = true; return; }
   if(!fullscreenWasActive || !app.examInProgress || app.examEnded) return;
   state.fullscreenExitAttempts++;
+  recordIntegrityEvent('fullscreen_exit');
   updateCheatTags(); scheduleSave();
   showToast('ตรวจพบการออกจากโหมดเต็มจอ กรุณากลับเข้าสู่โหมดเต็มจอเพื่อทำข้อสอบต่อ');
 });
@@ -780,7 +803,7 @@ function runGlobalTimer(){
   app.globalTimerHandle = setInterval(()=>{
     app.timeLeft = Math.max(0, Math.round((app.examEndTime - Date.now())/1000));
     updateGlobalTimerDisplay();
-    saveSession();
+    if(app.timeLeft % 15 === 0) saveSession();
     if(app.timeLeft<=0){ clearInterval(app.globalTimerHandle); forceTimeUp(); }
   }, 1000);
 }
@@ -1085,6 +1108,7 @@ async function submitFinalAnswers(autoSubmit){
     questionKey: app.questionKey, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
     tabSwitches: state.tabSwitches, reloadCount: app.reloadCount,
     fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    integrityEvents: state.integrityEvents,
     answers: { mc: draftAnswers.mc, matching: draftAnswers.matching, written: draftAnswers.written }
   };
   const MAX_TRIES = 3;
@@ -1118,7 +1142,7 @@ async function finalizeExam(reason){
   clearSessionData();
   // Once this subject's exam has ended, the anti-cheat counters for it are done being tracked —
   // clear them immediately so they never carry over into a different subject or a shared device.
-  state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0 };
+  state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0, integrityEvents: [] };
   examScreen.classList.add('hidden');
   setFloatingThemeButtonVisible(true);
   finalScreen.classList.remove('hidden');
@@ -1144,7 +1168,7 @@ document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   clearSessionData();
   hideAllTopScreens(); startScreen.classList.remove('hidden');
   app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
-  state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0};
+  state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0, integrityEvents:[]};
   draftAnswers = {mc:{}, matching:{}, written:{}};
 });
 
@@ -1168,6 +1192,8 @@ function attemptResumeSession(){
   state.fullscreenExitAttempts = saved.fullscreenExitAttempts || 0;
   state.rightClickAttempts = saved.rightClickAttempts || 0;
   state.copyAttempts = saved.copyAttempts || 0;
+  state.integrityEvents = Array.isArray(saved.integrityEvents) ? saved.integrityEvents : [];
+  recordIntegrityEvent('reload');
   draftAnswers = saved.draftAnswers || {mc:{}, matching:{}, written:{}};
 
   hideAllTopScreens();

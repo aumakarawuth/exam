@@ -64,6 +64,8 @@ button{font-family:inherit;cursor:pointer;}
 .topbar-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
 .topbar-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:15px;}
 .tag{font-size:11px;background:var(--grid);color:var(--sub);padding:3px 9px;border-radius:999px;border:1px solid var(--line);}
+.tag.autosave{background:rgba(22,163,74,.1);color:var(--green);border-color:rgba(22,163,74,.28);}
+.tag.autosave.saving{background:rgba(37,99,235,.1);color:var(--blue);border-color:rgba(37,99,235,.28);}
 .name-tag{font-size:12px;background:rgba(37,99,235,.1);color:var(--blue);padding:4px 11px;border-radius:999px;font-weight:600;}
 .timer{font-family:'Prompt',sans-serif;font-weight:700;font-size:20px;background:var(--grid);border:1px solid var(--line);border-radius:10px;padding:6px 16px;min-width:96px;text-align:center;}
 .timer.warn{color:var(--amber);border-color:var(--amber);}
@@ -255,6 +257,7 @@ button{font-family:inherit;cursor:pointer;}
       <span class="name-tag" id="nameTag"></span>
       <span class="tag" id="tabSwitchTag">สลับแท็บ: 0 ครั้ง</span>
       <span class="tag" id="fullscreenExitTag">ออกจากเต็มจอ: 0 ครั้ง</span>
+      <span class="tag autosave" id="autosaveTag">💾 บันทึกอัตโนมัติพร้อมใช้งาน</span>
     </div>
     <div class="timer" id="timerDisplay">60:00</div>
     <div class="topbar-right" id="hubActions">
@@ -599,7 +602,7 @@ let app = {
   studentId: null, studentName: '', classRoom: '', questionKey: null,
   level: null,          // currently open level, null when at hub
   attempts: {0:null, 1:null, 2:null},
-  timeLeft: 60*60, examEndTime: null, tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, reloadCount: 0,
+  timeLeft: 60*60, examEndTime: null, tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, reloadCount: 0, integrityEvents: [],
   globalTimerHandle: null,
   examEnded: false
 };
@@ -618,11 +621,20 @@ let dfdTabSwitchCheckTimer = null;
 function saveDfdSession(){
   if(!app.studentId || !app.questionKey || app.examEnded) return;
   const canvasState = { shapes:state.shapes, connections:state.connections, tool:state.tool, selectedId:state.selectedId, zoom:state.zoom, panX:state.panX, panY:state.panY, hintsLeft:state.hintsLeft };
-  try { localStorage.setItem(DFD_SESSION_KEY, JSON.stringify({ studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, questionKey:app.questionKey, attempts:app.attempts, level:app.level, examEndTime:app.examEndTime, tabSwitches:app.tabSwitches, tabWarningAcknowledged:app.tabWarningAcknowledged, fullscreenExitAttempts:app.fullscreenExitAttempts, reloadCount:app.reloadCount, canvasState })); } catch(e) {}
+  try { localStorage.setItem(DFD_SESSION_KEY, JSON.stringify({ studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, questionKey:app.questionKey, attempts:app.attempts, level:app.level, examEndTime:app.examEndTime, tabSwitches:app.tabSwitches, tabWarningAcknowledged:app.tabWarningAcknowledged, fullscreenExitAttempts:app.fullscreenExitAttempts, reloadCount:app.reloadCount, integrityEvents:app.integrityEvents, canvasState })); updateDfdAutosaveTag('saved'); } catch(e) { updateDfdAutosaveTag('error'); }
 }
-function scheduleDfdSave(){ clearTimeout(dfdSaveTimer); dfdSaveTimer = setTimeout(saveDfdSession, 300); }
+function updateDfdAutosaveTag(status){
+  const tag=document.getElementById('autosaveTag');
+  if(!tag) return;
+  if(status==='saving'){ tag.textContent='💾 กำลังบันทึกอัตโนมัติ...'; tag.classList.add('saving'); return; }
+  if(status==='error'){ tag.textContent='⚠ บันทึกอัตโนมัติไม่สำเร็จ'; tag.classList.remove('saving'); tag.classList.add('badge-warn'); return; }
+  const time=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  tag.textContent='💾 บันทึกอัตโนมัติแล้ว '+time; tag.classList.remove('saving','badge-warn');
+}
+function scheduleDfdSave(){ updateDfdAutosaveTag('saving'); clearTimeout(dfdSaveTimer); dfdSaveTimer = setTimeout(saveDfdSession, 300); }
 function clearDfdSession(){ try { localStorage.removeItem(DFD_SESSION_KEY); } catch(e) {} }
 function requestDfdFullscreen(){ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{}); }
+function recordDfdIntegrityEvent(type){ app.integrityEvents.push({type,at:new Date().toISOString()}); if(app.integrityEvents.length>50) app.integrityEvents.shift(); }
 window.addEventListener('beforeunload', ()=>{ dfdPageIsLeaving = true; saveDfdSession(); });
 
 /* ============ SCREEN REFS ============ */
@@ -713,6 +725,7 @@ function startWholeExam(){
   app.tabSwitches = 0;
   app.tabWarningAcknowledged = 0;
   app.fullscreenExitAttempts = 0;
+  app.integrityEvents = [];
   dfdFullscreenWasActive = !!document.fullscreenElement;
   updateGlobalTimerDisplay();
   document.getElementById('tabSwitchTag').textContent = 'สลับแท็บ: 0 ครั้ง';
@@ -727,7 +740,7 @@ function runDfdTimer(){
   app.globalTimerHandle = setInterval(()=>{
     app.timeLeft = Math.max(0, Math.round((app.examEndTime-Date.now())/1000));
     updateGlobalTimerDisplay();
-    scheduleDfdSave();
+    if(app.timeLeft % 15 === 0) saveDfdSession();
     if(app.timeLeft <= 0){
       clearInterval(app.globalTimerHandle);
       forceTimeUp();
@@ -827,6 +840,7 @@ document.addEventListener('visibilitychange', ()=>{
   dfdTabSwitchCheckTimer = setTimeout(()=>{
     if(dfdPageIsLeaving || !document.hidden || examScreen.classList.contains('hidden') || app.examEnded) return;
     app.tabSwitches++;
+    recordDfdIntegrityEvent('tab_switch');
     const tag = document.getElementById('tabSwitchTag');
     tag.textContent = 'สลับแท็บ: '+app.tabSwitches+' ครั้ง';
     tag.classList.add('badge-warn');
@@ -849,6 +863,7 @@ document.addEventListener('fullscreenchange', ()=>{
   if(document.fullscreenElement){ dfdFullscreenWasActive = true; return; }
   if(!dfdFullscreenWasActive || examScreen.classList.contains('hidden') || app.examEnded) return;
   app.fullscreenExitAttempts++;
+  recordDfdIntegrityEvent('fullscreen_exit');
   updateDfdFullscreenTag(); saveDfdSession();
   showToast('ตรวจพบการออกจากโหมดเต็มจอ กรุณากลับเข้าสู่โหมดเต็มจอเพื่อทำข้อสอบต่อ');
 });
@@ -1849,7 +1864,7 @@ async function submitObjectAnalysisResult(){
     const attempt = app.attempts[level];
     return { level, score: attempt ? attempt.best.result.total : 0, shapes: attempt ? attempt.latest.shapes : [], connections: attempt ? attempt.latest.connections : [] };
   });
-  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: app.tabSwitches, fullscreenExitAttempts: app.fullscreenExitAttempts, reloadCount: app.reloadCount }) });
+  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: app.tabSwitches, fullscreenExitAttempts: app.fullscreenExitAttempts, reloadCount: app.reloadCount, integrityEvents: app.integrityEvents }) });
   if(!response.ok){ const body = await response.json().catch(()=>({})); throw new Error(body.message || 'ไม่สามารถบันทึกคำตอบได้'); }
   submittedToBackend = true;
 }
@@ -1890,6 +1905,7 @@ function attemptResumeDfdSession(){
   app.studentId=saved.studentId; app.studentName=saved.studentName||''; app.classRoom=saved.classRoom||'';
   app.questionKey='coffee'; app.attempts=saved.attempts||{0:null,1:null,2:null}; app.examEndTime=saved.examEndTime;
   app.timeLeft=remaining; app.tabSwitches=saved.tabSwitches||0; app.tabWarningAcknowledged=saved.tabWarningAcknowledged||0; app.fullscreenExitAttempts=saved.fullscreenExitAttempts||0; app.reloadCount=(saved.reloadCount||0)+1; app.examEnded=false;
+  app.integrityEvents=Array.isArray(saved.integrityEvents)?saved.integrityEvents:[]; recordDfdIntegrityEvent('reload');
   [startScreen, selectScreen, nameScreen, countdownOverlay, document.getElementById('sharedLoginScreen'), document.getElementById('sharedPinSetupScreen'), document.getElementById('sharedPinVerifyScreen')].forEach(el=>el?.classList.add('hidden'));
   examScreen.classList.remove('hidden');
   document.getElementById('nameTag').textContent = '👤 ' + app.studentName;

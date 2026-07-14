@@ -1,5 +1,20 @@
+const express = require('express');
+const XLSX = require('xlsx');
+
 function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, hashPassword, verifyPassword }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
+
+  app.get('/api/students/export.xlsx', requireAdmin, (req, res) => {
+    const rows = readDB().students
+      .sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId))
+      .map(student => ({ 'รหัสนักเรียน': student.studentId, 'ชื่อ': student.firstName, 'นามสกุล': student.lastName, 'ห้อง': student.classRoom, 'ตั้ง PIN แล้ว': student.pinHash ? 'ใช่' : 'ไม่' }));
+    const sheet = XLSX.utils.json_to_sheet(rows, { header: ['รหัสนักเรียน', 'ชื่อ', 'นามสกุล', 'ห้อง', 'ตั้ง PIN แล้ว'] });
+    const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, 'รายชื่อนักเรียน');
+    const output = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="students.xlsx"');
+    res.send(output);
+  });
 
   app.get('/api/students/:studentId', (req, res) => {
     const student = findStudent(readDB().students, req.params.studentId);
@@ -80,6 +95,31 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, hashPasswor
       if (!studentId || !firstName || !lastName || !classRoom) { errors.push(`บรรทัดที่ ${index + 1}: ข้อมูลไม่ครบ ("${line}")`); return; }
       if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom }); updated++; }
       else { const student = { studentId, firstName, lastName, classRoom, pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported++; }
+    });
+    await writeDB(db); res.json({ imported, updated, errors });
+  });
+
+  app.post('/api/students/import-xlsx', requireAdmin, express.raw({ type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'], limit: '2mb' }), async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'invalid_file', message: 'กรุณาเลือกไฟล์ Excel' });
+    let rows;
+    try {
+      const workbook = XLSX.read(req.body, { type: 'buffer' });
+      rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+    } catch { return res.status(400).json({ error: 'invalid_file', message: 'ไม่สามารถอ่านไฟล์ Excel นี้ได้' }); }
+    const valueOf = (row, names) => {
+      const key = Object.keys(row).find(column => names.includes(String(column).trim().toLowerCase()));
+      return key === undefined ? '' : String(row[key] ?? '').trim();
+    };
+    const db = readDB(); const byId = new Map(db.students.map(student => [student.studentId, student]));
+    let imported = 0, updated = 0; const errors = [];
+    rows.forEach((row, index) => {
+      const studentId = valueOf(row, ['รหัสนักเรียน', 'studentid', 'student_id', 'id']);
+      const firstName = valueOf(row, ['ชื่อ', 'firstname', 'first_name']);
+      const lastName = valueOf(row, ['นามสกุล', 'lastname', 'last_name']);
+      const classRoom = valueOf(row, ['ห้อง', 'classroom', 'class_room', 'class']);
+      if (!studentId || !firstName || !lastName || !classRoom) { errors.push(`แถว ${index + 2}: ข้อมูลไม่ครบ`); return; }
+      if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom }); updated += 1; }
+      else { const student = { studentId, firstName, lastName, classRoom, pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported += 1; }
     });
     await writeDB(db); res.json({ imported, updated, errors });
   });

@@ -152,6 +152,22 @@ button{font-family:inherit;cursor:pointer;}
 .detail-row td{background:var(--grid);padding:14px 16px;}
 .detail-block{font-size:12.5px;line-height:1.8;margin-bottom:10px;}
 .detail-block b{color:var(--indigo);}
+.dfd-review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:12px;}
+.dfd-review-card{background:#fff;border:1px solid #BFDBFE;border-radius:14px;padding:14px;}
+.dfd-review-card h4{font-family:'Prompt',sans-serif;margin:0;color:var(--blue-dark);font-size:14px;}
+.dfd-review-meta{font-size:12px;color:var(--sub);margin:4px 0 10px;}
+.dfd-review-card svg{width:100%;height:auto;border:1px solid var(--line);border-radius:9px;background:#F8FAFC;display:block;}
+.dfd-score-input{width:78px;padding:7px 8px;border:1.5px solid #BFDBFE;border-radius:8px;font-family:inherit;text-align:center;font-weight:700;}
+.integrity-review{background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:12px 14px;margin-bottom:14px;}
+.integrity-review.ok{background:#F0FDF4;border-color:#BBF7D0;}
+.integrity-review h4{margin:0 0 7px;font-family:'Prompt',sans-serif;font-size:13px;color:#9A3412;}
+.integrity-review.ok h4{color:#166534;}
+.integrity-summary{font-size:12.5px;line-height:1.7;color:#475569;}
+.integrity-events{margin:8px 0 0;padding-left:18px;font-size:12px;color:#64748B;line-height:1.65;}
+.dashboard-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:18px 0;}
+.dashboard-stat{background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:0 10px 24px -22px rgba(15,23,42,.55);}
+.dashboard-stat .label{font-size:12.5px;color:var(--sub);}.dashboard-stat .value{font-family:'Prompt',sans-serif;font-size:29px;font-weight:700;margin-top:5px;color:var(--blue-dark);}.dashboard-stat .note{font-size:11.5px;color:var(--sub);margin-top:4px;}
+.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px;}.dashboard-panel{background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:18px;}.dashboard-panel h3{margin:0 0 12px;font-size:15px;}.dash-bar-row{display:grid;grid-template-columns:minmax(90px,1fr) 3fr auto;gap:8px;align-items:center;margin:9px 0;font-size:12px;}.dash-bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub);}.dash-bar-track{height:9px;background:var(--grid);border-radius:999px;overflow:hidden;}.dash-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),var(--indigo));}.dash-bar-value{font-weight:700;font-size:12px;}
 @media(max-width:560px){.lv-grid{grid-template-columns:1fr;}.lv-card{min-height:0;}.deadline-card{min-width:0;width:100%;}}
 </style>
 </head>
@@ -182,6 +198,7 @@ button{font-family:inherit;cursor:pointer;}
     </div>
   </div>
   <div class="admin-tabs">
+    <button class="admin-tab-btn" data-atab="dashboard">ภาพรวม</button>
     <button class="admin-tab-btn active" data-atab="sets">ชุดข้อสอบ</button>
     <button class="admin-tab-btn" data-atab="students">รายชื่อนักเรียน</button>
     <button class="admin-tab-btn" data-atab="teachers">อาจารย์ผู้สอน</button>
@@ -189,6 +206,11 @@ button{font-family:inherit;cursor:pointer;}
   </div>
   <div class="admin-body">
     <div class="admin-inner">
+
+      <div id="atab-dashboard" class="hidden">
+        <div class="toolbar-row"><div><h2>ภาพรวมการสอบ</h2><p class="sub" style="margin:0;">สรุปข้อมูลจากผลสอบที่ส่งเข้าระบบทั้งหมด</p></div><button class="btn btn-ghost btn-sm" id="refreshDashboardBtn">↻ อัปเดตภาพรวม</button></div>
+        <div id="dashboardWrap"><div class="loading-note">กำลังโหลดภาพรวม...</div></div>
+      </div>
 
       <!-- ============ SETS TAB ============ -->
       <div id="atab-sets">
@@ -216,6 +238,16 @@ button{font-family:inherit;cursor:pointer;}
           <textarea id="bulkImportText" placeholder="10001&#9;สมชาย&#9;ใจดี&#9;ม.3/1&#10;10002&#9;สมหญิง&#9;รักเรียน&#9;ม.3/1" style="width:100%;min-height:120px;padding:12px;border:1.5px solid var(--line);border-radius:10px;font-family:monospace;font-size:12.5px;"></textarea>
           <div class="editor-actions"><button class="btn btn-primary btn-sm" id="bulkImportBtn">นำเข้ารายชื่อ</button></div>
           <div id="importReport"></div>
+        </div>
+        <div class="panel">
+          <h3>📁 นำเข้า/ส่งออกไฟล์</h3>
+          <p class="panel-sub">นำเข้า Excel ที่มีหัวคอลัมน์: รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง — รหัสซ้ำจะอัปเดตข้อมูลเดิมโดยไม่ลบ PIN</p>
+          <div class="editor-actions" style="justify-content:flex-start;flex-wrap:wrap;">
+            <input type="file" id="studentExcelFile" accept=".xlsx,.xls" style="max-width:260px;">
+            <button class="btn btn-primary btn-sm" id="importStudentsExcelBtn">นำเข้า Excel</button>
+            <button class="btn btn-ghost btn-sm" id="exportStudentsBtn">⬇ ส่งออกรายชื่อ Excel</button>
+            <button class="btn btn-ghost btn-sm" id="downloadBackupBtn">🛡️ สำรองข้อมูลระบบ</button>
+          </div>
         </div>
         <div class="panel">
           <h3>เพิ่มทีละคน</h3>
@@ -313,7 +345,12 @@ async function apiFetch(path, options){
   if(res.status===204) return null;
   return res.json();
 }
-async function apiVerifyAdmin(key){ const res = await fetch(API_BASE+'/api/admin/verify', {method:'POST', headers:{'x-admin-key':key}}); return res.ok; }
+async function apiVerifyAdmin(key){
+  const res = await fetch(API_BASE+'/api/admin/verify', {method:'POST', headers:{'x-admin-key':key}});
+  if(res.ok) return true;
+  const body = await res.json().catch(()=>({}));
+  throw new Error(body.message || 'รหัสผู้ดูแลระบบไม่ถูกต้อง');
+}
 async function apiGetAdminSets(){ return apiFetch('/api/admin/sets', { admin:true }); }
 async function apiCreateSet(set){ return apiFetch('/api/sets', { method:'POST', body:set, admin:true }); }
 async function apiUpdateSet(key, set){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'PUT', body:set, admin:true }); }
@@ -328,11 +365,16 @@ async function apiGetResults(setKey, examType){
 async function apiGetStudents(classRoom){ return apiFetch('/api/students'+(classRoom?('?classRoom='+encodeURIComponent(classRoom)):''), { admin:true }); }
 async function apiAddStudent(s){ return apiFetch('/api/students', { method:'POST', body:s, admin:true }); }
 async function apiBulkImportStudents(text){ return apiFetch('/api/students/bulk', { method:'POST', body:{text}, admin:true }); }
+async function apiImportStudentsExcel(file){
+  const res = await fetch('/api/students/import-xlsx', { method:'POST', headers:{'x-admin-key':adminKey || '', 'Content-Type':file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}, body:file });
+  const body = await res.json().catch(()=>({})); if(!res.ok) throw new Error(body.message || 'นำเข้า Excel ไม่สำเร็จ'); return body;
+}
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiResetStudentPin(id){ return apiFetch('/api/students/'+encodeURIComponent(id)+'/reset-pin', { method:'POST', admin:true }); }
 async function apiGetClasses(){ return apiFetch('/api/classes', { admin:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, admin:true }); }
+async function apiUpdateDfdScores(id, dfdLevelScores){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores}, admin:true }); }
 async function apiPublishAllForSet(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', admin:true }); }
 async function apiGetTeachers(){ return apiFetch('/api/teachers', { admin:true }); }
 async function apiAddTeacher(t){ return apiFetch('/api/teachers', { method:'POST', body:t, admin:true }); }
@@ -357,10 +399,10 @@ async function tryAdminLogin(){
   if(!val){ errBox.textContent='กรุณากรอกรหัสผู้ดูแลระบบ'; errBox.style.display='block'; return; }
   const btn = document.getElementById('adminLoginBtn');
   btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
-  let ok = false;
-  try{ ok = await apiVerifyAdmin(val); }catch(e){ ok = false; }
+  let ok = false; let loginError = null;
+  try{ ok = await apiVerifyAdmin(val); }catch(e){ loginError = e; }
   btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ →';
-  if(!ok){ errBox.textContent = 'รหัสผู้ดูแลระบบไม่ถูกต้อง หรือเชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ'; errBox.style.display='block'; return; }
+  if(!ok){ errBox.textContent = loginError?.message || 'รหัสผู้ดูแลระบบไม่ถูกต้อง หรือเชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ'; errBox.style.display='block'; return; }
   adminKey = val;
   adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
   initAdmin();
@@ -375,6 +417,7 @@ document.getElementById('adminExitBtn').addEventListener('click', ()=>{
 
 function refreshCurrentPageData(){
   const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset.atab;
+  if(activeTab==='dashboard') return refreshDashboard();
   if(activeTab==='students') return refreshStudents();
   if(activeTab==='teachers') return refreshTeachers();
   if(activeTab==='results') return refreshResults();
@@ -386,7 +429,8 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['sets','students','teachers','results'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    ['dashboard','sets','students','teachers','results'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    if(btn.dataset.atab==='dashboard') refreshDashboard();
     if(btn.dataset.atab==='results') refreshResults();
     if(btn.dataset.atab==='students') refreshStudents();
     if(btn.dataset.atab==='teachers') refreshTeachers();
@@ -403,6 +447,24 @@ async function initAdmin(){
   renderSetList();
   populateSetFilterOptions();
 }
+
+async function refreshDashboard(){
+  const wrap=document.getElementById('dashboardWrap');
+  wrap.innerHTML='<div class="loading-note">กำลังโหลดภาพรวม...</div>';
+  try{
+    const [students, results]=await Promise.all([apiGetStudents(),apiGetResults()]);
+    const submittedStudents=new Set(results.map(result=>result.studentId)).size;
+    const scores=results.map(result=>Number(result.overallScore20)).filter(Number.isFinite);
+    const average=scores.length ? Math.round((scores.reduce((sum,score)=>sum+score,0)/scores.length)*100)/100 : 0;
+    const highest=scores.length ? Math.max(...scores) : 0;
+    const lowest=scores.length ? Math.min(...scores) : 0;
+    const perSet=new Map(), perClass=new Map();
+    results.forEach(result=>{ perSet.set(result.questionTitle||'ไม่ระบุรายวิชา',(perSet.get(result.questionTitle||'ไม่ระบุรายวิชา')||0)+1); perClass.set(result.classRoom||'ไม่ระบุห้อง',(perClass.get(result.classRoom||'ไม่ระบุห้อง')||0)+1); });
+    const renderBars=(entries,emptyText)=>{ const sorted=[...entries].sort((a,b)=>b[1]-a[1]).slice(0,6); if(!sorted.length) return `<div class="empty-note">${emptyText}</div>`; const max=sorted[0][1]||1; return sorted.map(([label,value])=>`<div class="dash-bar-row"><span class="dash-bar-label" title="${escapeAttr(label)}">${escapeHtml(label)}</span><span class="dash-bar-track"><i class="dash-bar" style="width:${Math.round(value/max*100)}%"></i></span><b class="dash-bar-value">${value}</b></div>`).join(''); };
+    wrap.innerHTML=`<div class="dashboard-stats"><div class="dashboard-stat"><div class="label">นักเรียนทั้งหมด</div><div class="value">${students.length}</div><div class="note">ในรายชื่อระบบ</div></div><div class="dashboard-stat"><div class="label">ส่งข้อสอบแล้ว</div><div class="value">${submittedStudents}</div><div class="note">ยังไม่ส่ง ${Math.max(0,students.length-submittedStudents)} คน</div></div><div class="dashboard-stat"><div class="label">คะแนนเฉลี่ย</div><div class="value">${average}/20</div><div class="note">จากผลสอบ ${results.length} รายการ</div></div><div class="dashboard-stat"><div class="label">คะแนนสูงสุด / ต่ำสุด</div><div class="value">${highest} / ${lowest}</div><div class="note">เต็ม 20 คะแนน</div></div></div><div class="dashboard-grid"><section class="dashboard-panel"><h3>📚 จำนวนการส่ง แยกตามรายวิชา</h3>${renderBars(perSet,'ยังไม่มีผลสอบ')}</section><section class="dashboard-panel"><h3>🏫 จำนวนการส่ง แยกตามห้อง</h3>${renderBars(perClass,'ยังไม่มีผลสอบ')}</section></div>`;
+  }catch(error){ wrap.innerHTML='<div class="empty-note">'+escapeHtml(error.message)+'</div>'; }
+}
+document.getElementById('refreshDashboardBtn').addEventListener('click', refreshDashboard);
 
 /* ======================================================================
    TEACHERS
@@ -899,6 +961,7 @@ function renderMcPanel(){
     </div>
     <div class="compact-list" id="mcCompactList"></div>
     <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
+    <div class="editor-actions" style="justify-content:flex-start;"><button class="btn btn-ghost btn-sm" id="saveMcToBankBtn" type="button">💾 เก็บข้อในชุดลงคลัง</button><button class="btn btn-ghost btn-sm" id="loadMcFromBankBtn" type="button">📚 เลือกข้อจากคลัง</button></div>
     <button class="add-row-btn" id="toggleMcImportBtn" type="button" style="margin-top:8px;border-color:#A78BFA;color:var(--indigo);">✨ นำเข้าข้อปรนัยจาก ChatGPT</button>
     <div class="mc-import-box hidden" id="mcImportBox">
       <h4>1. สร้างข้อสอบด้วย ChatGPT</h4><p>คัดลอก Prompt นี้ไปวางใน ChatGPT แล้วแก้ไขหัวข้อหรือจำนวนข้อได้ตามต้องการ</p>
@@ -918,9 +981,28 @@ function renderMcPanel(){
     applyPointDistribution('mc'); renderMcCompactList();
   });
   document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
+  bindQuestionBankEvents();
   bindMcImportEvents();
   document.getElementById('saveSetFromMcBtn').addEventListener('click', saveEditingSet);
   renderOpenEditorIfNeeded('mc');
+}
+function bindQuestionBankEvents(){
+  document.getElementById('saveMcToBankBtn').addEventListener('click', async ()=>{
+    if(!editingSet.sections.mc.questions.length){ showToast('ยังไม่มีข้อปรนัยให้เก็บ'); return; }
+    try{ const result=await apiFetch('/api/question-bank',{method:'POST',body:{questions:editingSet.sections.mc.questions.map(question=>({...question,courseName:editingSet.courseName||editingSet.title||''}))},admin:true}); showToast(`เพิ่มเข้าคลัง ${result.added} ข้อ`); }catch(error){ showToast(error.message); }
+  });
+  document.getElementById('loadMcFromBankBtn').addEventListener('click', async ()=>{
+    try{
+      const questions=await apiFetch('/api/question-bank',{admin:true});
+      if(!questions.length){ showToast('คลังข้อสอบยังว่าง'); return; }
+      const choices=questions.map((question,index)=>`${index+1}. ${question.text}`).join('\n');
+      const selected=prompt(`พิมพ์หมายเลขข้อที่ต้องการ คั่นด้วยจุลภาค\n\n${choices}`); if(!selected) return;
+      const indexes=[...new Set(selected.split(',').map(value=>parseInt(value.trim(),10)-1).filter(index=>index>=0&&index<questions.length))];
+      if(!indexes.length){ showToast('ไม่พบหมายเลขข้อที่เลือก'); return; }
+      editingSet.sections.mc.questions.push(...indexes.map(index=>{const question=questions[index];return {id:uid('mc'),text:question.text,choices:question.choices.slice(),answer:question.answer,points:0};}));
+      applyPointDistribution('mc'); renderMcPanel(); showToast(`เพิ่มจากคลัง ${indexes.length} ข้อแล้ว`);
+    }catch(error){ showToast(error.message); }
+  });
 }
 function parseChatGptMc(text){
   const questions=[]; const errors=[]; let current=null; let target=null;
@@ -1304,6 +1386,23 @@ document.getElementById('bulkImportBtn').addEventListener('click', async ()=>{
   }catch(e){ showToast(e.message); }
   btn.disabled = false; btn.textContent = 'นำเข้ารายชื่อ';
 });
+function showImportReport(result){
+  document.getElementById('importReport').innerHTML = `<div class="import-report">นำเข้าใหม่ ${result.imported} คน · อัปเดตข้อมูลเดิม ${result.updated} คน${result.errors?.length ? '<br><span class="err">พบปัญหา '+result.errors.length+' แถว:<br>'+result.errors.map(escapeHtml).join('<br>')+'</span>' : ''}</div>`;
+}
+async function downloadAdminFile(url, filename){
+  const res=await fetch(url,{headers:{'x-admin-key':adminKey||''}}); if(!res.ok){ const body=await res.json().catch(()=>({})); throw new Error(body.message||'ดาวน์โหลดไฟล์ไม่สำเร็จ'); }
+  const blob=await res.blob(), link=document.createElement('a'), objectUrl=URL.createObjectURL(blob);
+  link.href=objectUrl; link.download=filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(objectUrl);
+}
+document.getElementById('importStudentsExcelBtn').addEventListener('click', async ()=>{
+  const file=document.getElementById('studentExcelFile').files[0]; if(!file){ showToast('กรุณาเลือกไฟล์ Excel ก่อน'); return; }
+  const btn=document.getElementById('importStudentsExcelBtn'); btn.disabled=true; btn.textContent='กำลังนำเข้า...';
+  try{ const result=await apiImportStudentsExcel(file); showImportReport(result); document.getElementById('studentExcelFile').value=''; refreshStudents(); }
+  catch(error){ showToast(error.message); }
+  btn.disabled=false; btn.textContent='นำเข้า Excel';
+});
+document.getElementById('exportStudentsBtn').addEventListener('click', async ()=>{ try{ await downloadAdminFile('/api/students/export.xlsx','students.xlsx'); showToast('ดาวน์โหลดรายชื่อนักเรียนแล้ว'); }catch(error){ showToast(error.message); } });
+document.getElementById('downloadBackupBtn').addEventListener('click', async ()=>{ try{ await downloadAdminFile('/api/admin/backup.json','exam-system-backup.json'); showToast('ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว'); }catch(error){ showToast(error.message); } });
 
 /* ======================================================================
    RESULTS + EXCEL EXPORT + PUBLISH
@@ -1374,9 +1473,19 @@ function toggleDetailRow(resultId){
   if(!rowEl) return;
   const tr = document.createElement('tr');
   tr.className = 'detail-row'; tr.dataset.for = resultId;
-  const td = document.createElement('td'); td.colSpan = 15;
-  if(!set){
-    td.innerHTML = '<div class="detail-block">ไม่พบข้อมูลชุดข้อสอบต้นฉบับ (อาจถูกลบไปแล้ว)</div>';
+  const td = document.createElement('td'); td.colSpan = 16;
+  if(rec.detail?.type==='dfd'){
+    td.innerHTML = renderDfdReview(rec);
+    td.querySelector('[data-save-dfd-score]').addEventListener('click', async (event)=>{
+      const button=event.currentTarget;
+      const scores=[0,1,2].map(level=>Number(td.querySelector(`[data-dfd-score-level="${level}"]`).value));
+      if(scores.some(score=>!Number.isFinite(score)||score<0||score>100)){ showToast('แต่ละ Level ต้องมีคะแนน 0–100'); return; }
+      button.disabled=true; button.textContent='กำลังบันทึก...';
+      try{ await apiUpdateDfdScores(rec.id, scores); showToast('ปรับคะแนน DFD แล้ว ระบบคำนวณรวม /20 ใหม่แล้ว'); refreshResults(); }
+      catch(error){ showToast(error.message); button.disabled=false; button.textContent='บันทึกคะแนนที่ปรับ'; }
+    });
+  }else if(!set){
+    td.innerHTML = renderIntegrityReview(rec) + '<div class="detail-block">ไม่พบข้อมูลชุดข้อสอบต้นฉบับ (อาจถูกลบไปแล้ว)</div>';
   }else{
     const answers = (rec.detail && rec.detail.answers) || {mc:{},matching:{},written:{}};
     let html = '';
@@ -1399,10 +1508,31 @@ function toggleDetailRow(resultId){
       const pts = (rec.detail && rec.detail.writtenPerQuestion) ? rec.detail.writtenPerQuestion[qq.id] : '-';
       return `${i+1}. ${escapeHtml(qq.text)} (auto: ${pts}/${qq.maxPoints})<br>&nbsp;&nbsp;คำตอบ: ${escapeHtml(text)}`;
     }).join('<br><br>') + `</div>`;
-    td.innerHTML = html;
+    td.innerHTML = renderIntegrityReview(rec) + html;
   }
   tr.appendChild(td);
   rowEl.after(tr);
+}
+function renderDfdReview(rec){
+  const levels=rec.detail?.levels || [];
+  const scores=rec.detail?.levelScores || [0,0,0];
+  const svgFor=level=>{
+    const shapes=Array.isArray(level?.shapes)?level.shapes:[];
+    const connections=Array.isArray(level?.connections)?level.connections:[];
+    const byId=Object.fromEntries(shapes.map(shape=>[shape.id,shape]));
+    const center=shape=>({x:(Number(shape.x)||0)+(Number(shape.w)||140)/2,y:(Number(shape.y)||0)+(Number(shape.h)||70)/2});
+    const lines=connections.map(conn=>{ const from=byId[conn.fromId],to=byId[conn.toId]; if(!from||!to) return ''; const a=center(from),b=center(to); return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#64748B" stroke-width="2"/><text x="${(a.x+b.x)/2}" y="${(a.y+b.y)/2-5}" text-anchor="middle" font-size="12" fill="#334155">${escapeHtml(conn.label||'')}</text>`; }).join('');
+    const nodes=shapes.map(shape=>{ const x=Number(shape.x)||0,y=Number(shape.y)||0,w=Number(shape.w)||140,h=Number(shape.h)||70,label=escapeHtml(shape.label||shape.num||''); const figure=shape.type==='process'?`<ellipse cx="${x+w/2}" cy="${y+h/2}" rx="${w/2}" ry="${h/2}" fill="#DBEAFE" stroke="#2563EB"/>`:`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${shape.type==='store'?0:8}" fill="#FFFFFF" stroke="#2563EB"/>`; return `${figure}<text x="${x+w/2}" y="${y+h/2+4}" text-anchor="middle" font-size="13" fill="#0F172A">${label}</text>`; }).join('');
+    return `<svg viewBox="0 0 1000 650" role="img" aria-label="แผนภาพ DFD">${lines}${nodes}</svg>`;
+  };
+  return renderIntegrityReview(rec) + `<div class="detail-block"><b>🧩 ตรวจงาน Data Flow Diagram</b><br>คะแนนรวมปัจจุบัน <b>${rec.overallScore20}/20</b> (Level 0–2 รวม 300 คะแนน แล้วแปลงเป็น 20 คะแนน)</div><div class="dfd-review-grid">${[0,1,2].map(level=>{const data=levels.find(item=>Number(item.level)===level);const shapes=data?.shapes?.length||0,flows=data?.connections?.length||0;return `<section class="dfd-review-card"><h4>Level ${level}</h4><div class="dfd-review-meta">สัญลักษณ์ ${shapes} · เส้นข้อมูล ${flows}</div>${svgFor(data)}<div class="editor-actions"><label>คะแนน /100 <input class="dfd-score-input" data-dfd-score-level="${level}" type="number" min="0" max="100" step="0.5" value="${Number(scores[level])||0}"></label></div></section>`;}).join('')}</div><div class="editor-actions"><button class="btn btn-primary btn-sm" data-save-dfd-score>บันทึกคะแนนที่ปรับ</button></div>`;
+}
+function renderIntegrityReview(rec){
+  const events=Array.isArray(rec.integrityEvents)?rec.integrityEvents:[];
+  const labels={tab_switch:'สลับแท็บ/หน้าจอ',fullscreen_exit:'ออกจากโหมดเต็มจอ',right_click:'พยายามคลิกขวา',copy:'พยายามคัดลอก',reload:'โหลดหน้าใหม่'};
+  const counts=`สลับแท็บ ${rec.tabSwitches||0} · ออกจากเต็มจอ ${rec.fullscreenExitAttempts||0} · คลิกขวา ${rec.rightClickAttempts||0} · คัดลอก ${rec.copyAttempts||0} · โหลดหน้าใหม่ ${rec.reloadCount||0}`;
+  const alert=(rec.tabSwitches||0)+(rec.fullscreenExitAttempts||0)+(rec.rightClickAttempts||0)+(rec.copyAttempts||0)+(rec.reloadCount||0)>0;
+  return `<section class="integrity-review ${alert?'':'ok'}"><h4>${alert?'⚠ ประวัติเหตุการณ์ระหว่างสอบ':'✓ ไม่พบเหตุการณ์ผิดปกติที่ระบบตรวจจับได้'}</h4><div class="integrity-summary">${counts}</div>${events.length?`<ol class="integrity-events">${events.map(event=>`<li>${escapeHtml(labels[event.type]||event.type)} — ${new Date(event.at).toLocaleString('th-TH')}</li>`).join('')}</ol>`:'<div class="integrity-events">ผลสอบเก่านี้ไม่มีบันทึกเวลารายเหตุการณ์</div>'}</section>`;
 }
 document.getElementById('refreshResultsBtn').addEventListener('click', refreshResults);
 document.getElementById('setFilterSelect').addEventListener('change', refreshResults);

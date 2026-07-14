@@ -1,12 +1,44 @@
+const MAX_LOGIN_FAILURES = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+function clientKey(req) { return req.ip || req.socket?.remoteAddress || 'unknown'; }
+function canAttempt(store, key) {
+  const entry = store.get(key);
+  if (!entry) return true;
+  if (entry.lockedUntil && entry.lockedUntil > Date.now()) return false;
+  if (entry.windowStartedAt + LOGIN_WINDOW_MS <= Date.now()) store.delete(key);
+  return true;
+}
+function registerFailure(store, key) {
+  const now = Date.now();
+  const entry = store.get(key);
+  const current = entry && entry.windowStartedAt + LOGIN_WINDOW_MS > now ? entry : { count: 0, windowStartedAt: now, lockedUntil: 0 };
+  current.count += 1;
+  if (current.count >= MAX_LOGIN_FAILURES) current.lockedUntil = now + LOGIN_WINDOW_MS;
+  store.set(key, current);
+  return !!current.lockedUntil;
+}
+
 function registerAccountRoutes(app, dependencies) {
   const {
     ADMIN_KEY, readDB, writeDB, hashPassword, verifyPassword, requireAdmin,
     requireTeacher, createTeacherSession, removeTeacherSessions, teacherSessions, newId
   } = dependencies;
+  const adminLoginFailures = new Map();
+  const teacherLoginFailures = new Map();
 
   app.post('/api/admin/verify', (req, res) => {
-    if (req.get('x-admin-key') === ADMIN_KEY) return res.json({ ok: true });
-    return res.status(401).json({ ok: false });
+    const key = clientKey(req);
+    if (!canAttempt(adminLoginFailures, key)) return res.status(429).json({ ok: false, error: 'rate_limited', message: 'ลองรหัสผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่' });
+    if (req.get('x-admin-key') === ADMIN_KEY) { adminLoginFailures.delete(key); return res.json({ ok: true }); }
+    const locked = registerFailure(adminLoginFailures, key);
+    return res.status(locked ? 429 : 401).json({ ok: false, error: locked ? 'rate_limited' : 'invalid_credentials', message: locked ? 'ลองรหัสผิดครบ 5 ครั้ง กรุณารอ 15 นาทีแล้วลองใหม่' : 'รหัสผู้ดูแลระบบไม่ถูกต้อง' });
+  });
+
+  app.get('/api/admin/backup.json', requireAdmin, (req, res) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="exam-system-backup-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.json({ version: 1, exportedAt: new Date().toISOString(), database: readDB() });
   });
 
   app.get('/api/teachers', requireAdmin, (req, res) => {
@@ -44,10 +76,14 @@ function registerAccountRoutes(app, dependencies) {
   app.post('/api/teacher/login', (req, res) => {
     const { username, password } = req.body || {};
     if (!username || !password) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณากรอก username และ password' });
+    const key = clientKey(req);
+    if (!canAttempt(teacherLoginFailures, key)) return res.status(429).json({ error: 'rate_limited', message: 'ลองรหัสผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่' });
     const teacher = readDB().teachers.find(t => t.username === username.trim());
     if (!teacher || !verifyPassword(password, teacher.passwordHash)) {
-      return res.status(401).json({ error: 'invalid_credentials', message: 'username หรือ password ไม่ถูกต้อง' });
+      const locked = registerFailure(teacherLoginFailures, key);
+      return res.status(locked ? 429 : 401).json({ error: locked ? 'rate_limited' : 'invalid_credentials', message: locked ? 'ลองรหัสผิดครบ 5 ครั้ง กรุณารอ 15 นาทีแล้วลองใหม่' : 'username หรือ password ไม่ถูกต้อง' });
     }
+    teacherLoginFailures.delete(key);
     const token = createTeacherSession(teacher.id);
     res.json({ token, teacherId: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName });
   });

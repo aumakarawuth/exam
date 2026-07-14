@@ -36,6 +36,7 @@ function registerObjectAnalysisRoutes(app, { readDB, writeDB, newId, isPastDeadl
       questionKey: set.key, questionTitle: set.title, examType: set.examType, subjectTeacherName: set.subjectTeacherName || '', subjectTeacherEmail: set.subjectTeacherEmail || '',
       overallScore20, sectionScores: { mc: levelScores[0], matching: levelScores[1], written: levelScores[2] }, published: false,
       tabSwitches: payload.tabSwitches || 0, fullscreenExitAttempts: payload.fullscreenExitAttempts || 0, reloadCount: payload.reloadCount || 0, rightClickAttempts: 0, copyAttempts: 0,
+      integrityEvents: Array.isArray(payload.integrityEvents) ? payload.integrityEvents.filter(event => ['tab_switch','fullscreen_exit','reload'].includes(event?.type) && !Number.isNaN(Date.parse(event.at))).slice(-50) : [],
       detail: { type: 'dfd', levels: payload.levels, levelScores, rawScore }, submittedAt: new Date().toISOString()
     };
     db.results.push(record);

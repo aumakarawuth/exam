@@ -14,6 +14,17 @@ function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher }) {
     const db = readDB(); const result = ownedResult(db, req.teacherId, req.params.id);
     if (!result) return res.status(404).json({ error: 'not_found' });
     if (typeof req.body.published === 'boolean') result.published = req.body.published;
+    if (Array.isArray(req.body.dfdLevelScores)) {
+      if (result.detail?.type !== 'dfd' || req.body.dfdLevelScores.length !== 3) return res.status(400).json({ error: 'invalid_dfd_scores', message: 'คะแนน DFD ไม่ถูกต้อง' });
+      const scores = req.body.dfdLevelScores.map(score => Number(score));
+      if (scores.some(score => !Number.isFinite(score) || score < 0 || score > 100)) return res.status(400).json({ error: 'invalid_dfd_scores', message: 'แต่ละ Level ต้องมีคะแนน 0–100' });
+      result.detail.levelScores = scores;
+      result.detail.rawScore = scores.reduce((sum, score) => sum + score, 0);
+      result.detail.levels = (result.detail.levels || []).map(level => ({ ...level, score: scores[Number(level.level)] ?? level.score }));
+      result.sectionScores = { mc: scores[0], matching: scores[1], written: scores[2] };
+      result.overallScore20 = Math.round((result.detail.rawScore / 300 * 20 + Number.EPSILON) * 100) / 100;
+      result.scoreAdjustedAt = new Date().toISOString();
+    }
     await writeDB(db); res.json({ ok: true, published: result.published });
   });
   app.post('/api/teacher/sets/:key/publish', requireTeacher, async (req, res) => {
