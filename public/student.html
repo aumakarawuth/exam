@@ -459,6 +459,7 @@ function initMcStateIfNeeded(){
 /* ============ SESSION PERSISTENCE (localStorage, per-browser) ============ */
 const SESSION_KEY = 'examSession';
 let _saveDebounceHandle = null;
+let pageIsLeaving = false;
 function saveSession(){
   if(!app.questionKey) return;
   const payload = {
@@ -477,7 +478,7 @@ function loadSessionData(){
   try{ const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
 }
 function clearSessionData(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
-window.addEventListener('beforeunload', ()=>{ if(app.questionKey && !app.examEnded) saveSession(); });
+window.addEventListener('beforeunload', ()=>{ pageIsLeaving = true; if(app.questionKey && !app.examEnded) saveSession(); });
 function requestExamFullscreen(){
   if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
 }
@@ -499,7 +500,7 @@ function updateCheatTags(){
   if(cp){ cp.textContent = 'คัดลอก: '+state.copyAttempts+' ครั้ง'; cp.classList.toggle('badge-warn', state.copyAttempts>0); }
 }
 document.addEventListener('visibilitychange', ()=>{
-  if(!app.examInProgress || app.examEnded) return;
+  if(pageIsLeaving || !app.examInProgress || app.examEnded) return;
   if(document.hidden){
     state.tabSwitches++;
     const tag = document.getElementById('tabSwitchTag');

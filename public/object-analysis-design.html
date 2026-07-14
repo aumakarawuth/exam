@@ -604,6 +604,7 @@ const newId = (p)=> p + (idCounter++);
 /* ============ SESSION PERSISTENCE ============ */
 const DFD_SESSION_KEY = 'objectAnalysisExamSession';
 let dfdSaveTimer = null;
+let dfdPageIsLeaving = false;
 function saveDfdSession(){
   if(!app.studentId || !app.questionKey || app.examEnded) return;
   const canvasState = { shapes:state.shapes, connections:state.connections, tool:state.tool, selectedId:state.selectedId, zoom:state.zoom, panX:state.panX, panY:state.panY, hintsLeft:state.hintsLeft };
@@ -612,7 +613,7 @@ function saveDfdSession(){
 function scheduleDfdSave(){ clearTimeout(dfdSaveTimer); dfdSaveTimer = setTimeout(saveDfdSession, 300); }
 function clearDfdSession(){ try { localStorage.removeItem(DFD_SESSION_KEY); } catch(e) {} }
 function requestDfdFullscreen(){ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{}); }
-window.addEventListener('beforeunload', saveDfdSession);
+window.addEventListener('beforeunload', ()=>{ dfdPageIsLeaving = true; saveDfdSession(); });
 
 /* ============ SCREEN REFS ============ */
 const startScreen = document.getElementById('startScreen');
@@ -799,7 +800,7 @@ document.getElementById('backToHubBtn').addEventListener('click', showHub);
 
 /* ============ ANTI-CHEAT ============ */
 document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden && !examScreen.classList.contains('hidden') && !app.examEnded){
+  if(document.hidden && !dfdPageIsLeaving && !examScreen.classList.contains('hidden') && !app.examEnded){
     app.tabSwitches++;
     const tag = document.getElementById('tabSwitchTag');
     tag.textContent = 'สลับแท็บ: '+app.tabSwitches+' ครั้ง';
