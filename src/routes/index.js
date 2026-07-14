@@ -1,0 +1,25 @@
+const { registerAccountRoutes } = require('./accounts');
+const { registerStudentRoutes } = require('./students');
+const { registerPublicExamRoutes } = require('./public-exams');
+const { registerAdminSetRoutes } = require('./admin-sets');
+const { registerAdminResultRoutes } = require('./admin-results');
+const { registerSubmissionRoutes } = require('./submissions');
+const { registerTeacherResultRoutes } = require('./teacher-results');
+const { registerTeacherClassRoutes } = require('./teacher-classes');
+const { registerTeacherSetRoutes } = require('./teacher-sets');
+const { registerExportRoutes } = require('./exports');
+
+function registerRoutes(app, dependencies) {
+  registerAccountRoutes(app, dependencies);
+  registerStudentRoutes(app, dependencies);
+  registerPublicExamRoutes(app, { ...dependencies, examTypes: dependencies.EXAM_TYPES });
+  registerAdminSetRoutes(app, { ...dependencies, examTypes: dependencies.EXAM_TYPES });
+  registerAdminResultRoutes(app, dependencies);
+  registerSubmissionRoutes(app, dependencies);
+  registerTeacherResultRoutes(app, dependencies);
+  registerTeacherClassRoutes(app, dependencies);
+  registerTeacherSetRoutes(app, { ...dependencies, examTypes: dependencies.EXAM_TYPES });
+  registerExportRoutes(app, dependencies);
+}
+
+module.exports = { registerRoutes };

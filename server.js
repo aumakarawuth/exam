@@ -11,79 +11,24 @@
        /admin   -> public/admin.html    (teachers / admin)
    ====================================================================== */
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const XLSX = require('xlsx');
+const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR } = require('./src/config');
+const { readDB, writeDB } = require('./src/database');
+const { hashPassword, verifyPassword, requireTeacher, requireAdmin, createTeacherSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
+const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, sanitizeSetForStudent } = require('./src/grading');
+const { registerPages, registerFallback } = require('./src/pages');
+const { registerRoutes } = require('./src/routes');
+const { buildResultsWorkbook: buildResultsWorkbookModule } = require('./src/results-workbook');
+const { applySecurityHeaders } = require('./src/security');
 
-const PORT = process.env.PORT || 3000;
-const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme123';
 if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
-}
-const EXAM_TYPES = ['กลางภาค', 'ปลายภาค'];
-
-/* ---------------------------- DATABASE (JSON file) ---------------------------- */
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_PATH = path.join(DATA_DIR, 'db.json');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-function readDB() {
-  if (!fs.existsSync(DB_PATH)) return { sets: [], results: [], students: [], teachers: [] };
-  try {
-    const raw = fs.readFileSync(DB_PATH, 'utf8');
-    const db = JSON.parse(raw);
-    if (!Array.isArray(db.sets)) db.sets = [];
-    if (!Array.isArray(db.results)) db.results = [];
-    if (!Array.isArray(db.students)) db.students = [];
-    if (!Array.isArray(db.teachers)) db.teachers = [];
-    return db;
-  } catch (e) {
-    console.error('Failed to read database file, starting with an empty database.', e);
-    return { sets: [], results: [], students: [], teachers: [] };
-  }
-}
-let writeChain = Promise.resolve();
-function writeDB(db) {
-  writeChain = writeChain.then(() => new Promise((resolve, reject) => {
-    const tmpPath = DB_PATH + '.tmp';
-    fs.writeFile(tmpPath, JSON.stringify(db, null, 2), (err) => {
-      if (err) return reject(err);
-      fs.rename(tmpPath, DB_PATH, (err2) => err2 ? reject(err2) : resolve());
-    });
-  }));
-  return writeChain;
 }
 function newId(prefix) {
   return prefix + '_' + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex');
 }
-function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
-
-/* ---------------------------- PASSWORD HASHING (built-in crypto, no extra deps) ---------------------------- */
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
-}
-function verifyPassword(password, stored) {
-  if (!stored || !stored.includes(':')) return false;
-  const [salt, hash] = stored.split(':');
-  const check = crypto.scryptSync(password, salt, 64).toString('hex');
-  try { return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex')); }
-  catch (e) { return false; }
-}
-/* Teacher sessions live in memory only — restarting the server logs everyone out, which is an
-   acceptable trade-off for keeping this system dependency-free and simple. */
-const teacherSessions = new Map(); // token -> teacherId
-function requireTeacher(req, res, next) {
-  const token = req.get('x-teacher-token');
-  const teacherId = token && teacherSessions.get(token);
-  if (!teacherId) return res.status(401).json({ error: 'unauthorized', message: 'กรุณาเข้าสู่ระบบอาจารย์ใหม่อีกครั้ง' });
-  req.teacherId = teacherId;
-  next();
-}
-
 /* Seed one example exam set (full score = 20) + example students on first run */
 function seedIfEmpty() {
   const db = readDB();
@@ -141,148 +86,17 @@ function seedIfEmpty() {
 }
 seedIfEmpty();
 
-/* ---------------------------- GRADING (server-side only) ---------------------------- */
-function gradeMC(section, answers) {
-  answers = answers || {};
-  let total = 0;
-  (section.questions || []).forEach(qq => { if (answers[qq.id] === qq.answer) total += (qq.points || 0); });
-  return round2(total);
-}
-function gradeMatching(section, answers) {
-  answers = answers || {};
-  let total = 0;
-  (section.left || []).forEach(item => {
-    if (answers[item.id] && answers[item.id] === section.correctMap[item.id]) total += (section.pointsEach || 0);
-  });
-  return round2(total);
-}
-function keywordScore(text, keywords, maxPoints) {
-  if (!text || !text.trim() || !keywords || !keywords.length) return 0;
-  const norm = text.toLowerCase();
-  let hit = 0;
-  keywords.forEach(k => { if (norm.includes(String(k).toLowerCase())) hit++; });
-  return round2((hit / keywords.length) * (maxPoints || 0));
-}
-function gradeWritten(section, answers) {
-  answers = answers || {};
-  let total = 0;
-  const perQuestion = {};
-  (section.questions || []).forEach(qq => {
-    const text = answers[qq.id] || '';
-    const pts = keywordScore(text, qq.keywords, qq.maxPoints);
-    perQuestion[qq.id] = pts;
-    total += pts;
-  });
-  return { total: round2(total), perQuestion };
-}
-/* strip answer keys before sending a set to a student's browser */
-function isPastDeadline(s) {
-  return !!(s.availableUntil && Date.now() > new Date(s.availableUntil).getTime());
-}
-function sanitizeSetForStudent(s) {
-  return {
-    key: s.key, title: s.title, courseName: s.courseName || s.title, tagline: s.tagline, desc: s.desc,
-    examType: s.examType || '', assignedClasses: s.assignedClasses || [],
-    subjectTeacherName: s.subjectTeacherName || '',
-    shuffleQuestions: !!s.shuffleQuestions, shuffleChoices: !!s.shuffleChoices,
-    availableUntil: s.availableUntil || null,
-    lateAccessRequired: isPastDeadline(s),
-    sections: {
-      mc: {
-        title: s.sections.mc.title, desc: s.sections.mc.desc,
-        questions: s.sections.mc.questions.map(q => ({ id: q.id, text: q.text, choices: q.choices, points: q.points }))
-      },
-      matching: {
-        title: s.sections.matching.title, desc: s.sections.matching.desc,
-        left: s.sections.matching.left, right: s.sections.matching.right,
-        pointsEach: s.sections.matching.pointsEach
-      },
-      written: {
-        title: s.sections.written.title, desc: s.sections.written.desc,
-        questions: s.sections.written.questions.map(q => ({ id: q.id, text: q.text, maxPoints: q.maxPoints }))
-      }
-    }
-  };
-}
-
 /* ---------------------------- APP SETUP ---------------------------- */
 const app = express();
+app.use(applySecurityHeaders);
 app.use(express.json({ limit: '2mb' }));
 
-function requireAdmin(req, res, next) {
-  const key = req.get('x-admin-key');
-  if (!key || key !== ADMIN_KEY) {
-    return res.status(401).json({ error: 'unauthorized', message: 'ต้องระบุรหัสผู้ดูแลระบบที่ถูกต้อง' });
-  }
-  next();
-}
-
 /* ---------------------------- PAGES ---------------------------- */
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-app.get('/teacher', (req, res) => res.sendFile(path.join(__dirname, 'public', 'teacher.html')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'student.html')));
-app.use(express.static(path.join(__dirname, 'public')));
+registerPages(app, PUBLIC_DIR, express);
 
-/* ---------------------------- ADMIN AUTH ---------------------------- */
-app.post('/api/admin/verify', (req, res) => {
-  const key = req.get('x-admin-key');
-  if (key === ADMIN_KEY) return res.json({ ok: true });
-  return res.status(401).json({ ok: false });
-});
+registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, createTeacherSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule });
 
-/* ---------------------------- TEACHER ACCOUNTS ---------------------------- */
-// Admin: list teacher accounts (never returns password hashes)
-app.get('/api/teachers', requireAdmin, (req, res) => {
-  const db = readDB();
-  res.json(db.teachers.map(t => ({ id: t.id, firstName: t.firstName, lastName: t.lastName, username: t.username, createdAt: t.createdAt })));
-});
-// Admin: create a teacher account
-app.post('/api/teachers', requireAdmin, async (req, res) => {
-  const b = req.body;
-  if (!b || !b.firstName || !b.lastName || !b.username || !b.password) {
-    return res.status(400).json({ error: 'invalid_payload', message: 'กรอกข้อมูลอาจารย์ไม่ครบ (ชื่อ, นามสกุล, username, password)' });
-  }
-  const db = readDB();
-  if (db.teachers.some(t => t.username === b.username)) {
-    return res.status(409).json({ error: 'duplicate', message: 'มี username นี้อยู่ในระบบแล้ว' });
-  }
-  const teacher = {
-    id: newId('teacher'), firstName: b.firstName.trim(), lastName: b.lastName.trim(),
-    username: b.username.trim(), passwordHash: hashPassword(b.password), createdAt: new Date().toISOString()
-  };
-  db.teachers.push(teacher);
-  await writeDB(db);
-  res.status(201).json({ id: teacher.id });
-});
-// Admin: delete a teacher account (their existing exam sets stay, just become unowned)
-app.delete('/api/teachers/:id', requireAdmin, async (req, res) => {
-  const db = readDB();
-  db.teachers = db.teachers.filter(t => t.id !== req.params.id);
-  db.sets.forEach(s => { if (s.teacherId === req.params.id) s.teacherId = null; });
-  await writeDB(db);
-  for (const [token, tid] of teacherSessions) { if (tid === req.params.id) teacherSessions.delete(token); }
-  res.json({ ok: true });
-});
-
-// Public: teacher login with username/password -> session token
-app.post('/api/teacher/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณากรอก username และ password' });
-  const db = readDB();
-  const teacher = db.teachers.find(t => t.username === username.trim());
-  if (!teacher || !verifyPassword(password, teacher.passwordHash)) {
-    return res.status(401).json({ error: 'invalid_credentials', message: 'username หรือ password ไม่ถูกต้อง' });
-  }
-  const token = crypto.randomBytes(24).toString('hex');
-  teacherSessions.set(token, teacher.id);
-  res.json({ token, teacherId: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName });
-});
-app.post('/api/teacher/logout', requireTeacher, (req, res) => {
-  const token = req.get('x-teacher-token');
-  teacherSessions.delete(token);
-  res.json({ ok: true });
-});
-
+if (false) { // Legacy student routes moved to src/routes/students.js.
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */
 app.get('/api/students/:studentId', (req, res) => {
   const db = readDB();
@@ -375,6 +189,8 @@ app.get('/api/classes', requireAdmin, (req, res) => {
   res.json(classes);
 });
 
+}
+if (false) { // Legacy routes retained temporarily while modules are verified.
 /* ---------------------------- EXAM SETS ---------------------------- */
 app.get('/api/exam-types', (req, res) => res.json(EXAM_TYPES));
 
@@ -747,8 +563,14 @@ app.get('/api/export/results.xlsx', requireAdmin, (req, res) => {
 });
 
 /* ---------------------------- FALLBACK ---------------------------- */
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'student.html')));
+}
 
-app.listen(PORT, () => {
-  console.log(`Exam system backend running at http://localhost:${PORT}  (admin: http://localhost:${PORT}/admin)`);
-});
+registerFallback(app, PUBLIC_DIR);
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Exam system backend running at http://localhost:${PORT}  (admin: http://localhost:${PORT}/admin)`);
+  });
+}
+
+module.exports = app;
