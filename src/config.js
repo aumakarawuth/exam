@@ -5,7 +5,8 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 module.exports = {
   ROOT_DIR,
   DATA_DIR: path.join(ROOT_DIR, 'data'),
-  DB_PATH: path.join(ROOT_DIR, 'data', 'db.json'),
+  SQLITE_PATH: path.join(ROOT_DIR, 'data', 'exam-system.sqlite'),
+  LEGACY_DB_PATH: path.join(ROOT_DIR, 'data', 'db.json'),
   PUBLIC_DIR: path.join(ROOT_DIR, 'public'),
   PORT: process.env.PORT || 3000,
   ADMIN_KEY: process.env.ADMIN_KEY || 'changeme123',

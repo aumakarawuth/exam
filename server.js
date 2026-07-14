@@ -1,7 +1,7 @@
 /* ======================================================================
    Exam System Backend
    - Express REST API
-   - Simple JSON-file database (no native modules required)
+   - SQLite database (using Node.js built-in SQLite support)
    - Grading happens SERVER-SIDE ONLY. The public /api/sets endpoint never
      sends answer keys (correct choice / correct pairs / keywords) to the
      browser, since these are now formal midterm/final exams where scores
