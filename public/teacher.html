@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ระบบข้อสอบ — สำหรับผู้ดูแล/อาจารย์</title>
+<title>ระบบข้อสอบ — สำหรับอาจารย์ผู้สอน</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -138,10 +138,11 @@ button{font-family:inherit;cursor:pointer;}
 <!-- ================= ADMIN LOGIN ================= -->
 <div id="adminLoginScreen" class="screen-wrap">
   <div class="card">
-    <span class="eyebrow">EXAM SYSTEM · ผู้ดูแล/อาจารย์</span>
-    <h1>เข้าสู่ระบบผู้ดูแล</h1>
-    <p class="lead">หน้านี้สำหรับผู้ดูแลระบบและอาจารย์เท่านั้น กรอกรหัสผู้ดูแลระบบ (Admin Key) ที่ตั้งไว้ในไฟล์ .env ของเซิร์ฟเวอร์</p>
-    <input type="password" class="name-input" id="adminKeyInput" placeholder="รหัสผู้ดูแลระบบ">
+    <span class="eyebrow">EXAM SYSTEM · อาจารย์ผู้สอน</span>
+    <h1>เข้าสู่ระบบอาจารย์</h1>
+    <p class="lead">กรอก username และ password ที่ผู้ดูแลระบบตั้งให้ คุณจะเห็นเฉพาะข้อสอบและผลสอบของวิชาที่คุณสอนเท่านั้น</p>
+    <input type="text" class="name-input" id="teacherUsernameInput" placeholder="Username" autocomplete="username">
+    <input type="password" class="name-input" id="teacherPasswordInput" placeholder="Password" autocomplete="current-password">
     <div id="adminLoginError" style="color:var(--red);font-size:13px;margin:-12px 0 16px;display:none;"></div>
     <div class="start-actions">
       <span></span>
@@ -153,13 +154,11 @@ button{font-family:inherit;cursor:pointer;}
 <!-- ================= ADMIN SCREEN ================= -->
 <div id="adminScreen" class="hidden">
   <div class="admin-topbar">
-    <div class="brand">🛠️ ระบบจัดการข้อสอบ (สำหรับผู้ดูแล/อาจารย์)</div>
+    <div class="brand">🧑‍🏫 ระบบข้อสอบของฉัน (<span id="teacherNameLabel"></span>)</div>
     <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
   </div>
   <div class="admin-tabs">
-    <button class="admin-tab-btn active" data-atab="sets">ชุดข้อสอบ</button>
-    <button class="admin-tab-btn" data-atab="students">รายชื่อนักเรียน</button>
-    <button class="admin-tab-btn" data-atab="teachers">อาจารย์ผู้สอน</button>
+    <button class="admin-tab-btn active" data-atab="sets">ชุดข้อสอบของฉัน</button>
     <button class="admin-tab-btn" data-atab="results">ผลสอบนักเรียน</button>
   </div>
   <div class="admin-body">
@@ -169,67 +168,12 @@ button{font-family:inherit;cursor:pointer;}
       <div id="atab-sets">
         <div class="toolbar-row">
           <div>
-            <h2>ชุดข้อสอบทั้งหมด</h2>
-            <p class="sub" style="margin:0;">จัดกลุ่มตามชื่อวิชา — 1 วิชาอาจมีทั้งข้อสอบกลางภาคและปลายภาค</p>
+            <h2>ชุดข้อสอบของฉัน</h2>
+            <p class="sub" style="margin:0;">จัดกลุ่มตามชื่อวิชา — 1 วิชาอาจมีทั้งข้อสอบกลางภาคและปลายภาค คุณเห็นเฉพาะข้อสอบที่คุณสร้างเองเท่านั้น</p>
           </div>
           <button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button>
         </div>
         <div id="setListWrap"><div class="loading-note">กำลังโหลด...</div></div>
-      </div>
-
-      <!-- ============ STUDENTS TAB ============ -->
-      <div id="atab-students" class="hidden">
-        <div class="toolbar-row">
-          <div>
-            <h2>รายชื่อนักเรียน</h2>
-            <p class="sub" style="margin:0;">ใช้ตรวจสิทธิ์ตอนนักเรียนกรอกรหัสเข้าสอบ และดึงชื่อ-สกุล-ห้องมาแสดงอัตโนมัติ</p>
-          </div>
-        </div>
-        <div class="panel">
-          <h3>นำเข้ารายชื่อแบบรวดเร็ว (วางจาก Excel)</h3>
-          <p class="panel-sub">คัดลอกคอลัมน์ รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง จาก Excel แล้ววางที่นี่ (1 บรรทัดต่อ 1 คน) หากมีรหัสซ้ำในระบบอยู่แล้ว ระบบจะอัปเดตข้อมูลแทนการเพิ่มซ้ำ</p>
-          <textarea id="bulkImportText" placeholder="10001&#9;สมชาย&#9;ใจดี&#9;ม.3/1&#10;10002&#9;สมหญิง&#9;รักเรียน&#9;ม.3/1" style="width:100%;min-height:120px;padding:12px;border:1.5px solid var(--line);border-radius:10px;font-family:monospace;font-size:12.5px;"></textarea>
-          <div class="editor-actions"><button class="btn btn-primary btn-sm" id="bulkImportBtn">นำเข้ารายชื่อ</button></div>
-          <div id="importReport"></div>
-        </div>
-        <div class="panel">
-          <h3>เพิ่มทีละคน</h3>
-          <div class="field-row">
-            <div class="field"><label>รหัสนักเรียน</label><input type="text" id="fsId" placeholder="เช่น 10004"></div>
-            <div class="field"><label>ชื่อ</label><input type="text" id="fsFirst" placeholder="ชื่อ"></div>
-            <div class="field"><label>นามสกุล</label><input type="text" id="fsLast" placeholder="นามสกุล"></div>
-            <div class="field"><label>ห้อง</label><input type="text" id="fsClass" placeholder="เช่น ม.3/1"></div>
-          </div>
-          <button class="btn btn-primary btn-sm" id="addStudentBtn">+ เพิ่มนักเรียน</button>
-        </div>
-        <div class="toolbar-row">
-          <select class="filter-select" id="classFilterSelect"><option value="">ทุกห้อง</option></select>
-          <button class="btn btn-ghost btn-sm" id="refreshStudentsBtn">↻ รีเฟรช</button>
-        </div>
-        <div id="studentsWrap"><div class="loading-note">กำลังโหลด...</div></div>
-      </div>
-
-      <!-- ============ TEACHERS TAB ============ -->
-      <div id="atab-teachers" class="hidden">
-        <div class="toolbar-row">
-          <div>
-            <h2>บัญชีอาจารย์ผู้สอน</h2>
-            <p class="sub" style="margin:0;">อาจารย์ที่มีบัญชีสามารถเข้าสู่ระบบที่ <code id="teacherLoginUrlText">/teacher</code> เพื่อจัดการเฉพาะข้อสอบและผลสอบของวิชาตัวเองเท่านั้น</p>
-          </div>
-        </div>
-        <div class="panel">
-          <h3>+ เพิ่มบัญชีอาจารย์</h3>
-          <div class="field-row">
-            <div class="field"><label>ชื่อ</label><input type="text" id="ftFirst" placeholder="ชื่อ"></div>
-            <div class="field"><label>นามสกุล</label><input type="text" id="ftLast" placeholder="นามสกุล"></div>
-          </div>
-          <div class="field-row">
-            <div class="field"><label>Username</label><input type="text" id="ftUsername" placeholder="เช่น somsri"></div>
-            <div class="field"><label>Password</label><input type="text" id="ftPassword" placeholder="ตั้งรหัสผ่านให้อาจารย์"></div>
-          </div>
-          <button class="btn btn-primary btn-sm" id="addTeacherBtn">+ เพิ่มอาจารย์</button>
-        </div>
-        <div id="teachersWrap"><div class="loading-note">กำลังโหลด...</div></div>
       </div>
 
       <!-- ============ RESULTS TAB ============ -->
@@ -270,16 +214,17 @@ button{font-family:inherit;cursor:pointer;}
 
 /* ============ API CLIENT ============ */
 const API_BASE = '';
-let adminKey = null;
+let teacherToken = null;
+let teacherInfo = null; // {teacherId, firstName, lastName}
 async function apiFetch(path, options){
   options = options || {};
   const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
-  if(options.admin) headers['x-admin-key'] = adminKey || '';
+  if(options.auth) headers['x-teacher-token'] = teacherToken || '';
   let res;
   try{
     res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
   }catch(e){ throw new Error('เชื่อมต่อเซิร์ฟเวอร์ backend ไม่สำเร็จ กรุณาตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่'); }
-  if(res.status===401){ throw new Error('รหัสผู้ดูแลไม่ถูกต้อง หรือหมดสิทธิ์การเข้าถึง'); }
+  if(res.status===401){ throw new Error('หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่อีกครั้ง'); }
   if(!res.ok){
     let msg = 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (HTTP '+res.status+')';
     try{ const j = await res.json(); if(j && j.message) msg = j.message; }catch(e){}
@@ -288,29 +233,26 @@ async function apiFetch(path, options){
   if(res.status===204) return null;
   return res.json();
 }
-async function apiVerifyAdmin(key){ const res = await fetch(API_BASE+'/api/admin/verify', {method:'POST', headers:{'x-admin-key':key}}); return res.ok; }
-async function apiGetAdminSets(){ return apiFetch('/api/admin/sets', { admin:true }); }
-async function apiCreateSet(set){ return apiFetch('/api/sets', { method:'POST', body:set, admin:true }); }
-async function apiUpdateSet(key, set){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'PUT', body:set, admin:true }); }
-async function apiDuplicateSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', admin:true }); }
-async function apiDeleteSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'DELETE', admin:true }); }
+async function apiTeacherLogin(username, password){
+  const res = await fetch(API_BASE+'/api/teacher/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password}) });
+  if(!res.ok){ let msg='username หรือ password ไม่ถูกต้อง'; try{ const j = await res.json(); if(j&&j.message) msg=j.message; }catch(e){} throw new Error(msg); }
+  return res.json();
+}
+async function apiGetAdminSets(){ return apiFetch('/api/teacher/sets', { auth:true }); }
+async function apiCreateSet(set){ return apiFetch('/api/teacher/sets', { method:'POST', body:set, auth:true }); }
+async function apiUpdateSet(key, set){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key), { method:'PUT', body:set, auth:true }); }
+async function apiDuplicateSetCall(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', auth:true }); }
+async function apiDeleteSetCall(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key), { method:'DELETE', auth:true }); }
 async function apiGetResults(setKey, examType){
   const qs = [];
   if(setKey) qs.push('setKey='+encodeURIComponent(setKey));
   if(examType) qs.push('examType='+encodeURIComponent(examType));
-  return apiFetch('/api/results'+(qs.length?('?'+qs.join('&')):''), { admin:true });
+  return apiFetch('/api/teacher/results'+(qs.length?('?'+qs.join('&')):''), { auth:true });
 }
-async function apiGetStudents(classRoom){ return apiFetch('/api/students'+(classRoom?('?classRoom='+encodeURIComponent(classRoom)):''), { admin:true }); }
-async function apiAddStudent(s){ return apiFetch('/api/students', { method:'POST', body:s, admin:true }); }
-async function apiBulkImportStudents(text){ return apiFetch('/api/students/bulk', { method:'POST', body:{text}, admin:true }); }
-async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
-async function apiGetClasses(){ return apiFetch('/api/classes', { admin:true }); }
+async function apiGetClasses(){ return apiFetch('/api/teacher/classes', { auth:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
-async function apiSetPublished(id, published){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, admin:true }); }
-async function apiPublishAllForSet(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', admin:true }); }
-async function apiGetTeachers(){ return apiFetch('/api/teachers', { admin:true }); }
-async function apiAddTeacher(t){ return apiFetch('/api/teachers', { method:'POST', body:t, admin:true }); }
-async function apiDeleteTeacher(id){ return apiFetch('/api/teachers/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
+async function apiSetPublished(id, published){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, auth:true }); }
+async function apiPublishAllForSet(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', auth:true }); }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -326,24 +268,32 @@ let EXAM_TYPES = ['กลางภาค','ปลายภาค'];
 const adminLoginScreen = document.getElementById('adminLoginScreen');
 const adminScreen = document.getElementById('adminScreen');
 async function tryAdminLogin(){
-  const val = document.getElementById('adminKeyInput').value.trim();
+  const username = document.getElementById('teacherUsernameInput').value.trim();
+  const password = document.getElementById('teacherPasswordInput').value;
   const errBox = document.getElementById('adminLoginError');
-  if(!val){ errBox.textContent='กรุณากรอกรหัสผู้ดูแลระบบ'; errBox.style.display='block'; return; }
+  if(!username || !password){ errBox.textContent='กรุณากรอก username และ password'; errBox.style.display='block'; return; }
   const btn = document.getElementById('adminLoginBtn');
   btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
-  let ok = false;
-  try{ ok = await apiVerifyAdmin(val); }catch(e){ ok = false; }
+  try{
+    const result = await apiTeacherLogin(username, password);
+    teacherToken = result.token;
+    teacherInfo = result;
+    errBox.style.display='none';
+    document.getElementById('teacherNameLabel').textContent = result.firstName + ' ' + result.lastName;
+    adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
+    initAdmin();
+  }catch(e){
+    errBox.textContent = e.message; errBox.style.display='block';
+  }
   btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ →';
-  if(!ok){ errBox.textContent = 'รหัสผู้ดูแลระบบไม่ถูกต้อง หรือเชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ'; errBox.style.display='block'; return; }
-  adminKey = val;
-  adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
-  initAdmin();
 }
 document.getElementById('adminLoginBtn').addEventListener('click', tryAdminLogin);
-document.getElementById('adminKeyInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
+document.getElementById('teacherPasswordInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
 document.getElementById('adminExitBtn').addEventListener('click', ()=>{
-  adminKey = null; adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
-  document.getElementById('adminKeyInput').value=''; document.getElementById('adminLoginError').style.display='none';
+  teacherToken = null; teacherInfo = null;
+  adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
+  document.getElementById('teacherUsernameInput').value=''; document.getElementById('teacherPasswordInput').value='';
+  document.getElementById('adminLoginError').style.display='none';
 });
 
 /* ============ TABS ============ */
@@ -351,15 +301,12 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['sets','students','teachers','results'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    ['sets','results'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
     if(btn.dataset.atab==='results') refreshResults();
-    if(btn.dataset.atab==='students') refreshStudents();
-    if(btn.dataset.atab==='teachers') refreshTeachers();
   });
 });
 
 async function initAdmin(){
-  document.getElementById('teacherLoginUrlText').textContent = window.location.origin + '/teacher';
   document.getElementById('setListWrap').innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
   try{ EXAM_TYPES = await apiGetExamTypes(); }catch(e){}
   const etSel = document.getElementById('examTypeFilterSelect');
@@ -368,47 +315,10 @@ async function initAdmin(){
   renderSetList();
   populateSetFilterOptions();
 }
-
-/* ======================================================================
-   TEACHERS
-   ====================================================================== */
-async function refreshTeachers(){
-  const wrap = document.getElementById('teachersWrap');
-  wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
-  let teachers;
-  try{ teachers = await apiGetTeachers(); }
-  catch(e){ wrap.innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
-  TEACHERS_LIST = teachers;
-  if(!teachers.length){ wrap.innerHTML = '<div class="empty-note">ยังไม่มีบัญชีอาจารย์ในระบบ</div>'; return; }
-  wrap.innerHTML = teachers.map(t=>`
-    <div class="teacher-row-card">
-      <div class="teacher-row-info"><b>${escapeHtml(t.firstName)} ${escapeHtml(t.lastName)}</b> &nbsp; <span class="username">username: ${escapeHtml(t.username)}</span></div>
-      <button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button>
-    </div>`).join('');
-  wrap.querySelectorAll('[data-delteacher]').forEach(b=>b.addEventListener('click', async ()=>{
-    if(!confirm('ลบบัญชีอาจารย์นี้? ชุดข้อสอบที่เคยสร้างไว้จะยังอยู่แต่จะไม่ผูกกับบัญชีนี้อีกต่อไป')) return;
-    try{ await apiDeleteTeacher(b.dataset.delteacher); refreshTeachers(); showToast('ลบบัญชีอาจารย์แล้ว'); }
-    catch(e){ showToast(e.message); }
-  }));
-}
-document.getElementById('addTeacherBtn').addEventListener('click', async ()=>{
-  const firstName = document.getElementById('ftFirst').value.trim();
-  const lastName = document.getElementById('ftLast').value.trim();
-  const username = document.getElementById('ftUsername').value.trim();
-  const password = document.getElementById('ftPassword').value;
-  if(!firstName || !lastName || !username || !password){ showToast('กรอกข้อมูลอาจารย์ให้ครบทุกช่อง'); return; }
-  try{
-    await apiAddTeacher({firstName, lastName, username, password});
-    ['ftFirst','ftLast','ftUsername','ftPassword'].forEach(id=>document.getElementById(id).value='');
-    refreshTeachers();
-    showToast('เพิ่มบัญชีอาจารย์แล้ว');
-  }catch(e){ showToast(e.message); }
-});
 /* ======================================================================
    EXAM SETS
    ====================================================================== */
 let ADMIN_SETS = [];
-let TEACHERS_LIST = [];
 let editingSet = null;
 let editingIsNew = false;
 let knownClasses = [];
@@ -544,7 +454,6 @@ async function openEditor(key){
   openQEditor = null;
   wizardStep = 'info';
   try{ knownClasses = await apiGetClasses(); }catch(e){ knownClasses = []; }
-  try{ TEACHERS_LIST = await apiGetTeachers(); }catch(e){ TEACHERS_LIST = []; }
   adminScreen.classList.add('hidden');
   document.getElementById('setWizardScreen').classList.remove('hidden');
   document.getElementById('wizardTitleBar').textContent = editingIsNew ? '🧩 สร้างชุดข้อสอบใหม่' : ('🧩 แก้ไขชุดข้อสอบ: ' + (editingSet.title||''));
@@ -620,14 +529,8 @@ function wizardAccessStepHtml(){
     </div>
   </div>
   <div class="panel">
-    <h3>👤 อาจารย์ประจำวิชา</h3>
-    <p class="panel-sub">เลือกจากบัญชีอาจารย์ในระบบเพื่อให้อาจารย์เห็นวิชานี้ในระบบของตัวเอง หรือกรอกชื่อเองถ้ายังไม่มีบัญชี</p>
-    <div class="field-row">
-      <div class="field"><label>เลือกอาจารย์ (ถ้ามีบัญชีในระบบ)</label><select id="fTeacherSelect">
-        <option value="">— ไม่ผูกกับบัญชี (กรอกชื่อเอง) —</option>
-        ${TEACHERS_LIST.map(t=>`<option value="${t.id}" ${s.teacherId===t.id?'selected':''}>${escapeHtml(t.firstName+' '+t.lastName)} (${escapeHtml(t.username)})</option>`).join('')}
-      </select></div>
-    </div>
+    <h3>👤 ข้อมูลอาจารย์ประจำวิชา</h3>
+    <p class="panel-sub">แสดงในรายงานผลสอบและไฟล์ Excel ที่จะส่งให้อาจารย์ (ค่าเริ่มต้นคือชื่อของคุณ แก้ไขได้ถ้าต้องการ)</p>
     <div class="field-row">
       <div class="field"><label>ชื่ออาจารย์ (แสดงในรายงาน)</label><input type="text" id="fTeacherName" value="${escapeAttr(s.subjectTeacherName||'')}" placeholder="เช่น อ.สมศรี ใจงาม"></div>
       <div class="field"><label>อีเมลอาจารย์ (ถ้ามี)</label><input type="email" id="fTeacherEmail" value="${escapeAttr(s.subjectTeacherEmail||'')}" placeholder="teacher@school.ac.th"></div>
@@ -736,11 +639,6 @@ function bindWizardStepEvents(){
     });
     document.getElementById('addClassInput').addEventListener('keydown', (e)=>{
       if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
-    });
-    document.getElementById('fTeacherSelect').addEventListener('change', (e)=>{
-      s.teacherId = e.target.value || null;
-      const t = TEACHERS_LIST.find(x=>x.id===e.target.value);
-      if(t){ s.subjectTeacherName = t.firstName+' '+t.lastName; document.getElementById('fTeacherName').value = s.subjectTeacherName; }
     });
     document.getElementById('fTeacherName').addEventListener('input', e=>{ s.subjectTeacherName = e.target.value; });
     document.getElementById('fTeacherEmail').addEventListener('input', e=>{ s.subjectTeacherEmail = e.target.value; });
@@ -1114,75 +1012,6 @@ async function saveEditingSet(){
   }
 }
 
-async function refreshStudents(){
-  const wrap = document.getElementById('studentsWrap');
-  wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
-  const classFilter = document.getElementById('classFilterSelect').value;
-  let students;
-  try{ students = await apiGetStudents(classFilter || undefined); }
-  catch(e){ wrap.innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
-
-  try{
-    const classes = await apiGetClasses();
-    const sel = document.getElementById('classFilterSelect');
-    const current = sel.value;
-    sel.innerHTML = '<option value="">ทุกห้อง</option>' + classes.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
-    sel.value = current;
-  }catch(e){}
-
-  if(!students.length){
-    wrap.innerHTML = '<div class="empty-note">ยังไม่มีรายชื่อนักเรียนในระบบ ลองนำเข้ารายชื่อด้านบน</div>';
-    return;
-  }
-  wrap.innerHTML = `<table class="result-table"><thead><tr>
-      <th>รหัสนักเรียน</th><th>ชื่อ</th><th>นามสกุล</th><th>ห้อง</th><th></th>
-    </tr></thead><tbody>` + students.map(s=>`
-      <tr>
-        <td>${escapeHtml(s.studentId)}</td>
-        <td>${escapeHtml(s.firstName)}</td>
-        <td>${escapeHtml(s.lastName)}</td>
-        <td>${escapeHtml(s.classRoom)}</td>
-        <td><button class="btn btn-danger btn-sm" data-delstu="${escapeAttr(s.studentId)}">ลบ</button></td>
-      </tr>`).join('') + `</tbody></table>`;
-  wrap.querySelectorAll('[data-delstu]').forEach(b=>b.addEventListener('click', async ()=>{
-    if(!confirm('ลบนักเรียนรหัส '+b.dataset.delstu+' ออกจากระบบ?')) return;
-    try{ await apiDeleteStudent(b.dataset.delstu); refreshStudents(); showToast('ลบนักเรียนแล้ว'); }
-    catch(e){ showToast(e.message); }
-  }));
-}
-document.getElementById('refreshStudentsBtn').addEventListener('click', refreshStudents);
-document.getElementById('classFilterSelect').addEventListener('change', refreshStudents);
-document.getElementById('addStudentBtn').addEventListener('click', async ()=>{
-  const studentId = document.getElementById('fsId').value.trim();
-  const firstName = document.getElementById('fsFirst').value.trim();
-  const lastName = document.getElementById('fsLast').value.trim();
-  const classRoom = document.getElementById('fsClass').value.trim();
-  if(!studentId || !firstName || !lastName || !classRoom){ showToast('กรอกข้อมูลนักเรียนให้ครบทุกช่อง'); return; }
-  try{
-    await apiAddStudent({studentId, firstName, lastName, classRoom});
-    ['fsId','fsFirst','fsLast','fsClass'].forEach(id=>document.getElementById(id).value='');
-    refreshStudents();
-    showToast('เพิ่มนักเรียนแล้ว');
-  }catch(e){ showToast(e.message); }
-});
-document.getElementById('bulkImportBtn').addEventListener('click', async ()=>{
-  const text = document.getElementById('bulkImportText').value;
-  if(!text.trim()){ showToast('กรุณาวางรายชื่อก่อนนำเข้า'); return; }
-  const btn = document.getElementById('bulkImportBtn');
-  btn.disabled = true; btn.textContent = 'กำลังนำเข้า...';
-  try{
-    const result = await apiBulkImportStudents(text);
-    const report = document.getElementById('importReport');
-    report.innerHTML = `<div class="import-report">
-      นำเข้าใหม่ ${result.imported} คน · อัปเดตข้อมูลเดิม ${result.updated} คน
-      ${result.errors.length ? '<br><span class="err">พบปัญหา ' + result.errors.length + ' บรรทัด:<br>' + result.errors.map(escapeHtml).join('<br>') + '</span>' : ''}
-    </div>`;
-    document.getElementById('bulkImportText').value = '';
-    refreshStudents();
-  }catch(e){ showToast(e.message); }
-  btn.disabled = false; btn.textContent = 'นำเข้ารายชื่อ';
-});
-
 /* ======================================================================
    RESULTS + EXCEL EXPORT + PUBLISH
    ====================================================================== */
@@ -1233,7 +1062,7 @@ async function refreshResults(){
       </tr>`).join('') + `</tbody></table>`;
   wrap.querySelectorAll('[data-delres]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบผลสอบรายการนี้?')) return;
-    try{ await apiFetch('/api/results/'+encodeURIComponent(b.dataset.delres), { method:'DELETE', admin:true }); refreshResults(); }
+    try{ await apiFetch('/api/teacher/results/'+encodeURIComponent(b.dataset.delres), { method:'DELETE', auth:true }); refreshResults(); }
     catch(e){ showToast(e.message); }
   }));
   wrap.querySelectorAll('[data-togglepub]').forEach(b=>b.addEventListener('click', async ()=>{
@@ -1294,8 +1123,8 @@ document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
     const qs = [];
     if(setKey) qs.push('setKey='+encodeURIComponent(setKey));
     if(examType) qs.push('examType='+encodeURIComponent(examType));
-    const url = '/api/export/results.xlsx' + (qs.length?('?'+qs.join('&')):'');
-    const res = await fetch(url, { headers: { 'x-admin-key': adminKey || '' } });
+    const url = '/api/teacher/export/results.xlsx' + (qs.length?('?'+qs.join('&')):'');
+    const res = await fetch(url, { headers: { 'x-teacher-token': teacherToken || '' } });
     if(!res.ok){ throw new Error('ส่งออก Excel ไม่สำเร็จ (HTTP '+res.status+')'); }
     const blob = await res.blob();
     const a = document.createElement('a');

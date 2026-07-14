@@ -30,17 +30,18 @@ const DB_PATH = path.join(DATA_DIR, 'db.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 function readDB() {
-  if (!fs.existsSync(DB_PATH)) return { sets: [], results: [], students: [] };
+  if (!fs.existsSync(DB_PATH)) return { sets: [], results: [], students: [], teachers: [] };
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf8');
     const db = JSON.parse(raw);
     if (!Array.isArray(db.sets)) db.sets = [];
     if (!Array.isArray(db.results)) db.results = [];
     if (!Array.isArray(db.students)) db.students = [];
+    if (!Array.isArray(db.teachers)) db.teachers = [];
     return db;
   } catch (e) {
     console.error('Failed to read database file, starting with an empty database.', e);
-    return { sets: [], results: [], students: [] };
+    return { sets: [], results: [], students: [], teachers: [] };
   }
 }
 let writeChain = Promise.resolve();
@@ -59,6 +60,30 @@ function newId(prefix) {
 }
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 
+/* ---------------------------- PASSWORD HASHING (built-in crypto, no extra deps) ---------------------------- */
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(':')) return false;
+  const [salt, hash] = stored.split(':');
+  const check = crypto.scryptSync(password, salt, 64).toString('hex');
+  try { return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex')); }
+  catch (e) { return false; }
+}
+/* Teacher sessions live in memory only — restarting the server logs everyone out, which is an
+   acceptable trade-off for keeping this system dependency-free and simple. */
+const teacherSessions = new Map(); // token -> teacherId
+function requireTeacher(req, res, next) {
+  const token = req.get('x-teacher-token');
+  const teacherId = token && teacherSessions.get(token);
+  if (!teacherId) return res.status(401).json({ error: 'unauthorized', message: 'กรุณาเข้าสู่ระบบอาจารย์ใหม่อีกครั้ง' });
+  req.teacherId = teacherId;
+  next();
+}
+
 /* Seed one example exam set (full score = 20) + example students on first run */
 function seedIfEmpty() {
   const db = readDB();
@@ -67,9 +92,11 @@ function seedIfEmpty() {
   db.sets.push({
     key: 'set_seed_sample1',
     title: 'ความรู้พื้นฐานคอมพิวเตอร์ (ตัวอย่าง)',
+    courseName: 'ความรู้พื้นฐานคอมพิวเตอร์',
     tagline: 'Sample Question Set',
     desc: 'ชุดข้อสอบตัวอย่างสำหรับทดสอบระบบ ผู้ดูแลระบบสามารถแก้ไขหรือลบชุดนี้ได้ คะแนนเต็มรวม 20 คะแนน',
     examType: 'กลางภาค',
+    teacherId: null,
     assignedClasses: [],
     subjectTeacherName: 'อาจารย์ตัวอย่าง',
     subjectTeacherEmail: '',
@@ -154,7 +181,7 @@ function isPastDeadline(s) {
 }
 function sanitizeSetForStudent(s) {
   return {
-    key: s.key, title: s.title, tagline: s.tagline, desc: s.desc,
+    key: s.key, title: s.title, courseName: s.courseName || s.title, tagline: s.tagline, desc: s.desc,
     examType: s.examType || '', assignedClasses: s.assignedClasses || [],
     subjectTeacherName: s.subjectTeacherName || '',
     shuffleQuestions: !!s.shuffleQuestions, shuffleChoices: !!s.shuffleChoices,
@@ -192,6 +219,7 @@ function requireAdmin(req, res, next) {
 
 /* ---------------------------- PAGES ---------------------------- */
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/teacher', (req, res) => res.sendFile(path.join(__dirname, 'public', 'teacher.html')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'student.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -200,6 +228,59 @@ app.post('/api/admin/verify', (req, res) => {
   const key = req.get('x-admin-key');
   if (key === ADMIN_KEY) return res.json({ ok: true });
   return res.status(401).json({ ok: false });
+});
+
+/* ---------------------------- TEACHER ACCOUNTS ---------------------------- */
+// Admin: list teacher accounts (never returns password hashes)
+app.get('/api/teachers', requireAdmin, (req, res) => {
+  const db = readDB();
+  res.json(db.teachers.map(t => ({ id: t.id, firstName: t.firstName, lastName: t.lastName, username: t.username, createdAt: t.createdAt })));
+});
+// Admin: create a teacher account
+app.post('/api/teachers', requireAdmin, async (req, res) => {
+  const b = req.body;
+  if (!b || !b.firstName || !b.lastName || !b.username || !b.password) {
+    return res.status(400).json({ error: 'invalid_payload', message: 'กรอกข้อมูลอาจารย์ไม่ครบ (ชื่อ, นามสกุล, username, password)' });
+  }
+  const db = readDB();
+  if (db.teachers.some(t => t.username === b.username)) {
+    return res.status(409).json({ error: 'duplicate', message: 'มี username นี้อยู่ในระบบแล้ว' });
+  }
+  const teacher = {
+    id: newId('teacher'), firstName: b.firstName.trim(), lastName: b.lastName.trim(),
+    username: b.username.trim(), passwordHash: hashPassword(b.password), createdAt: new Date().toISOString()
+  };
+  db.teachers.push(teacher);
+  await writeDB(db);
+  res.status(201).json({ id: teacher.id });
+});
+// Admin: delete a teacher account (their existing exam sets stay, just become unowned)
+app.delete('/api/teachers/:id', requireAdmin, async (req, res) => {
+  const db = readDB();
+  db.teachers = db.teachers.filter(t => t.id !== req.params.id);
+  db.sets.forEach(s => { if (s.teacherId === req.params.id) s.teacherId = null; });
+  await writeDB(db);
+  for (const [token, tid] of teacherSessions) { if (tid === req.params.id) teacherSessions.delete(token); }
+  res.json({ ok: true });
+});
+
+// Public: teacher login with username/password -> session token
+app.post('/api/teacher/login', (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณากรอก username และ password' });
+  const db = readDB();
+  const teacher = db.teachers.find(t => t.username === username.trim());
+  if (!teacher || !verifyPassword(password, teacher.passwordHash)) {
+    return res.status(401).json({ error: 'invalid_credentials', message: 'username หรือ password ไม่ถูกต้อง' });
+  }
+  const token = crypto.randomBytes(24).toString('hex');
+  teacherSessions.set(token, teacher.id);
+  res.json({ token, teacherId: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName });
+});
+app.post('/api/teacher/logout', requireTeacher, (req, res) => {
+  const token = req.get('x-teacher-token');
+  teacherSessions.delete(token);
+  res.json({ ok: true });
 });
 
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */
@@ -321,8 +402,9 @@ app.post('/api/sets', requireAdmin, async (req, res) => {
   const key = body.key || newId('set');
   const now = new Date().toISOString();
   db.sets.push({
-    key, title: body.title, tagline: body.tagline || '', desc: body.desc || '',
+    key, title: body.title, courseName: body.courseName || body.title, tagline: body.tagline || '', desc: body.desc || '',
     examType: EXAM_TYPES.includes(body.examType) ? body.examType : EXAM_TYPES[0],
+    teacherId: body.teacherId || null,
     assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
     shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
@@ -341,8 +423,9 @@ app.put('/api/sets/:key', requireAdmin, async (req, res) => {
   const body = req.body;
   const now = new Date().toISOString();
   db.sets[idx] = Object.assign({}, db.sets[idx], {
-    title: body.title, tagline: body.tagline || '', desc: body.desc || '',
+    title: body.title, courseName: body.courseName || body.title, tagline: body.tagline || '', desc: body.desc || '',
     examType: EXAM_TYPES.includes(body.examType) ? body.examType : (db.sets[idx].examType || EXAM_TYPES[0]),
+    teacherId: body.teacherId !== undefined ? body.teacherId : db.sets[idx].teacherId,
     assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
     subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
     shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
@@ -384,6 +467,140 @@ app.delete('/api/sets/:key', requireAdmin, async (req, res) => {
   db.sets = db.sets.filter(x => x.key !== req.params.key);
   await writeDB(db);
   res.json({ ok: true });
+});
+
+/* ======================================================================
+   TEACHER-SCOPED ENDPOINTS
+   A teacher only ever sees/edits/exports exam sets and results that belong
+   to their own account (matched by teacherId). Everything mirrors the
+   admin endpoints above but is filtered to req.teacherId.
+   ====================================================================== */
+app.get('/api/teacher/classes', requireTeacher, (req, res) => {
+  const db = readDB();
+  res.json([...new Set(db.students.map(s => s.classRoom))].sort());
+});
+
+app.get('/api/teacher/sets', requireTeacher, (req, res) => {
+  const db = readDB();
+  res.json(db.sets.filter(s => s.teacherId === req.teacherId));
+});
+
+app.post('/api/teacher/sets', requireTeacher, async (req, res) => {
+  const body = req.body;
+  if (!body || !body.title || !body.sections) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลชุดข้อสอบไม่ครบถ้วน' });
+  const db = readDB();
+  const key = body.key || newId('set');
+  const now = new Date().toISOString();
+  db.sets.push({
+    key, title: body.title, courseName: body.courseName || body.title, tagline: body.tagline || '', desc: body.desc || '',
+    examType: EXAM_TYPES.includes(body.examType) ? body.examType : EXAM_TYPES[0],
+    teacherId: req.teacherId,
+    assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
+    subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
+    shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
+    publishMode: body.publishMode === 'auto' ? 'auto' : 'manual',
+    availableUntil: body.availableUntil || null, lateAccessCode: body.lateAccessCode || '',
+    sections: body.sections, createdAt: now, updatedAt: now
+  });
+  await writeDB(db);
+  res.status(201).json({ key });
+});
+
+app.put('/api/teacher/sets/:key', requireTeacher, async (req, res) => {
+  const db = readDB();
+  const idx = db.sets.findIndex(x => x.key === req.params.key && x.teacherId === req.teacherId);
+  if (idx === -1) return res.status(404).json({ error: 'not_found' });
+  const body = req.body;
+  const now = new Date().toISOString();
+  db.sets[idx] = Object.assign({}, db.sets[idx], {
+    title: body.title, courseName: body.courseName || body.title, tagline: body.tagline || '', desc: body.desc || '',
+    examType: EXAM_TYPES.includes(body.examType) ? body.examType : (db.sets[idx].examType || EXAM_TYPES[0]),
+    assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [],
+    subjectTeacherName: body.subjectTeacherName || '', subjectTeacherEmail: body.subjectTeacherEmail || '',
+    shuffleQuestions: !!body.shuffleQuestions, shuffleChoices: !!body.shuffleChoices,
+    publishMode: body.publishMode === 'auto' ? 'auto' : 'manual',
+    availableUntil: body.availableUntil || null, lateAccessCode: body.lateAccessCode || '',
+    sections: body.sections, updatedAt: now
+  });
+  await writeDB(db);
+  res.json({ ok: true });
+});
+
+app.post('/api/teacher/sets/:key/duplicate', requireTeacher, async (req, res) => {
+  const db = readDB();
+  const orig = db.sets.find(x => x.key === req.params.key && x.teacherId === req.teacherId);
+  if (!orig) return res.status(404).json({ error: 'not_found' });
+  const now = new Date().toISOString();
+  const copy = JSON.parse(JSON.stringify(orig));
+  copy.key = newId('set');
+  copy.title = orig.title + ' (สำเนา)';
+  copy.createdAt = now; copy.updatedAt = now;
+  db.sets.push(copy);
+  await writeDB(db);
+  res.status(201).json({ key: copy.key });
+});
+
+app.delete('/api/teacher/sets/:key', requireTeacher, async (req, res) => {
+  const db = readDB();
+  const owned = db.sets.some(x => x.key === req.params.key && x.teacherId === req.teacherId);
+  if (!owned) return res.status(404).json({ error: 'not_found' });
+  db.sets = db.sets.filter(x => x.key !== req.params.key);
+  await writeDB(db);
+  res.json({ ok: true });
+});
+
+app.get('/api/teacher/results', requireTeacher, (req, res) => {
+  const db = readDB();
+  const myKeys = new Set(db.sets.filter(s => s.teacherId === req.teacherId).map(s => s.key));
+  let rows = db.results.filter(r => myKeys.has(r.questionKey));
+  if (req.query.setKey) rows = rows.filter(r => r.questionKey === req.query.setKey);
+  if (req.query.examType) rows = rows.filter(r => r.examType === req.query.examType);
+  rows.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+  res.json(rows);
+});
+
+app.patch('/api/teacher/results/:id', requireTeacher, async (req, res) => {
+  const db = readDB();
+  const r = db.results.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: 'not_found' });
+  const owned = db.sets.some(s => s.key === r.questionKey && s.teacherId === req.teacherId);
+  if (!owned) return res.status(404).json({ error: 'not_found' });
+  if (typeof req.body.published === 'boolean') r.published = req.body.published;
+  await writeDB(db);
+  res.json({ ok: true, published: r.published });
+});
+
+app.post('/api/teacher/sets/:key/publish', requireTeacher, async (req, res) => {
+  const db = readDB();
+  const owned = db.sets.some(s => s.key === req.params.key && s.teacherId === req.teacherId);
+  if (!owned) return res.status(404).json({ error: 'not_found' });
+  let count = 0;
+  db.results.forEach(r => { if (r.questionKey === req.params.key) { r.published = true; count++; } });
+  await writeDB(db);
+  res.json({ ok: true, count });
+});
+
+app.delete('/api/teacher/results/:id', requireTeacher, async (req, res) => {
+  const db = readDB();
+  const r = db.results.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: 'not_found' });
+  const owned = db.sets.some(s => s.key === r.questionKey && s.teacherId === req.teacherId);
+  if (!owned) return res.status(404).json({ error: 'not_found' });
+  db.results = db.results.filter(x => x.id !== req.params.id);
+  await writeDB(db);
+  res.json({ ok: true });
+});
+
+app.get('/api/teacher/export/results.xlsx', requireTeacher, (req, res) => {
+  const db = readDB();
+  const myKeys = new Set(db.sets.filter(s => s.teacherId === req.teacherId).map(s => s.key));
+  let rows = db.results.filter(r => myKeys.has(r.questionKey));
+  if (req.query.setKey) rows = rows.filter(r => r.questionKey === req.query.setKey);
+  if (req.query.examType) rows = rows.filter(r => r.examType === req.query.examType);
+  rows.sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent('ผลสอบของฉัน.xlsx')}"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buildResultsWorkbook(rows));
 });
 
 /* ---------------------------- RESULTS (server grades; score is never sent back) ---------------------------- */
@@ -488,13 +705,7 @@ app.post('/api/sets/:key/publish', requireAdmin, async (req, res) => {
 });
 
 /* ---------------------------- EXCEL EXPORT ---------------------------- */
-app.get('/api/export/results.xlsx', requireAdmin, (req, res) => {
-  const db = readDB();
-  let rows = [...db.results];
-  if (req.query.setKey) rows = rows.filter(r => r.questionKey === req.query.setKey);
-  if (req.query.examType) rows = rows.filter(r => r.examType === req.query.examType);
-  rows.sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
-
+function buildResultsWorkbook(rows) {
   const sheetData = rows.map(r => ({
     'รหัสนักเรียน': r.studentId,
     'ชื่อ-สกุล': r.studentName,
@@ -517,8 +728,17 @@ app.get('/api/export/results.xlsx', requireAdmin, (req, res) => {
   ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 28 }, { wch: 20 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 20 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'ผลสอบ');
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
 
+app.get('/api/export/results.xlsx', requireAdmin, (req, res) => {
+  const db = readDB();
+  let rows = [...db.results];
+  if (req.query.setKey) rows = rows.filter(r => r.questionKey === req.query.setKey);
+  if (req.query.examType) rows = rows.filter(r => r.examType === req.query.examType);
+  rows.sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+
+  const buf = buildResultsWorkbook(rows);
   const setTitle = req.query.setKey ? (db.sets.find(s => s.key === req.query.setKey)?.title || 'ผลสอบ') : 'ผลสอบทั้งหมด';
   const filename = `${setTitle.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]+/g, '_')}.xlsx`;
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
