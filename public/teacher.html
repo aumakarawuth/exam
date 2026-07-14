@@ -152,6 +152,12 @@ button{font-family:inherit;cursor:pointer;}
 .detail-row td{background:var(--grid);padding:14px 16px;}
 .detail-block{font-size:12.5px;line-height:1.8;margin-bottom:10px;}
 .detail-block b{color:var(--indigo);}
+.password-dialog{border:1px solid var(--line);border-radius:18px;padding:0;width:min(440px,calc(100% - 32px));box-shadow:0 24px 60px -20px rgba(15,23,42,.4);}
+.password-dialog::backdrop{background:rgba(15,23,42,.42);}
+.password-dialog form{padding:24px;}
+.password-dialog h3{margin:0 0 6px;font-size:18px;}
+.password-dialog p{margin:0 0 18px;color:var(--sub);font-size:13px;line-height:1.6;}
+.password-error{color:var(--red);font-size:12.5px;margin:-4px 0 12px;min-height:18px;}
 @media(max-width:560px){.lv-grid{grid-template-columns:1fr;}.lv-card{min-height:0;}.deadline-card{min-width:0;width:100%;}}
 </style>
 </head>
@@ -179,6 +185,7 @@ button{font-family:inherit;cursor:pointer;}
     <div class="brand">🧑‍🏫 ระบบข้อสอบของฉัน (<span id="teacherNameLabel"></span>)</div>
     <div style="display:flex;gap:8px;align-items:center;">
       <button class="btn btn-ghost btn-sm" id="pageRefreshBtn" title="โหลดข้อมูลล่าสุดโดยไม่ออกจากระบบ">↻ รีเฟรชข้อมูล</button>
+      <button class="btn btn-ghost btn-sm" id="changePasswordBtn">🔐 เปลี่ยนรหัสผ่าน</button>
       <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
     </div>
   </div>
@@ -222,6 +229,18 @@ button{font-family:inherit;cursor:pointer;}
   </div>
 </div>
 
+<dialog class="password-dialog" id="changePasswordDialog">
+  <form id="changePasswordForm">
+    <h3>🔐 เปลี่ยนรหัสผ่าน</h3>
+    <p>ใช้รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร ระบบจะออกจากอุปกรณ์อื่นเพื่อความปลอดภัย</p>
+    <div class="field"><label for="currentPasswordInput">รหัสผ่านเดิม</label><input type="password" id="currentPasswordInput" autocomplete="current-password" required></div>
+    <div class="field"><label for="newPasswordInput">รหัสผ่านใหม่</label><input type="password" id="newPasswordInput" minlength="8" autocomplete="new-password" required></div>
+    <div class="field"><label for="confirmPasswordInput">ยืนยันรหัสผ่านใหม่</label><input type="password" id="confirmPasswordInput" minlength="8" autocomplete="new-password" required></div>
+    <div class="password-error" id="changePasswordError"></div>
+    <div class="editor-actions"><button class="btn btn-ghost btn-sm" type="button" id="cancelChangePasswordBtn">ยกเลิก</button><button class="btn btn-primary btn-sm" type="submit" id="savePasswordBtn">บันทึกรหัสผ่าน</button></div>
+  </form>
+</dialog>
+
 <!-- ================= EXAM SET WIZARD (full-page, mirrors the student exam-taking flow) ================= -->
 <div id="setWizardScreen" class="hidden" style="min-height:100vh;display:flex;flex-direction:column;background:var(--bg);">
   <div class="admin-topbar">
@@ -263,6 +282,7 @@ async function apiTeacherLogin(username, password){
   if(!res.ok){ let msg='username หรือ password ไม่ถูกต้อง'; try{ const j = await res.json(); if(j&&j.message) msg=j.message; }catch(e){} throw new Error(msg); }
   return res.json();
 }
+async function apiChangeTeacherPassword(currentPassword, newPassword){ return apiFetch('/api/teacher/change-password', { method:'POST', body:{currentPassword, newPassword}, auth:true }); }
 async function apiGetAdminSets(){ return apiFetch('/api/teacher/sets', { auth:true }); }
 async function apiCreateSet(set){ return apiFetch('/api/teacher/sets', { method:'POST', body:set, auth:true }); }
 async function apiUpdateSet(key, set){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key), { method:'PUT', body:set, auth:true }); }
@@ -315,6 +335,33 @@ async function tryAdminLogin(){
 document.getElementById('adminLoginBtn').addEventListener('click', tryAdminLogin);
 document.getElementById('teacherPasswordInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
 document.getElementById('pageRefreshBtn').addEventListener('click', refreshCurrentPageData);
+const changePasswordDialog = document.getElementById('changePasswordDialog');
+document.getElementById('changePasswordBtn').addEventListener('click', ()=>{
+  document.getElementById('changePasswordForm').reset();
+  document.getElementById('changePasswordError').textContent='';
+  changePasswordDialog.showModal();
+  document.getElementById('currentPasswordInput').focus();
+});
+document.getElementById('cancelChangePasswordBtn').addEventListener('click', ()=>changePasswordDialog.close());
+document.getElementById('changePasswordForm').addEventListener('submit', async (event)=>{
+  event.preventDefault();
+  const currentPassword=document.getElementById('currentPasswordInput').value;
+  const newPassword=document.getElementById('newPasswordInput').value;
+  const confirmPassword=document.getElementById('confirmPasswordInput').value;
+  const error=document.getElementById('changePasswordError');
+  const saveBtn=document.getElementById('savePasswordBtn');
+  error.textContent='';
+  if(newPassword.length<8){ error.textContent='รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร'; return; }
+  if(newPassword!==confirmPassword){ error.textContent='ยืนยันรหัสผ่านใหม่ไม่ตรงกัน'; return; }
+  saveBtn.disabled=true; saveBtn.textContent='กำลังบันทึก...';
+  try{
+    const result=await apiChangeTeacherPassword(currentPassword, newPassword);
+    teacherToken=result.token;
+    changePasswordDialog.close();
+    showToast('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
+  }catch(e){ error.textContent=e.message; }
+  saveBtn.disabled=false; saveBtn.textContent='บันทึกรหัสผ่าน';
+});
 document.getElementById('adminExitBtn').addEventListener('click', ()=>{
   teacherToken = null; teacherInfo = null;
   adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');

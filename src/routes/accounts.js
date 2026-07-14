@@ -52,6 +52,32 @@ function registerAccountRoutes(app, dependencies) {
     res.json({ token, teacherId: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName });
   });
 
+  app.post('/api/teacher/change-password', requireTeacher, async (req, res) => {
+    const { currentPassword, newPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+      return res.status(400).json({ error: 'invalid_payload', message: 'กรุณากรอกรหัสผ่านให้ครบ' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'weak_password', message: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร' });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: 'same_password', message: 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม' });
+    }
+
+    const db = readDB();
+    const teacher = db.teachers.find(item => item.id === req.teacherId);
+    if (!teacher || !verifyPassword(currentPassword, teacher.passwordHash)) {
+      return res.status(401).json({ error: 'invalid_credentials', message: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+    }
+
+    teacher.passwordHash = hashPassword(newPassword);
+    teacher.passwordChangedAt = new Date().toISOString();
+    await writeDB(db);
+    removeTeacherSessions(teacher.id);
+    const token = createTeacherSession(teacher.id);
+    res.json({ ok: true, token });
+  });
+
   app.post('/api/teacher/logout', requireTeacher, (req, res) => {
     teacherSessions.delete(req.get('x-teacher-token'));
     res.json({ ok: true });
