@@ -54,7 +54,7 @@ button{font-family:inherit;cursor:pointer;}
 .set-card .set-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
 .badge-pill{display:inline-block;font-size:11px;font-weight:600;background:var(--indigo);color:#fff;padding:3px 10px;border-radius:999px;width:fit-content;}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:18px;}
-.deadline-card{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #C7D2FE;border-radius:16px;padding:13px 15px;min-width:280px;box-shadow:0 8px 18px -18px rgba(37,99,235,.7);transition:border-color .15s,box-shadow .15s,transform .15s;}
+.deadline-card{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #C7D2FE;border-radius:16px;padding:13px 15px;min-width:280px;flex:1;box-shadow:0 8px 18px -18px rgba(37,99,235,.7);transition:border-color .15s,box-shadow .15s,transform .15s;}
 .deadline-card:focus-within{border-color:var(--blue);box-shadow:0 0 0 4px rgba(37,99,235,.1);transform:translateY(-1px);}
 .deadline-card .deadline-icon{font-size:22px;line-height:1;}
 .deadline-card .field{margin:0;min-width:0;}
@@ -613,6 +613,9 @@ function parseManualDateTime(value){
   const date=new Date(text.replace(' ','T')); if(Number.isNaN(date.getTime())){ showToast('วันเวลาที่กรอกไม่ถูกต้อง'); return ''; }
   return date.toISOString();
 }
+function formatExamDate(iso){ if(!iso) return ''; const d=new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+function formatExamTime(iso){ if(!iso) return ''; const d=new Date(iso); return `${String(d.getHours()).padStart(2,'0')}.${String(d.getMinutes()).padStart(2,'0')}`; }
+function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||'').trim(),time=String(timeValue||'').trim(); if(!date&&!time) return ''; const d=date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/),t=time.match(/^(\d{2})[.:](\d{2})$/); if(!d||!t){showToast('กรุณากรอกวัน dd/mm/yyyy และเวลา HH.MM');return '';} const value=new Date(`${d[3]}-${d[2]}-${d[1]}T${t[1]}:${t[2]}`); return Number.isNaN(value.getTime())?'':value.toISOString(); }
 
 function blankSet(){
   return {
@@ -702,8 +705,8 @@ function wizardInfoStepHtml(){
     </div>
     <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
     <div class="field-row">
-      <div class="deadline-card"><span class="deadline-icon">▶️</span><div class="field"><label>เวลาเริ่มสอบ (ถ้ามี)</label><input class="date-time-input" type="text" id="fAvailableFrom" value="${s.availableFrom?toDatetimeLocalValue(s.availableFrom).replace('T',' '):''}" placeholder="2026-07-20 09:00"></div></div>
-      <div class="deadline-card"><span class="deadline-icon">🗓️</span><div class="field"><label>เวลาสิ้นสุดการลงทะเบียนสอบตามปกติ (ถ้ามี)</label><input class="date-time-input" type="text" id="fAvailableUntil" value="${s.availableUntil?toDatetimeLocalValue(s.availableUntil).replace('T',' '):''}" placeholder="2026-07-20 12:00"></div></div>
+      <div class="deadline-card"><span class="deadline-icon">▶️</span><div class="field"><label>วันเริ่มสอบ</label><input class="date-time-input" type="text" id="fStartDate" value="${formatExamDate(s.availableFrom)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาเริ่มสอบ</label><input class="date-time-input" type="text" id="fStartTime" value="${formatExamTime(s.availableFrom)}" placeholder="13.30"></div></div>
+      <div class="deadline-card"><span class="deadline-icon">⏹️</span><div class="field"><label>วันสิ้นสุดสอบ</label><input class="date-time-input" type="text" id="fEndDate" value="${formatExamDate(s.availableUntil)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาสิ้นสุดสอบ</label><input class="date-time-input" type="text" id="fEndTime" value="${formatExamTime(s.availableUntil)}" placeholder="13.30"></div></div>
       <div class="field"><label>รหัสเข้าสอบกรณีเกินเวลา</label><input type="text" id="fLateCode" value="${escapeAttr(s.lateAccessCode||'')}" placeholder="เช่น LATE2569"></div>
     </div>
   </div>
@@ -823,8 +826,8 @@ function bindWizardStepEvents(){
     document.getElementById('fTitle').addEventListener('input', e=>{ s.title = e.target.value; });
     document.getElementById('fTagline').addEventListener('input', e=>{ s.tagline = e.target.value; });
     document.getElementById('fDesc').addEventListener('input', e=>{ s.desc = e.target.value; });
-    document.getElementById('fAvailableFrom').addEventListener('change', e=>{ s.availableFrom = parseManualDateTime(e.target.value); });
-    document.getElementById('fAvailableUntil').addEventListener('change', e=>{ s.availableUntil = parseManualDateTime(e.target.value); });
+    ['fStartDate','fStartTime'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ s.availableFrom=parseExamDateTime(document.getElementById('fStartDate').value,document.getElementById('fStartTime').value); }));
+    ['fEndDate','fEndTime'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ s.availableUntil=parseExamDateTime(document.getElementById('fEndDate').value,document.getElementById('fEndTime').value); }));
     document.getElementById('fLateCode').addEventListener('input', e=>{ s.lateAccessCode = e.target.value; });
     document.getElementById('wizCancelBtn').addEventListener('click', ()=>{
       if(confirm('ยกเลิกการแก้ไข? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
