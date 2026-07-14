@@ -362,7 +362,7 @@ button{font-family:inherit;cursor:pointer;}
     <p class="lead" id="finalSummaryText"></p>
     <div class="final-list" id="finalList"></div>
     <div class="start-actions">
-      <button class="btn btn-ghost" id="redownloadBtn">ดาวน์โหลด PDF อีกครั้ง</button>
+      <button class="btn btn-ghost" id="redownloadBtn" style="display:none;">ดาวน์โหลด PDF คำตอบ</button>
       <button class="btn btn-primary" id="restartAllBtn">เริ่มทำข้อสอบใหม่ทั้งหมด</button>
     </div>
   </div>
@@ -1759,7 +1759,7 @@ function svgStringToPngDataUrl(svgString, w, h){
   });
 }
 
-/* ============ FINAL PDF ============ */
+/* ============ FINAL PDF (student submission, no scores shown) ============ */
 async function generateFinalPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
@@ -1767,40 +1767,37 @@ async function generateFinalPDF(){
   const margin = 48;
   let y = margin;
   doc.setFont('helvetica','bold'); doc.setFontSize(20);
-  doc.text('DFD Practice Exam - Result Report', margin, y); y+=30;
+  doc.text('DFD Exam Submission', margin, y); y+=30;
   doc.setFont('helvetica','normal'); doc.setFontSize(12);
   doc.text('Student: ' + (app.studentName||'-'), margin, y); y+=18;
   doc.text('Question set: ' + (currentQuestion()?.title||'-') + '  (' + (currentQuestion()?.tagline||'') + ')', margin, y); y+=18;
   doc.text('Date: ' + new Date().toLocaleString('th-TH'), margin, y); y+=26;
 
   doc.setFont('helvetica','bold'); doc.setFontSize(13);
-  doc.text('Summary', margin, y); y+=18;
+  doc.text('Submitted diagrams', margin, y); y+=18;
   doc.setFont('helvetica','normal'); doc.setFontSize(11);
   [0,1,2].forEach(lv=>{
     const att = app.attempts[lv];
-    doc.text(`${LEVEL_TITLES[lv]}: ` + (att? `${att.best.result.total} / 100` : 'Not attempted'), margin+10, y);
+    doc.text(`${LEVEL_TITLES[lv]}: ` + (att ? 'Submitted' : 'Not submitted'), margin+10, y);
     y+=16;
   });
 
-  const labels = {structure:'Structure',dataflow:'Data Flow',process:'Process',datastore:'Data Store',entity:'Entity',naming:'Naming'};
   for(const lv of [0,1,2]){
     const att = app.attempts[lv];
-    if(!att) continue;
     doc.addPage();
     let yy = margin;
     doc.setFont('helvetica','bold'); doc.setFontSize(16);
     doc.text(`${LEVEL_TITLES[lv]}`, margin, yy); yy+=24;
     doc.setFontSize(12);
     doc.text(`Student: ${app.studentName}`, margin, yy); yy+=20;
-    doc.setFontSize(14);
-    doc.text(`Total Score (Best Attempt): ${att.best.result.total} / 100`, margin, yy); yy+=20;
-    doc.setFont('helvetica','normal'); doc.setFontSize(11);
-    Object.entries(att.best.result.breakdown).forEach(([k,v])=>{
-      doc.text(`${labels[k]}: ${v.score} / ${v.max}`, margin+10, yy); yy+=15;
-    });
-    yy += 12;
+    if(!att){
+      doc.setFont('helvetica','normal'); doc.setFontSize(12);
+      doc.text('No diagram was submitted for this level.', margin, yy);
+      continue;
+    }
     try{
-      const svgStr = buildExportSvgString(att.best.shapes, att.best.connections);
+      const diagram = att.latest || att.best;
+      const svgStr = buildExportSvgString(diagram.shapes, diagram.connections);
       const pngUrl = await svgStringToPngDataUrl(svgStr, 1000, 650);
       const imgW = pageW - margin*2;
       const imgH = imgW * (650/1000);
@@ -1831,20 +1828,15 @@ async function finalizeExam(auto){
     ? 'ครบเวลา 60 นาทีแล้ว ระบบปิดการทำข้อสอบและสร้างไฟล์ PDF ให้อัตโนมัติ (ใช้คะแนนสูงสุดที่ทำได้ในแต่ละ Level)'
     : 'ระบบได้บันทึกคะแนนสูงสุดของทุก Level ที่ทำไว้ และสร้างไฟล์ PDF ให้ดาวน์โหลดเพื่อส่งอาจารย์';
   const list = document.getElementById('finalList');
-  list.innerHTML = [0,1,2].map(lv=>{
-    const att = app.attempts[lv];
-    return `<div class="final-row"><span>${LEVEL_TITLES[lv]}</span><b>${att? att.best.result.total+'/100' : 'ไม่ได้ทำ'}</b></div>`;
-  }).join('');
   list.innerHTML = [0,1,2].map(lv => `<div class="final-row"><span>${LEVEL_TITLES[lv]}</span><b>${app.attempts[lv] ? 'ส่งแล้ว' : 'ยังไม่ได้ทำ'}</b></div>`).join('');
   try{
-    return; // Scores are intentionally withheld until the teacher publishes them.
-    window.__examDoc = doc;
-    doc.save(`DFD_ผลสอบ_${(app.studentName||'student').replace(/\s+/g,'_')}.pdf`);
+    window.__examDoc = await generateFinalPDF();
+    document.getElementById('redownloadBtn').style.display = '';
   }catch(e){ console.error('PDF generation failed', e); }
 }
 document.getElementById('redownloadBtn').addEventListener('click', ()=>{
-  if(window.__examDoc) window.__examDoc.save(`DFD_ผลสอบ_${(app.studentName||'student').replace(/\s+/g,'_')}.pdf`);
-  else alert('ไม่พบไฟล์ PDF ที่สร้างไว้ ลองรีเฟรชหน้าใหม่');
+  if(window.__examDoc) window.__examDoc.save(`DFD_คำตอบ_${(app.studentName||'student').replace(/\s+/g,'_')}.pdf`);
+  else alert('กำลังสร้างไฟล์ PDF กรุณาลองอีกครั้ง');
 });
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   location.reload();

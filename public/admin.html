@@ -176,7 +176,10 @@ button{font-family:inherit;cursor:pointer;}
 <div id="adminScreen" class="hidden">
   <div class="admin-topbar">
     <div class="brand">🛠️ ระบบจัดการข้อสอบ (สำหรับผู้ดูแล/อาจารย์)</div>
-    <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" id="pageRefreshBtn" title="โหลดข้อมูลและหน้าเว็บใหม่">↻ รีเฟรชหน้า</button>
+      <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
+    </div>
   </div>
   <div class="admin-tabs">
     <button class="admin-tab-btn active" data-atab="sets">ชุดข้อสอบ</button>
@@ -364,6 +367,7 @@ async function tryAdminLogin(){
 }
 document.getElementById('adminLoginBtn').addEventListener('click', tryAdminLogin);
 document.getElementById('adminKeyInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
+document.getElementById('pageRefreshBtn').addEventListener('click', ()=>location.reload());
 document.getElementById('adminExitBtn').addEventListener('click', ()=>{
   adminKey = null; adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
   document.getElementById('adminKeyInput').value=''; document.getElementById('adminLoginError').style.display='none';
