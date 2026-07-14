@@ -478,6 +478,9 @@ function loadSessionData(){
 }
 function clearSessionData(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
 window.addEventListener('beforeunload', ()=>{ if(app.questionKey && !app.examEnded) saveSession(); });
+function requestExamFullscreen(){
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
+}
 
 /* ============ ANTI-CHEAT: block right-click & copy while exam is in progress ============ */
 document.addEventListener('contextmenu', (e)=>{
@@ -503,12 +506,12 @@ document.addEventListener('visibilitychange', ()=>{
     tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
     tag.classList.add('badge-warn');
     scheduleSave();
-    if(state.tabSwitches>=2){
+    if(state.tabSwitches>=4){
       document.getElementById('tabWarningModal').classList.add('hidden');
       finalizeExam('tabswitch');
     }
   } else {
-    if(state.tabSwitches===1 && !app.examEnded){
+    if(state.tabSwitches>=1 && state.tabSwitches<=3 && !app.examEnded){
       document.getElementById('tabWarningModal').classList.remove('hidden');
     }
   }
@@ -718,6 +721,7 @@ document.getElementById('confirmQBtn').addEventListener('click', ()=>{
   if(COMPLETED_KEYS.has(pickedKey)){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
   app.questionKey = pickedKey;
   app.lateCode = lateCodeVerified[pickedKey] || null;
+  requestExamFullscreen();
   selectScreen.classList.add('hidden');
   runCountdown();
 });
@@ -735,6 +739,7 @@ function runCountdown(){
   }, 900);
 }
 function beginExam(){
+  requestExamFullscreen();
   examScreen.classList.remove('hidden');
   setFloatingThemeButtonVisible(false);
   app.examInProgress = true;

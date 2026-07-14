@@ -587,11 +587,10 @@ const LEVEL_TITLES = {0:'Level 0 — Context Diagram', 1:'Level 1 — แตก 
 
 /* ============ APP / SESSION STATE ============ */
 let app = {
-  questionKey: null,
-  studentName: '',
+  studentId: null, studentName: '', classRoom: '', questionKey: null,
   level: null,          // currently open level, null when at hub
   attempts: {0:null, 1:null, 2:null},
-  timeLeft: 60*60,
+  timeLeft: 60*60, examEndTime: null, tabSwitches: 0, reloadCount: 0,
   globalTimerHandle: null,
   examEnded: false
 };
@@ -601,6 +600,19 @@ let state = {
 };
 let idCounter = 1;
 const newId = (p)=> p + (idCounter++);
+
+/* ============ SESSION PERSISTENCE ============ */
+const DFD_SESSION_KEY = 'objectAnalysisExamSession';
+let dfdSaveTimer = null;
+function saveDfdSession(){
+  if(!app.studentId || !app.questionKey || app.examEnded) return;
+  const canvasState = { shapes:state.shapes, connections:state.connections, tool:state.tool, selectedId:state.selectedId, zoom:state.zoom, panX:state.panX, panY:state.panY, hintsLeft:state.hintsLeft };
+  try { localStorage.setItem(DFD_SESSION_KEY, JSON.stringify({ studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, questionKey:app.questionKey, attempts:app.attempts, level:app.level, examEndTime:app.examEndTime, tabSwitches:app.tabSwitches, reloadCount:app.reloadCount, canvasState })); } catch(e) {}
+}
+function scheduleDfdSave(){ clearTimeout(dfdSaveTimer); dfdSaveTimer = setTimeout(saveDfdSession, 300); }
+function clearDfdSession(){ try { localStorage.removeItem(DFD_SESSION_KEY); } catch(e) {} }
+function requestDfdFullscreen(){ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{}); }
+window.addEventListener('beforeunload', saveDfdSession);
 
 /* ============ SCREEN REFS ============ */
 const startScreen = document.getElementById('startScreen');
@@ -652,6 +664,7 @@ document.getElementById('startExamBtn').addEventListener('click', ()=>{
   const val = document.getElementById('studentNameInput').value.trim();
   if(!val){ alert('กรุณากรอกชื่อ-นามสกุลก่อนเริ่มสอบ'); return; }
   app.studentName = val;
+  requestDfdFullscreen();
   nameScreen.classList.add('hidden');
   beginCountdown();
 });
@@ -685,12 +698,21 @@ function startWholeExam(){
   document.getElementById('hubQTitle').textContent = 'โจทย์: ' + currentQuestion().title;
   document.getElementById('hubQTagline').textContent = currentQuestion().tagline;
   app.timeLeft = 60*60;
+  app.examEndTime = Date.now() + app.timeLeft*1000;
+  app.tabSwitches = 0;
   updateGlobalTimerDisplay();
+  document.getElementById('tabSwitchTag').textContent = 'สลับแท็บ: 0 ครั้ง';
   showHub();
   renderHubCards();
+  saveDfdSession();
+  runDfdTimer();
+}
+function runDfdTimer(){
+  clearInterval(app.globalTimerHandle);
   app.globalTimerHandle = setInterval(()=>{
-    app.timeLeft--;
+    app.timeLeft = Math.max(0, Math.round((app.examEndTime-Date.now())/1000));
     updateGlobalTimerDisplay();
+    scheduleDfdSave();
     if(app.timeLeft <= 0){
       clearInterval(app.globalTimerHandle);
       forceTimeUp();
@@ -778,10 +800,12 @@ document.getElementById('backToHubBtn').addEventListener('click', showHub);
 /* ============ ANTI-CHEAT ============ */
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden && !examScreen.classList.contains('hidden') && !app.examEnded){
-    state.tabSwitches++;
+    app.tabSwitches++;
     const tag = document.getElementById('tabSwitchTag');
-    tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+    tag.textContent = 'สลับแท็บ: '+app.tabSwitches+' ครั้ง';
     tag.classList.add('badge-warn');
+    saveDfdSession();
+    if(app.tabSwitches>=4) forceTimeUp();
   }
 });
 document.getElementById('fullscreenBtn').addEventListener('click', ()=>{
@@ -1343,6 +1367,7 @@ function render(){
     lastPropSelId = state.selectedId;
     updatePropPanel();
   }
+  scheduleDfdSave();
 }
 
 /* ============ HINT ENGINE (student aid only, no answer wording revealed) ============ */
@@ -1475,6 +1500,7 @@ function submitLevel(){
     // the same diagram instead of starting over from a blank canvas
     latest: latestSnapshot
   };
+  saveDfdSession();
   showLevelResultModal(result, isNewBest, isNewBest ? result.total : bestSoFar);
 }
 function showLevelResultModal(result, isNewBest, bestTotal){
@@ -1749,8 +1775,10 @@ function forceTimeUp(){
 }
 async function finalizeExam(auto){
   app.examEnded = true;
+  clearInterval(app.globalTimerHandle);
   try { await window.submitObjectAnalysisResult(); }
-  catch (error) { alert(error.message); app.examEnded = false; return; }
+  catch (error) { alert(error.message); app.examEnded = false; saveDfdSession(); return; }
+  clearDfdSession();
   examScreen.classList.add('hidden');
   finalScreen.classList.remove('hidden');
   document.getElementById('redownloadBtn').style.display = 'none';
@@ -1785,7 +1813,7 @@ async function submitObjectAnalysisResult(){
     const attempt = app.attempts[level];
     return { level, score: attempt ? attempt.best.result.total : 0, shapes: attempt ? attempt.latest.shapes : [], connections: attempt ? attempt.latest.connections : [] };
   });
-  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: state.tabSwitches }) });
+  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: app.tabSwitches, reloadCount: app.reloadCount }) });
   if(!response.ok){ const body = await response.json().catch(()=>({})); throw new Error(body.message || 'ไม่สามารถบันทึกคำตอบได้'); }
   submittedToBackend = true;
 }
@@ -1794,9 +1822,43 @@ window.startObjectAnalysisExam = function(student){
   document.getElementById('startScreen').classList.add('hidden');
   QUESTIONS.coffee.title = 'การวิเคราะห์และออกแบบเชิงวัตถุ: Data Flow Diagram';
   QUESTIONS.coffee.tagline = 'Object Analysis & Design';
-  app.questionKey = 'coffee'; beginCountdown();
+  app.questionKey = 'coffee'; requestDfdFullscreen(); beginCountdown();
 };
 window.submitObjectAnalysisResult = submitObjectAnalysisResult;
+window.requestDfdFullscreen = requestDfdFullscreen;
+
+function attemptResumeDfdSession(){
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(DFD_SESSION_KEY) || 'null'); } catch(e) { return false; }
+  if(!saved?.studentId || saved.questionKey!=='coffee') return false;
+  const remaining = Math.max(0, Math.round((Number(saved.examEndTime || 0)-Date.now())/1000));
+  if(!remaining){ clearDfdSession(); return false; }
+
+  QUESTIONS.coffee.title = 'การวิเคราะห์และออกแบบเชิงวัตถุ: Data Flow Diagram';
+  QUESTIONS.coffee.tagline = 'Object Analysis & Design';
+  app.studentId=saved.studentId; app.studentName=saved.studentName||''; app.classRoom=saved.classRoom||'';
+  app.questionKey='coffee'; app.attempts=saved.attempts||{0:null,1:null,2:null}; app.examEndTime=saved.examEndTime;
+  app.timeLeft=remaining; app.tabSwitches=saved.tabSwitches||0; app.reloadCount=(saved.reloadCount||0)+1; app.examEnded=false;
+  [startScreen, selectScreen, nameScreen, countdownOverlay, document.getElementById('sharedLoginScreen'), document.getElementById('sharedPinSetupScreen'), document.getElementById('sharedPinVerifyScreen')].forEach(el=>el?.classList.add('hidden'));
+  examScreen.classList.remove('hidden');
+  document.getElementById('nameTag').textContent = '👤 ' + app.studentName;
+  document.getElementById('hubQTitle').textContent = 'โจทย์: ' + currentQuestion().title;
+  document.getElementById('hubQTagline').textContent = currentQuestion().tagline;
+  document.getElementById('tabSwitchTag').textContent = 'สลับแท็บ: '+app.tabSwitches+' ครั้ง';
+  if(app.tabSwitches>0) document.getElementById('tabSwitchTag').classList.add('badge-warn');
+  updateGlobalTimerDisplay();
+
+  if(saved.level===0 || saved.level===1 || saved.level===2){
+    enterLevel(saved.level);
+    state = { shapes:[], connections:[], tool:'select', selectedId:null, history:[], future:[], zoom:1, panX:0, panY:0, hintsLeft:3, ...(saved.canvasState||{}) };
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(btn=>btn.classList.toggle('active', btn.dataset.tool===state.tool));
+    applyZoom(); render();
+  } else showHub();
+  runDfdTimer();
+  saveDfdSession();
+  return true;
+}
+attemptResumeDfdSession();
 
 })();
 </script>
@@ -1823,12 +1885,14 @@ window.submitObjectAnalysisResult = submitObjectAnalysisResult;
     } catch (err) { error.textContent = err.message; error.style.display = 'block'; }
   });
   document.getElementById('sharedPinSetupNext').addEventListener('click', async () => {
+    window.requestDfdFullscreen?.();
     const pin = document.getElementById('sharedPin').value.trim(); const confirmPin = document.getElementById('sharedPinConfirm').value.trim(); const error = document.getElementById('sharedPinSetupError');
     if (!/^\d{4,6}$/.test(pin) || pin !== confirmPin) { error.textContent = 'กรอก PIN ตัวเลข 4-6 หลักให้ตรงกัน'; error.style.display = 'block'; return; }
     try { await request('/api/students/' + encodeURIComponent(student.studentId) + '/set-pin', {method:'POST', body:{pin}}); show('startScreen'); window.startObjectAnalysisExam(student); }
     catch (err) { error.textContent = err.message; error.style.display = 'block'; }
   });
   document.getElementById('sharedPinVerifyNext').addEventListener('click', async () => {
+    window.requestDfdFullscreen?.();
     const error = document.getElementById('sharedPinVerifyError');
     try {
       const result = await request('/api/students/' + encodeURIComponent(student.studentId) + '/verify-pin', {method:'POST', body:{pin:document.getElementById('sharedPinVerify').value.trim()}});
