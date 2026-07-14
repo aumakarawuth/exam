@@ -102,6 +102,7 @@ button{font-family:inherit;cursor:pointer;}
 
 .canvas-wrap{flex:1;position:relative;background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/24px 24px,var(--bg);overflow:hidden;user-select:none;-webkit-user-select:none;}
 #dfdSvg{width:100%;height:100%;display:block;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;}
+#dfdSvg.is-panning{cursor:grabbing;}
 #dfdSvg *{-webkit-user-drag:none;}
 
 .shape-process-outline{fill:var(--surface);stroke:var(--ink);stroke-width:2.4;}
@@ -596,7 +597,7 @@ let app = {
 };
 let state = {
   shapes: [], connections: [], tool:'select', selectedId:null,
-  history:[], future:[], zoom:1, hintsLeft:3, tabSwitches:0
+  history:[], future:[], zoom:1, panX:0, panY:0, hintsLeft:3, tabSwitches:0
 };
 let idCounter = 1;
 const newId = (p)=> p + (idCounter++);
@@ -750,7 +751,7 @@ function enterLevel(lv){
   // Continue editing from the last saved attempt for this level (if any) instead of starting from a blank canvas.
   const resumeShapes = existing ? JSON.parse(JSON.stringify(existing.latest.shapes)) : [];
   const resumeConnections = existing ? JSON.parse(JSON.stringify(existing.latest.connections)) : [];
-  state = {shapes:resumeShapes, connections:resumeConnections, tool:'select', selectedId:null, history:[], future:[], zoom:1, hintsLeft:3, tabSwitches:0};
+  state = {shapes:resumeShapes, connections:resumeConnections, tool:'select', selectedId:null, history:[], future:[], zoom:1, panX:0, panY:0, hintsLeft:3, tabSwitches:0};
   const q = currentQuestion();
   const lvl = currentLevelData();
   document.getElementById('topTitle').textContent = LEVEL_TITLES[lv] + ' — ' + q.title;
@@ -768,6 +769,7 @@ function enterLevel(lv){
   levelView.classList.remove('hidden');
   document.getElementById('levelResultModal').classList.add('hidden');
   document.querySelector('.tool-btn[data-tool="select"]').click();
+  applyZoom();
   render();
   applyZoom();
 }
@@ -813,8 +815,8 @@ document.getElementById('clearBtn').addEventListener('click', ()=>{
 });
 document.getElementById('zoomIn').addEventListener('click', ()=>{state.zoom=Math.min(1.8,state.zoom+0.1); applyZoom();});
 document.getElementById('zoomOut').addEventListener('click', ()=>{state.zoom=Math.max(0.5,state.zoom-0.1); applyZoom();});
-document.getElementById('zoomReset').addEventListener('click', ()=>{state.zoom=1; applyZoom();});
-function applyZoom(){ document.getElementById('canvasLayer').setAttribute('transform', `scale(${state.zoom})`); }
+document.getElementById('zoomReset').addEventListener('click', ()=>{state.zoom=1; state.panX=0; state.panY=0; applyZoom();});
+function applyZoom(){ document.getElementById('canvasLayer').setAttribute('transform', `translate(${state.panX} ${state.panY}) scale(${state.zoom})`); }
 
 /* ============ HISTORY ============ */
 function snapshot(){ return JSON.stringify({shapes:state.shapes, connections:state.connections}); }
@@ -904,6 +906,7 @@ let dragging = null;
 let draggingWaypoint = null;
 let draggingEndpointConn = null;
 let newConnDrag = null;
+let panningCanvas = null;
 svg.addEventListener('mousedown',(evt)=>{
   if(state.tool!=='select' || app.examEnded) return;
   evt.preventDefault();
@@ -936,7 +939,12 @@ svg.addEventListener('mousedown',(evt)=>{
   }
 
   const targetShapeEl = evt.target.closest('[data-shape-id]');
-  if(!targetShapeEl) return;
+  if(!targetShapeEl){
+    const rect = svg.getBoundingClientRect();
+    panningCanvas = {startX:evt.clientX, startY:evt.clientY, panX:state.panX, panY:state.panY, width:rect.width, height:rect.height};
+    svg.classList.add('is-panning');
+    return;
+  }
   const shape = state.shapes.find(s=>s.id===targetShapeEl.getAttribute('data-shape-id'));
   if(!shape) return;
   const p = svgPoint(evt);
@@ -950,6 +958,12 @@ svg.addEventListener('mousedown',(evt)=>{
   dragging = {shape, offX:p.x-shape.x, offY:p.y-shape.y, moved:false};
 });
 svg.addEventListener('mousemove',(evt)=>{
+  if(panningCanvas){
+    state.panX = panningCanvas.panX + (evt.clientX-panningCanvas.startX) * 1000 / panningCanvas.width;
+    state.panY = panningCanvas.panY + (evt.clientY-panningCanvas.startY) * 650 / panningCanvas.height;
+    applyZoom();
+    return;
+  }
   if(newConnDrag){
     newConnDrag.cur = svgPoint(evt);
     render();
@@ -976,6 +990,11 @@ svg.addEventListener('mousemove',(evt)=>{
   render();
 });
 window.addEventListener('mouseup',(evt)=>{
+  if(panningCanvas){
+    panningCanvas = null;
+    svg.classList.remove('is-panning');
+    return;
+  }
   if(newConnDrag){
     const p = svgPoint(evt);
     const target = state.shapes.find(s=> s.id!==newConnDrag.fromId && p.x>=s.x && p.x<=s.x+s.w && p.y>=s.y && p.y<=s.y+s.h);
@@ -1020,15 +1039,16 @@ window.addEventListener('mouseup',(evt)=>{
 
 function openLabelEditor(shape){
   document.querySelector('.floating-input')?.remove();
-  const rect = svg.getBoundingClientRect();
-  const scaleX = rect.width/1000, scaleY = rect.height/650;
+  const matrix = layer.getScreenCTM();
+  const topLeft = new DOMPoint(shape.x, shape.y).matrixTransform(matrix);
+  const bottomRight = new DOMPoint(shape.x+shape.w, shape.y+shape.h).matrixTransform(matrix);
   const input = document.createElement('textarea');
   input.className = 'floating-input';
   input.value = shape.label;
-  input.style.left = (rect.left + shape.x*scaleX*state.zoom)+'px';
-  input.style.top = (rect.top + shape.y*scaleY*state.zoom)+'px';
-  input.style.width = (shape.w*scaleX*state.zoom)+'px';
-  input.style.height = (shape.h*scaleY*state.zoom)+'px';
+  input.style.left = topLeft.x+'px';
+  input.style.top = topLeft.y+'px';
+  input.style.width = (bottomRight.x-topLeft.x)+'px';
+  input.style.height = (bottomRight.y-topLeft.y)+'px';
   input.style.resize = 'none';
   document.body.appendChild(input);
   input.focus(); input.select();
@@ -1042,15 +1062,16 @@ function openConnLabelEditor(conn){
   const pts = connPoints(conn, state.shapes);
   if(!pts) return;
   const mx = pts.labelMid.x, my = pts.labelMid.y;
-  const rect = svg.getBoundingClientRect();
-  const scaleX = rect.width/1000, scaleY = rect.height/650;
+  const matrix = layer.getScreenCTM();
+  const topLeft = new DOMPoint(mx-60, my-12).matrixTransform(matrix);
+  const bottomRight = new DOMPoint(mx+60, my+12).matrixTransform(matrix);
   const input = document.createElement('input');
   input.className = 'floating-input';
   input.placeholder = 'ชื่อ Data Flow...';
   input.value = conn.label || '';
-  input.style.left = (rect.left+(mx-60)*scaleX*state.zoom)+'px';
-  input.style.top = (rect.top+(my-12)*scaleY*state.zoom)+'px';
-  input.style.width = (120*scaleX*state.zoom)+'px';
+  input.style.left = topLeft.x+'px';
+  input.style.top = topLeft.y+'px';
+  input.style.width = (bottomRight.x-topLeft.x)+'px';
   document.body.appendChild(input);
   input.focus();
   let committed = false;
@@ -1328,9 +1349,34 @@ function render(){
 document.getElementById('hintBtn').addEventListener('click', ()=>{
   if(state.hintsLeft<=0 || app.examEnded) return;
   state.hintsLeft--;
-  showToast(generateHint());
+  showToast(generateExactHint());
   render();
 });
+function generateExactHint(){
+  const answer = currentLevelData();
+  const labelOf = id => state.shapes.find(s=>s.id===id)?.label?.trim() || '';
+  const expectedEntities = answer.shapes.filter(s=>s.type==='entity');
+  const expectedProcesses = answer.shapes.filter(s=>s.type==='process');
+  const expectedStores = answer.shapes.filter(s=>s.type==='store');
+
+  const missingEntity = expectedEntities.find(expected =>
+    !state.shapes.some(shape => shape.type==='entity' && shape.label.trim()===expected.label.trim()));
+  if(missingEntity) return `เพิ่ม Entity: “${missingEntity.label}”`;
+
+  const missingProcess = expectedProcesses.find(expected =>
+    !state.shapes.some(shape => shape.type==='process' && shape.num===expected.num && shape.label.trim()===expected.label.trim()));
+  if(missingProcess) return `เพิ่ม Process ${missingProcess.num}: “${missingProcess.label}”`;
+
+  const missingStore = expectedStores.find(expected =>
+    !state.shapes.some(shape => shape.type==='store' && shape.num===expected.num && shape.label.trim()===expected.label.trim()));
+  if(missingStore) return `เพิ่ม Data Store ${missingStore.num}: “${missingStore.label}”`;
+
+  const missingFlow = answer.connections.find(expected =>
+    !state.connections.some(flow => labelOf(flow.fromId)===expected.keyFrom && labelOf(flow.toId)===expected.keyTo));
+  if(missingFlow) return `เชื่อม Data Flow: “${missingFlow.keyFrom}” → “${missingFlow.keyTo}” แล้วตั้งชื่อเส้นว่า “${missingFlow.label}”`;
+
+  return 'องค์ประกอบและเส้นทางข้อมูลครบตามคำตอบแล้ว';
+}
 function generateHint(){
   const processes = state.shapes.filter(s=>s.type==='process');
   const entities = state.shapes.filter(s=>s.type==='entity');
@@ -1474,7 +1520,7 @@ function gradeDiagram(shapes, connections){
   const stores = shapes.filter(s=>s.type==='store');
   const expectedProcesses = answerKey.shapes.filter(s=>s.type==='process');
   const expectedStores = answerKey.shapes.filter(s=>s.type==='store');
-  const expectedEntityKeys = q.entities;
+  const expectedEntityKeys = answerKey.shapes.filter(s=>s.type==='entity').map(s=>s.label);
   const expectedConns = answerKey.connections;
 
   /* Process (20): 5 for having the right count, 15 for actually having flows in & out.
@@ -1484,9 +1530,12 @@ function gradeDiagram(shapes, connections){
   else if(processes.length > 0) processScore += 2;
   let inOutOk = 0;
   processes.forEach(p=>{
+    const expected = expectedProcesses.find(item => item.num && item.num === p.num);
+    const needsIn = !expected || expectedConns.some(c => c.to === expected.id);
+    const needsOut = !expected || expectedConns.some(c => c.from === expected.id);
     const hasIn = connections.some(c=>c.toId===p.id);
     const hasOut = connections.some(c=>c.fromId===p.id);
-    if(hasIn && hasOut) inOutOk++;
+    if((!needsIn || hasIn) && (!needsOut || hasOut)) inOutOk++;
   });
   processScore += processes.length ? Math.round((inOutOk/processes.length)*15) : 0;
 
@@ -1496,7 +1545,9 @@ function gradeDiagram(shapes, connections){
 
   /* Data Store (10) — unchanged */
   let storeScore;
-  if(expectedStores.length === 0){
+  if(shapes.length === 0){
+    storeScore = 0;
+  } else if(expectedStores.length === 0){
     storeScore = stores.length===0 ? 10 : Math.max(0, 10 - stores.length*5);
   } else {
     const diff = Math.abs(stores.length - expectedStores.length);
