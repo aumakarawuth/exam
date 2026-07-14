@@ -35,7 +35,7 @@ function registerObjectAnalysisRoutes(app, { readDB, writeDB, newId, isPastDeadl
       id: newId('result'), studentId: payload.studentId, studentName: payload.studentName || '', classRoom: payload.classRoom || '',
       questionKey: set.key, questionTitle: set.title, examType: set.examType, subjectTeacherName: set.subjectTeacherName || '', subjectTeacherEmail: set.subjectTeacherEmail || '',
       overallScore20, sectionScores: { mc: levelScores[0], matching: levelScores[1], written: levelScores[2] }, published: false,
-      tabSwitches: payload.tabSwitches || 0, reloadCount: payload.reloadCount || 0, rightClickAttempts: 0, copyAttempts: 0,
+      tabSwitches: payload.tabSwitches || 0, fullscreenExitAttempts: payload.fullscreenExitAttempts || 0, reloadCount: payload.reloadCount || 0, rightClickAttempts: 0, copyAttempts: 0,
       detail: { type: 'dfd', levels: payload.levels, levelScores, rawScore }, submittedAt: new Date().toISOString()
     };
     db.results.push(record);

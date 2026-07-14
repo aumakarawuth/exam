@@ -301,6 +301,7 @@ button{font-family:inherit;cursor:pointer;}
       <span class="topbar-title" id="topTitle">รายการส่วนข้อสอบ</span>
       <span class="name-tag" id="nameTag"></span>
       <span class="tag" id="tabSwitchTag">สลับแท็บ: 0 ครั้ง</span>
+      <span class="tag" id="fullscreenExitTag">ออกจากเต็มจอ: 0 ครั้ง</span>
       <span class="tag" id="rightClickTag">คลิกขวา: 0 ครั้ง</span>
       <span class="tag" id="copyTag">คัดลอก: 0 ครั้ง</span>
       <span class="tag badge-warn" id="reloadTag" style="display:none;"></span>
@@ -430,7 +431,7 @@ let app = {
   timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
   examEnded: false, examInProgress: false, reloadCount: 0
 };
-let state = { tabSwitches: 0, tabWarningAcknowledged: 0, rightClickAttempts: 0, copyAttempts: 0 };
+let state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0 };
 let draftAnswers = { mc:{}, matching:{}, written:{} };
 let ELIGIBLE_SETS = [];
 let ELIGIBLE_SETS_BY_KEY = {};
@@ -469,7 +470,7 @@ function saveSession(){
     submittedSections: app.submittedSections, mcState: app.mcState,
     examEndTime: app.examEndTime, examEnded: app.examEnded,
     reloadCount: app.reloadCount, tabSwitches: state.tabSwitches, tabWarningAcknowledged: state.tabWarningAcknowledged,
-    rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
     draftAnswers: draftAnswers, eligibleSets: ELIGIBLE_SETS
   };
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); }catch(e){}
@@ -495,8 +496,10 @@ document.addEventListener('cut', (e)=>{
   if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; updateCheatTags(); scheduleSave(); }
 });
 function updateCheatTags(){
+  const fs = document.getElementById('fullscreenExitTag');
   const rc = document.getElementById('rightClickTag');
   const cp = document.getElementById('copyTag');
+  if(fs){ fs.textContent = 'ออกจากเต็มจอ: '+state.fullscreenExitAttempts+' ครั้ง'; fs.classList.toggle('badge-warn', state.fullscreenExitAttempts>0); }
   if(rc){ rc.textContent = 'คลิกขวา: '+state.rightClickAttempts+' ครั้ง'; rc.classList.toggle('badge-warn', state.rightClickAttempts>0); }
   if(cp){ cp.textContent = 'คัดลอก: '+state.copyAttempts+' ครั้ง'; cp.classList.toggle('badge-warn', state.copyAttempts>0); }
 }
@@ -526,6 +529,14 @@ document.getElementById('tabWarningAckBtn').addEventListener('click', ()=>{
   state.tabWarningAcknowledged = state.tabSwitches;
   saveSession();
   document.getElementById('tabWarningModal').classList.add('hidden');
+});
+let fullscreenWasActive = false;
+document.addEventListener('fullscreenchange', ()=>{
+  if(document.fullscreenElement){ fullscreenWasActive = true; return; }
+  if(!fullscreenWasActive || !app.examInProgress || app.examEnded) return;
+  state.fullscreenExitAttempts++;
+  updateCheatTags(); scheduleSave();
+  showToast('ตรวจพบการออกจากโหมดเต็มจอ กรุณากลับเข้าสู่โหมดเต็มจอเพื่อทำข้อสอบต่อ');
 });
 
 /* ============ SCREEN REFS ============ */
@@ -751,6 +762,8 @@ function beginExam(){
   examScreen.classList.remove('hidden');
   setFloatingThemeButtonVisible(false);
   app.examInProgress = true;
+  fullscreenWasActive = !!document.fullscreenElement;
+  updateCheatTags();
   document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
   document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
   document.getElementById('hubQTagline').textContent = (currentQuestion().examType ? '['+currentQuestion().examType+'] ' : '') + (currentQuestion().tagline||'');
@@ -1071,7 +1084,7 @@ async function submitFinalAnswers(autoSubmit){
     studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
     questionKey: app.questionKey, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
     tabSwitches: state.tabSwitches, reloadCount: app.reloadCount,
-    rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
     answers: { mc: draftAnswers.mc, matching: draftAnswers.matching, written: draftAnswers.written }
   };
   const MAX_TRIES = 3;
@@ -1105,7 +1118,7 @@ async function finalizeExam(reason){
   clearSessionData();
   // Once this subject's exam has ended, the anti-cheat counters for it are done being tracked —
   // clear them immediately so they never carry over into a different subject or a shared device.
-  state = { tabSwitches: 0, tabWarningAcknowledged: 0, rightClickAttempts: 0, copyAttempts: 0 };
+  state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0 };
   examScreen.classList.add('hidden');
   setFloatingThemeButtonVisible(true);
   finalScreen.classList.remove('hidden');
@@ -1131,7 +1144,7 @@ document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   clearSessionData();
   hideAllTopScreens(); startScreen.classList.remove('hidden');
   app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
-  state = {tabSwitches:0, tabWarningAcknowledged:0, rightClickAttempts:0, copyAttempts:0};
+  state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0};
   draftAnswers = {mc:{}, matching:{}, written:{}};
 });
 
@@ -1152,6 +1165,7 @@ function attemptResumeSession(){
   app.reloadCount = (saved.reloadCount||0) + 1;
   state.tabSwitches = saved.tabSwitches || 0;
   state.tabWarningAcknowledged = saved.tabWarningAcknowledged || 0;
+  state.fullscreenExitAttempts = saved.fullscreenExitAttempts || 0;
   state.rightClickAttempts = saved.rightClickAttempts || 0;
   state.copyAttempts = saved.copyAttempts || 0;
   draftAnswers = saved.draftAnswers || {mc:{}, matching:{}, written:{}};

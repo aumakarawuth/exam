@@ -254,6 +254,7 @@ button{font-family:inherit;cursor:pointer;}
       <span class="topbar-title" id="topTitle">รายการ Level</span>
       <span class="name-tag" id="nameTag"></span>
       <span class="tag" id="tabSwitchTag">สลับแท็บ: 0 ครั้ง</span>
+      <span class="tag" id="fullscreenExitTag">ออกจากเต็มจอ: 0 ครั้ง</span>
     </div>
     <div class="timer" id="timerDisplay">60:00</div>
     <div class="topbar-right" id="hubActions">
@@ -598,7 +599,7 @@ let app = {
   studentId: null, studentName: '', classRoom: '', questionKey: null,
   level: null,          // currently open level, null when at hub
   attempts: {0:null, 1:null, 2:null},
-  timeLeft: 60*60, examEndTime: null, tabSwitches: 0, tabWarningAcknowledged: 0, reloadCount: 0,
+  timeLeft: 60*60, examEndTime: null, tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, reloadCount: 0,
   globalTimerHandle: null,
   examEnded: false
 };
@@ -617,7 +618,7 @@ let dfdTabSwitchCheckTimer = null;
 function saveDfdSession(){
   if(!app.studentId || !app.questionKey || app.examEnded) return;
   const canvasState = { shapes:state.shapes, connections:state.connections, tool:state.tool, selectedId:state.selectedId, zoom:state.zoom, panX:state.panX, panY:state.panY, hintsLeft:state.hintsLeft };
-  try { localStorage.setItem(DFD_SESSION_KEY, JSON.stringify({ studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, questionKey:app.questionKey, attempts:app.attempts, level:app.level, examEndTime:app.examEndTime, tabSwitches:app.tabSwitches, tabWarningAcknowledged:app.tabWarningAcknowledged, reloadCount:app.reloadCount, canvasState })); } catch(e) {}
+  try { localStorage.setItem(DFD_SESSION_KEY, JSON.stringify({ studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, questionKey:app.questionKey, attempts:app.attempts, level:app.level, examEndTime:app.examEndTime, tabSwitches:app.tabSwitches, tabWarningAcknowledged:app.tabWarningAcknowledged, fullscreenExitAttempts:app.fullscreenExitAttempts, reloadCount:app.reloadCount, canvasState })); } catch(e) {}
 }
 function scheduleDfdSave(){ clearTimeout(dfdSaveTimer); dfdSaveTimer = setTimeout(saveDfdSession, 300); }
 function clearDfdSession(){ try { localStorage.removeItem(DFD_SESSION_KEY); } catch(e) {} }
@@ -711,8 +712,11 @@ function startWholeExam(){
   app.examEndTime = Date.now() + app.timeLeft*1000;
   app.tabSwitches = 0;
   app.tabWarningAcknowledged = 0;
+  app.fullscreenExitAttempts = 0;
+  dfdFullscreenWasActive = !!document.fullscreenElement;
   updateGlobalTimerDisplay();
   document.getElementById('tabSwitchTag').textContent = 'สลับแท็บ: 0 ครั้ง';
+  updateDfdFullscreenTag();
   showHub();
   renderHubCards();
   saveDfdSession();
@@ -834,6 +838,19 @@ document.getElementById('tabWarningAckBtn').addEventListener('click', ()=>{
   app.tabWarningAcknowledged = app.tabSwitches;
   saveDfdSession();
   document.getElementById('tabWarningModal').classList.add('hidden');
+});
+let dfdFullscreenWasActive = false;
+function updateDfdFullscreenTag(){
+  const tag = document.getElementById('fullscreenExitTag');
+  tag.textContent = 'ออกจากเต็มจอ: '+app.fullscreenExitAttempts+' ครั้ง';
+  tag.classList.toggle('badge-warn', app.fullscreenExitAttempts>0);
+}
+document.addEventListener('fullscreenchange', ()=>{
+  if(document.fullscreenElement){ dfdFullscreenWasActive = true; return; }
+  if(!dfdFullscreenWasActive || examScreen.classList.contains('hidden') || app.examEnded) return;
+  app.fullscreenExitAttempts++;
+  updateDfdFullscreenTag(); saveDfdSession();
+  showToast('ตรวจพบการออกจากโหมดเต็มจอ กรุณากลับเข้าสู่โหมดเต็มจอเพื่อทำข้อสอบต่อ');
 });
 document.getElementById('fullscreenBtn').addEventListener('click', ()=>{
   if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
@@ -1840,7 +1857,7 @@ async function submitObjectAnalysisResult(){
     const attempt = app.attempts[level];
     return { level, score: attempt ? attempt.best.result.total : 0, shapes: attempt ? attempt.latest.shapes : [], connections: attempt ? attempt.latest.connections : [] };
   });
-  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: app.tabSwitches, reloadCount: app.reloadCount }) });
+  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: app.tabSwitches, fullscreenExitAttempts: app.fullscreenExitAttempts, reloadCount: app.reloadCount }) });
   if(!response.ok){ const body = await response.json().catch(()=>({})); throw new Error(body.message || 'ไม่สามารถบันทึกคำตอบได้'); }
   submittedToBackend = true;
 }
@@ -1880,7 +1897,7 @@ function attemptResumeDfdSession(){
   QUESTIONS.coffee.tagline = 'Object Analysis & Design';
   app.studentId=saved.studentId; app.studentName=saved.studentName||''; app.classRoom=saved.classRoom||'';
   app.questionKey='coffee'; app.attempts=saved.attempts||{0:null,1:null,2:null}; app.examEndTime=saved.examEndTime;
-  app.timeLeft=remaining; app.tabSwitches=saved.tabSwitches||0; app.tabWarningAcknowledged=saved.tabWarningAcknowledged||0; app.reloadCount=(saved.reloadCount||0)+1; app.examEnded=false;
+  app.timeLeft=remaining; app.tabSwitches=saved.tabSwitches||0; app.tabWarningAcknowledged=saved.tabWarningAcknowledged||0; app.fullscreenExitAttempts=saved.fullscreenExitAttempts||0; app.reloadCount=(saved.reloadCount||0)+1; app.examEnded=false;
   [startScreen, selectScreen, nameScreen, countdownOverlay, document.getElementById('sharedLoginScreen'), document.getElementById('sharedPinSetupScreen'), document.getElementById('sharedPinVerifyScreen')].forEach(el=>el?.classList.add('hidden'));
   examScreen.classList.remove('hidden');
   document.getElementById('nameTag').textContent = '👤 ' + app.studentName;
@@ -1888,6 +1905,7 @@ function attemptResumeDfdSession(){
   document.getElementById('hubQTagline').textContent = currentQuestion().tagline;
   document.getElementById('tabSwitchTag').textContent = 'สลับแท็บ: '+app.tabSwitches+' ครั้ง';
   if(app.tabSwitches>0) document.getElementById('tabSwitchTag').classList.add('badge-warn');
+  updateDfdFullscreenTag();
   updateGlobalTimerDisplay();
 
   if(saved.level===0 || saved.level===1 || saved.level===2){
