@@ -1732,7 +1732,7 @@ async function submitObjectAnalysisResult(){
   if(submittedToBackend) return;
   const levels = [0,1,2].map(level => {
     const attempt = app.attempts[level];
-    return { level, shapes: attempt ? attempt.latest.shapes : [], connections: attempt ? attempt.latest.connections : [] };
+    return { level, score: attempt ? attempt.best.result.total : 0, shapes: attempt ? attempt.latest.shapes : [], connections: attempt ? attempt.latest.connections : [] };
   });
   const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: state.tabSwitches }) });
   if(!response.ok){ const body = await response.json().catch(()=>({})); throw new Error(body.message || 'ไม่สามารถบันทึกคำตอบได้'); }
