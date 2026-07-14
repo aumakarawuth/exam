@@ -2,7 +2,7 @@ function registerPublicExamRoutes(app, { readDB, examTypes, sanitizeSetForStuden
   app.get('/api/exam-types', (req, res) => res.json(examTypes));
 
   app.get('/api/sets', (req, res) => {
-    let sets = readDB().sets.map(sanitizeSetForStudent);
+    let sets = readDB().sets.filter(set => !set.delivery).map(sanitizeSetForStudent);
     if (req.query.classRoom) {
       sets = sets.filter(set => !set.assignedClasses.length || set.assignedClasses.includes(req.query.classRoom));
     }

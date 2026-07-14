@@ -8,6 +8,7 @@ const { registerTeacherResultRoutes } = require('./teacher-results');
 const { registerTeacherClassRoutes } = require('./teacher-classes');
 const { registerTeacherSetRoutes } = require('./teacher-sets');
 const { registerExportRoutes } = require('./exports');
+const { registerObjectAnalysisRoutes } = require('./object-analysis');
 
 function registerRoutes(app, dependencies) {
   registerAccountRoutes(app, dependencies);
@@ -20,6 +21,7 @@ function registerRoutes(app, dependencies) {
   registerTeacherClassRoutes(app, dependencies);
   registerTeacherSetRoutes(app, { ...dependencies, examTypes: dependencies.EXAM_TYPES });
   registerExportRoutes(app, dependencies);
+  registerObjectAnalysisRoutes(app, dependencies);
 }
 
 module.exports = { registerRoutes };
