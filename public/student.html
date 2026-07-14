@@ -430,7 +430,7 @@ let app = {
   timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
   examEnded: false, examInProgress: false, reloadCount: 0
 };
-let state = { tabSwitches: 0, rightClickAttempts: 0, copyAttempts: 0 };
+let state = { tabSwitches: 0, tabWarningAcknowledged: 0, rightClickAttempts: 0, copyAttempts: 0 };
 let draftAnswers = { mc:{}, matching:{}, written:{} };
 let ELIGIBLE_SETS = [];
 let ELIGIBLE_SETS_BY_KEY = {};
@@ -468,7 +468,7 @@ function saveSession(){
     questionKey: app.questionKey, section: app.section, lateCode: app.lateCode || null,
     submittedSections: app.submittedSections, mcState: app.mcState,
     examEndTime: app.examEndTime, examEnded: app.examEnded,
-    reloadCount: app.reloadCount, tabSwitches: state.tabSwitches,
+    reloadCount: app.reloadCount, tabSwitches: state.tabSwitches, tabWarningAcknowledged: state.tabWarningAcknowledged,
     rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
     draftAnswers: draftAnswers, eligibleSets: ELIGIBLE_SETS
   };
@@ -517,12 +517,14 @@ document.addEventListener('visibilitychange', ()=>{
     }, 250);
   } else {
     clearTimeout(tabSwitchCheckTimer);
-    if(state.tabSwitches>=1 && state.tabSwitches<=3 && !app.examEnded){
+    if(state.tabSwitches>state.tabWarningAcknowledged && state.tabSwitches<=3 && !app.examEnded){
       document.getElementById('tabWarningModal').classList.remove('hidden');
     }
   }
 });
 document.getElementById('tabWarningAckBtn').addEventListener('click', ()=>{
+  state.tabWarningAcknowledged = state.tabSwitches;
+  saveSession();
   document.getElementById('tabWarningModal').classList.add('hidden');
 });
 
@@ -1103,7 +1105,7 @@ async function finalizeExam(reason){
   clearSessionData();
   // Once this subject's exam has ended, the anti-cheat counters for it are done being tracked —
   // clear them immediately so they never carry over into a different subject or a shared device.
-  state = { tabSwitches: 0, rightClickAttempts: 0, copyAttempts: 0 };
+  state = { tabSwitches: 0, tabWarningAcknowledged: 0, rightClickAttempts: 0, copyAttempts: 0 };
   examScreen.classList.add('hidden');
   setFloatingThemeButtonVisible(true);
   finalScreen.classList.remove('hidden');
@@ -1129,7 +1131,7 @@ document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   clearSessionData();
   hideAllTopScreens(); startScreen.classList.remove('hidden');
   app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
-  state = {tabSwitches:0, rightClickAttempts:0, copyAttempts:0};
+  state = {tabSwitches:0, tabWarningAcknowledged:0, rightClickAttempts:0, copyAttempts:0};
   draftAnswers = {mc:{}, matching:{}, written:{}};
 });
 
@@ -1149,6 +1151,7 @@ function attemptResumeSession(){
   app.examEndTime = saved.examEndTime;
   app.reloadCount = (saved.reloadCount||0) + 1;
   state.tabSwitches = saved.tabSwitches || 0;
+  state.tabWarningAcknowledged = saved.tabWarningAcknowledged || 0;
   state.rightClickAttempts = saved.rightClickAttempts || 0;
   state.copyAttempts = saved.copyAttempts || 0;
   draftAnswers = saved.draftAnswers || {mc:{}, matching:{}, written:{}};

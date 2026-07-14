@@ -54,6 +54,14 @@ button{font-family:inherit;cursor:pointer;}
 .set-card .set-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
 .badge-pill{display:inline-block;font-size:11px;font-weight:600;background:var(--indigo);color:#fff;padding:3px 10px;border-radius:999px;width:fit-content;}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:18px;}
+.deadline-card{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(79,70,229,.06));border:1px solid rgba(37,99,235,.2);border-radius:14px;padding:12px 14px;min-width:280px;}
+.deadline-card .deadline-icon{font-size:22px;line-height:1;}
+.deadline-card .field{margin:0;min-width:0;}
+.field input[type=datetime-local].date-time-input{background:var(--surface);border-color:#BFDBFE;border-radius:10px;padding:11px 12px;color:var(--ink);font-weight:600;}
+.section-hero-card{display:flex;align-items:center;justify-content:space-between;gap:16px;background:linear-gradient(135deg,#EFF6FF,#F8FAFF);border:1px solid #BFDBFE;border-radius:14px;padding:15px 16px;margin-bottom:14px;}
+.section-hero-card h3{margin:0;font-size:16px;color:var(--blue-dark);}
+.section-hero-card p{margin:3px 0 0;color:var(--sub);font-size:12.5px;}
+.section-count-badge{background:var(--blue);color:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap;}
 .panel h3{font-size:14.5px;margin:0 0 4px;display:flex;align-items:center;justify-content:space-between;}
 .panel .panel-sub{font-size:12px;color:var(--sub);margin:0 0 16px;}
 .field-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
@@ -597,7 +605,7 @@ function wizardInfoStepHtml(){
     </div>
     <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
     <div class="field-row">
-      <div class="field"><label>เวลาสิ้นสุดการลงทะเบียนสอบตามปกติ (ถ้ามี)</label><input type="datetime-local" id="fAvailableUntil" value="${s.availableUntil?toDatetimeLocalValue(s.availableUntil):''}"></div>
+      <div class="deadline-card"><span class="deadline-icon">🗓️</span><div class="field"><label>เวลาสิ้นสุดการลงทะเบียนสอบตามปกติ (ถ้ามี)</label><input class="date-time-input" type="datetime-local" id="fAvailableUntil" value="${s.availableUntil?toDatetimeLocalValue(s.availableUntil):''}"></div></div>
       <div class="field"><label>รหัสเข้าสอบกรณีเกินเวลา</label><input type="text" id="fLateCode" value="${escapeAttr(s.lateAccessCode||'')}" placeholder="เช่น LATE2569"></div>
     </div>
   </div>
@@ -859,12 +867,13 @@ function renderMcPanel(){
   if(!wrap) return;
   const s = editingSet.sections.mc;
   wrap.innerHTML = `<div class="panel">
-    <h3>📝 ส่วนที่ 1 — ปรนัย <span style="font-weight:400;color:var(--sub);font-size:12px;">(${s.questions.length} ข้อ)</span></h3>
+    <div class="section-hero-card"><div><h3>📝 ปรนัย</h3><p>เลือกคำตอบที่ถูกต้องที่สุดในแต่ละข้อ</p></div><span class="section-count-badge">${s.questions.length} ข้อ</span></div>
     <div class="field-row">
       <div class="field" style="max-width:260px;"><label>คะแนนรวมส่วนนี้ (หารเท่ากันทุกข้อ)</label><input type="number" step="0.5" id="mcSectionPoints" value="${s.sectionPointsTotal||0}" min="0"></div>
     </div>
     <div class="compact-list" id="mcCompactList"></div>
     <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
+    <div class="editor-actions"><button class="btn btn-primary" id="saveSetFromMcBtn" type="button">💾 บันทึกชุดข้อสอบ</button></div>
     <div id="mcEditorSlot"></div>
   </div>`;
   renderMcCompactList();
@@ -873,6 +882,7 @@ function renderMcPanel(){
     applyPointDistribution('mc'); renderMcCompactList();
   });
   document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
+  document.getElementById('saveSetFromMcBtn').addEventListener('click', saveEditingSet);
   renderOpenEditorIfNeeded('mc');
 }
 function renderMcCompactList(){
