@@ -517,6 +517,12 @@ function toDatetimeLocalValue(iso){
   const pad = n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+function parseManualDateTime(value){
+  const text=String(value||'').trim(); if(!text) return '';
+  if(!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}$/.test(text)){ showToast('กรุณากรอกวันเวลา เช่น 2026-07-20 09:00'); return ''; }
+  const date=new Date(text.replace(' ','T')); if(Number.isNaN(date.getTime())){ showToast('วันเวลาที่กรอกไม่ถูกต้อง'); return ''; }
+  return date.toISOString();
+}
 
 function blankSet(){
   return {
@@ -610,8 +616,8 @@ function wizardInfoStepHtml(){
     </div>
     <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
     <div class="field-row">
-      <div class="deadline-card"><span class="deadline-icon">▶️</span><div class="field"><label>เวลาเริ่มสอบ (ถ้ามี)</label><input class="date-time-input" type="datetime-local" id="fAvailableFrom" value="${s.availableFrom?toDatetimeLocalValue(s.availableFrom):''}"></div></div>
-      <div class="deadline-card"><span class="deadline-icon">🗓️</span><div class="field"><label>เวลาสิ้นสุดการลงทะเบียนสอบตามปกติ (ถ้ามี)</label><input class="date-time-input" type="datetime-local" id="fAvailableUntil" value="${s.availableUntil?toDatetimeLocalValue(s.availableUntil):''}"></div></div>
+      <div class="deadline-card"><span class="deadline-icon">▶️</span><div class="field"><label>เวลาเริ่มสอบ (ถ้ามี)</label><input class="date-time-input" type="text" id="fAvailableFrom" value="${s.availableFrom?toDatetimeLocalValue(s.availableFrom).replace('T',' '):''}" placeholder="2026-07-20 09:00"></div></div>
+      <div class="deadline-card"><span class="deadline-icon">🗓️</span><div class="field"><label>เวลาสิ้นสุดการลงทะเบียนสอบตามปกติ (ถ้ามี)</label><input class="date-time-input" type="text" id="fAvailableUntil" value="${s.availableUntil?toDatetimeLocalValue(s.availableUntil).replace('T',' '):''}" placeholder="2026-07-20 12:00"></div></div>
       <div class="field"><label>รหัสเข้าสอบกรณีเกินเวลา</label><input type="text" id="fLateCode" value="${escapeAttr(s.lateAccessCode||'')}" placeholder="เช่น LATE2569"></div>
     </div>
   </div>
@@ -722,8 +728,8 @@ function bindWizardStepEvents(){
     document.getElementById('fTitle').addEventListener('input', e=>{ s.title = e.target.value; });
     document.getElementById('fTagline').addEventListener('input', e=>{ s.tagline = e.target.value; });
     document.getElementById('fDesc').addEventListener('input', e=>{ s.desc = e.target.value; });
-    document.getElementById('fAvailableFrom').addEventListener('change', e=>{ s.availableFrom = e.target.value ? new Date(e.target.value).toISOString() : ''; });
-    document.getElementById('fAvailableUntil').addEventListener('change', e=>{ s.availableUntil = e.target.value ? new Date(e.target.value).toISOString() : ''; });
+    document.getElementById('fAvailableFrom').addEventListener('change', e=>{ s.availableFrom = parseManualDateTime(e.target.value); });
+    document.getElementById('fAvailableUntil').addEventListener('change', e=>{ s.availableUntil = parseManualDateTime(e.target.value); });
     document.getElementById('fLateCode').addEventListener('input', e=>{ s.lateAccessCode = e.target.value; });
     document.getElementById('wizCancelBtn').addEventListener('click', ()=>{
       if(confirm('ยกเลิกการแก้ไข? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
