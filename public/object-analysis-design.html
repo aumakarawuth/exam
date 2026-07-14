@@ -148,7 +148,7 @@ button{font-family:inherit;cursor:pointer;}
 .prop-hint{font-size:11.5px;color:var(--sub);margin-top:6px;line-height:1.6;}
 
 /* ---------- LEVEL RESULT MODAL (score only, no answer key) ---------- */
-#levelResultModal{position:absolute;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:60;}
+#levelResultModal,#tabWarningModal{position:absolute;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:60;}
 .modal-card{background:var(--surface);border-radius:18px;padding:30px;max-width:420px;width:92%;box-shadow:0 30px 60px -20px rgba(0,0,0,.4);}
 .modal-card h3{font-size:16px;margin:0 0 4px;}
 .modal-score{font-family:'Prompt',sans-serif;font-size:40px;font-weight:700;color:var(--blue);margin:10px 0 16px;}
@@ -334,6 +334,14 @@ button{font-family:inherit;cursor:pointer;}
             <button class="btn btn-ghost" id="modalRetryBtn">แก้ไขต่อ (คะแนนสูงสุดจะถูกเก็บไว้)</button>
             <button class="btn btn-primary" id="modalBackBtn">กลับรายการ Level</button>
           </div>
+        </div>
+      </div>
+      <div id="tabWarningModal" class="hidden">
+        <div class="modal-card" style="text-align:center;border:2px solid var(--red);">
+          <div class="modal-score" style="color:var(--amber);">⚠️</div>
+          <h3>ตรวจพบการสลับหน้าจอ</h3>
+          <p id="tabWarningText">กรุณาทำข้อสอบต่อในแท็บนี้จนจบ</p>
+          <div class="modal-actions"><button class="btn btn-primary" id="tabWarningAckBtn" style="flex:1;">เข้าใจแล้ว ทำข้อสอบต่อ</button></div>
         </div>
       </div>
     </div>
@@ -605,6 +613,7 @@ const newId = (p)=> p + (idCounter++);
 const DFD_SESSION_KEY = 'objectAnalysisExamSession';
 let dfdSaveTimer = null;
 let dfdPageIsLeaving = false;
+let dfdTabSwitchCheckTimer = null;
 function saveDfdSession(){
   if(!app.studentId || !app.questionKey || app.examEnded) return;
   const canvasState = { shapes:state.shapes, connections:state.connections, tool:state.tool, selectedId:state.selectedId, zoom:state.zoom, panX:state.panX, panY:state.panY, hintsLeft:state.hintsLeft };
@@ -800,15 +809,27 @@ document.getElementById('backToHubBtn').addEventListener('click', showHub);
 
 /* ============ ANTI-CHEAT ============ */
 document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden && !dfdPageIsLeaving && !examScreen.classList.contains('hidden') && !app.examEnded){
+  if(!document.hidden){
+    clearTimeout(dfdTabSwitchCheckTimer);
+    if(app.tabSwitches>=1 && app.tabSwitches<=3 && !app.examEnded){
+      const remaining = 4-app.tabSwitches;
+      document.getElementById('tabWarningText').textContent = `คุณสลับแท็บ/หน้าต่างแล้ว ${app.tabSwitches} ครั้ง หากสลับอีก ${remaining} ครั้ง ระบบจะส่งข้อสอบทันที`;
+      document.getElementById('tabWarningModal').classList.remove('hidden');
+    }
+    return;
+  }
+  clearTimeout(dfdTabSwitchCheckTimer);
+  dfdTabSwitchCheckTimer = setTimeout(()=>{
+    if(dfdPageIsLeaving || !document.hidden || examScreen.classList.contains('hidden') || app.examEnded) return;
     app.tabSwitches++;
     const tag = document.getElementById('tabSwitchTag');
     tag.textContent = 'สลับแท็บ: '+app.tabSwitches+' ครั้ง';
     tag.classList.add('badge-warn');
     saveDfdSession();
-    if(app.tabSwitches>=4) forceTimeUp();
-  }
+    if(app.tabSwitches>=4){ document.getElementById('tabWarningModal').classList.add('hidden'); forceTimeUp(); }
+  }, 250);
 });
+document.getElementById('tabWarningAckBtn').addEventListener('click', ()=> document.getElementById('tabWarningModal').classList.add('hidden'));
 document.getElementById('fullscreenBtn').addEventListener('click', ()=>{
   if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
   else document.exitFullscreen?.();

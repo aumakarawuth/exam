@@ -460,6 +460,7 @@ function initMcStateIfNeeded(){
 const SESSION_KEY = 'examSession';
 let _saveDebounceHandle = null;
 let pageIsLeaving = false;
+let tabSwitchCheckTimer = null;
 function saveSession(){
   if(!app.questionKey) return;
   const payload = {
@@ -500,18 +501,22 @@ function updateCheatTags(){
   if(cp){ cp.textContent = 'คัดลอก: '+state.copyAttempts+' ครั้ง'; cp.classList.toggle('badge-warn', state.copyAttempts>0); }
 }
 document.addEventListener('visibilitychange', ()=>{
-  if(pageIsLeaving || !app.examInProgress || app.examEnded) return;
   if(document.hidden){
-    state.tabSwitches++;
-    const tag = document.getElementById('tabSwitchTag');
-    tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
-    tag.classList.add('badge-warn');
-    scheduleSave();
-    if(state.tabSwitches>=4){
-      document.getElementById('tabWarningModal').classList.add('hidden');
-      finalizeExam('tabswitch');
-    }
+    clearTimeout(tabSwitchCheckTimer);
+    tabSwitchCheckTimer = setTimeout(()=>{
+      if(pageIsLeaving || !document.hidden || !app.examInProgress || app.examEnded) return;
+      state.tabSwitches++;
+      const tag = document.getElementById('tabSwitchTag');
+      tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+      tag.classList.add('badge-warn');
+      scheduleSave();
+      if(state.tabSwitches>=4){
+        document.getElementById('tabWarningModal').classList.add('hidden');
+        finalizeExam('tabswitch');
+      }
+    }, 250);
   } else {
+    clearTimeout(tabSwitchCheckTimer);
     if(state.tabSwitches>=1 && state.tabSwitches<=3 && !app.examEnded){
       document.getElementById('tabWarningModal').classList.remove('hidden');
     }
