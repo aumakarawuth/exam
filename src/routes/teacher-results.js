@@ -25,6 +25,20 @@ function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher }) {
       result.overallScore20 = Math.round((result.detail.rawScore / 300 * 20 + Number.EPSILON) * 100) / 100;
       result.scoreAdjustedAt = new Date().toISOString();
     }
+    if (req.body.writtenManualScores && typeof req.body.writtenManualScores === 'object') {
+      const set = db.sets.find(item => item.key === result.questionKey);
+      if (!set) return res.status(404).json({ error: 'not_found' });
+      const scores = {};
+      for (const question of set.sections.written.questions || []) {
+        const score = Number(req.body.writtenManualScores[question.id]);
+        if (!Number.isFinite(score) || score < 0 || score > Number(question.maxPoints || 0)) return res.status(400).json({ error: 'invalid_written_scores', message: 'คะแนนอัตนัยไม่ถูกต้อง' });
+        scores[question.id] = score;
+      }
+      result.detail.writtenManualScores = scores;
+      result.sectionScores.written = Math.round(Object.values(scores).reduce((sum, score) => sum + score, 0) * 100) / 100;
+      result.overallScore20 = Math.round((result.sectionScores.mc + result.sectionScores.matching + result.sectionScores.written) * 100) / 100;
+      result.scoreAdjustedAt = new Date().toISOString();
+    }
     await writeDB(db); res.json({ ok: true, published: result.published });
   });
   app.post('/api/teacher/sets/:key/publish', requireTeacher, async (req, res) => {

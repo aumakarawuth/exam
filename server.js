@@ -17,7 +17,7 @@ const XLSX = require('xlsx');
 const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR } = require('./src/config');
 const { readDB, writeDB, databaseReady } = require('./src/database');
 const { hashPassword, verifyPassword, requireTeacher, requireAdmin, createTeacherSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
-const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, sanitizeSetForStudent } = require('./src/grading');
+const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
 const { registerPages, registerFallback } = require('./src/pages');
 const { registerRoutes } = require('./src/routes');
 const { buildResultsWorkbook: buildResultsWorkbookModule } = require('./src/results-workbook');
@@ -97,7 +97,7 @@ app.use(express.json({ limit: '2mb' }));
 /* ---------------------------- PAGES ---------------------------- */
 registerPages(app, PUBLIC_DIR, express);
 
-registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, createTeacherSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule });
+registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, createTeacherSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule });
 
 if (false) { // Legacy student routes moved to src/routes/students.js.
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */

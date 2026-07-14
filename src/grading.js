@@ -40,12 +40,16 @@ function gradeWritten(section, answers) {
 function isPastDeadline(set) {
   return !!(set.availableUntil && Date.now() > new Date(set.availableUntil).getTime());
 }
+function isBeforeStart(set) {
+  return !!(set.availableFrom && Date.now() < new Date(set.availableFrom).getTime());
+}
 
 function sanitizeSetForStudent(set) {
   return {
     key: set.key, title: set.title, courseName: set.courseName || set.title, tagline: set.tagline, desc: set.desc,
     examType: set.examType || '', assignedClasses: set.assignedClasses || [],
     subjectTeacherName: set.subjectTeacherName || '', shuffleQuestions: !!set.shuffleQuestions,
+    availableFrom: set.availableFrom || null,
     shuffleChoices: !!set.shuffleChoices, availableUntil: set.availableUntil || null,
     lateAccessRequired: isPastDeadline(set),
     sections: {
@@ -56,4 +60,4 @@ function sanitizeSetForStudent(set) {
   };
 }
 
-module.exports = { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, sanitizeSetForStudent };
+module.exports = { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, sanitizeSetForStudent };

@@ -1,10 +1,11 @@
-function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeMatching, gradeWritten, isPastDeadline, round2 }) {
+function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, round2 }) {
   app.post('/api/results', async (req, res) => {
     const payload = req.body;
     if (!payload || !payload.studentId || !payload.questionKey) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลผลสอบไม่ครบ' });
     const db = readDB();
     const set = db.sets.find(item => item.key === payload.questionKey);
     if (!set) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
+    if (isBeforeStart(set)) return res.status(403).json({ error: 'not_started', message: 'ยังไม่ถึงเวลาเริ่มสอบ' });
     if (db.results.some(item => item.studentId === payload.studentId && item.questionKey === payload.questionKey)) return res.status(409).json({ error: 'already_submitted', message: 'ทำข้อสอบชุดนี้ไปแล้ว' });
     if (isPastDeadline(set) && (!set.lateAccessCode || payload.lateCode !== set.lateAccessCode)) return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาสอบแล้ว' });
     const answers = payload.answers || {};

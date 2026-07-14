@@ -54,10 +54,12 @@ button{font-family:inherit;cursor:pointer;}
 .set-card .set-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
 .badge-pill{display:inline-block;font-size:11px;font-weight:600;background:var(--indigo);color:#fff;padding:3px 10px;border-radius:999px;width:fit-content;}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:18px;}
-.deadline-card{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(79,70,229,.06));border:1px solid rgba(37,99,235,.2);border-radius:14px;padding:12px 14px;min-width:280px;}
+.deadline-card{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #C7D2FE;border-radius:16px;padding:13px 15px;min-width:280px;box-shadow:0 8px 18px -18px rgba(37,99,235,.7);transition:border-color .15s,box-shadow .15s,transform .15s;}
+.deadline-card:focus-within{border-color:var(--blue);box-shadow:0 0 0 4px rgba(37,99,235,.1);transform:translateY(-1px);}
 .deadline-card .deadline-icon{font-size:22px;line-height:1;}
 .deadline-card .field{margin:0;min-width:0;}
-.field input[type=datetime-local].date-time-input{background:var(--surface);border-color:#BFDBFE;border-radius:10px;padding:11px 12px;color:var(--ink);font-weight:600;}
+.field input[type=datetime-local].date-time-input{background:rgba(255,255,255,.9);border:1.5px solid #C7D2FE;border-radius:11px;padding:12px 42px 12px 13px;color:var(--ink);font-weight:600;letter-spacing:.01em;box-shadow:0 2px 7px -6px rgba(15,23,42,.45);cursor:pointer;transition:border-color .15s,box-shadow .15s;background-image:linear-gradient(135deg,transparent,transparent);}
+.field input[type=datetime-local].date-time-input:hover{border-color:#818CF8;}.field input[type=datetime-local].date-time-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.12);}.field input[type=datetime-local].date-time-input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.75;transform:scale(1.15);filter:hue-rotate(190deg) saturate(1.4);}
 .section-hero-card{display:flex;align-items:center;justify-content:space-between;gap:16px;background:linear-gradient(135deg,#EFF6FF,#F8FAFF);border:1px solid #BFDBFE;border-radius:14px;padding:15px 16px;margin-bottom:14px;}
 .section-hero-card h3{margin:0;font-size:16px;color:var(--blue-dark);}
 .section-hero-card p{margin:3px 0 0;color:var(--sub);font-size:12.5px;}
@@ -316,6 +318,7 @@ async function apiGetClasses(){ return apiFetch('/api/teacher/classes', { auth:t
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, auth:true }); }
 async function apiUpdateDfdScores(id, dfdLevelScores){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores}, auth:true }); }
+async function apiUpdateWrittenScores(id, writtenManualScores){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{writtenManualScores}, auth:true }); }
 async function apiPublishAllForSet(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', auth:true }); }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -607,6 +610,7 @@ function wizardInfoStepHtml(){
     </div>
     <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
     <div class="field-row">
+      <div class="deadline-card"><span class="deadline-icon">▶️</span><div class="field"><label>เวลาเริ่มสอบ (ถ้ามี)</label><input class="date-time-input" type="datetime-local" id="fAvailableFrom" value="${s.availableFrom?toDatetimeLocalValue(s.availableFrom):''}"></div></div>
       <div class="deadline-card"><span class="deadline-icon">🗓️</span><div class="field"><label>เวลาสิ้นสุดการลงทะเบียนสอบตามปกติ (ถ้ามี)</label><input class="date-time-input" type="datetime-local" id="fAvailableUntil" value="${s.availableUntil?toDatetimeLocalValue(s.availableUntil):''}"></div></div>
       <div class="field"><label>รหัสเข้าสอบกรณีเกินเวลา</label><input type="text" id="fLateCode" value="${escapeAttr(s.lateAccessCode||'')}" placeholder="เช่น LATE2569"></div>
     </div>
@@ -718,6 +722,7 @@ function bindWizardStepEvents(){
     document.getElementById('fTitle').addEventListener('input', e=>{ s.title = e.target.value; });
     document.getElementById('fTagline').addEventListener('input', e=>{ s.tagline = e.target.value; });
     document.getElementById('fDesc').addEventListener('input', e=>{ s.desc = e.target.value; });
+    document.getElementById('fAvailableFrom').addEventListener('change', e=>{ s.availableFrom = e.target.value ? new Date(e.target.value).toISOString() : ''; });
     document.getElementById('fAvailableUntil').addEventListener('change', e=>{ s.availableUntil = e.target.value ? new Date(e.target.value).toISOString() : ''; });
     document.getElementById('fLateCode').addEventListener('input', e=>{ s.lateAccessCode = e.target.value; });
     document.getElementById('wizCancelBtn').addEventListener('click', ()=>{
@@ -1294,9 +1299,11 @@ function toggleDetailRow(resultId){
     html += `<div class="detail-block"><b>อัตนัย (${rec.sectionScores.written} คะแนน โดยประมาณจากคำสำคัญ)</b><br>` + set.sections.written.questions.map((qq,i)=>{
       const text = (answers.written && answers.written[qq.id]) || '(ไม่ได้ตอบ)';
       const pts = (rec.detail && rec.detail.writtenPerQuestion) ? rec.detail.writtenPerQuestion[qq.id] : '-';
-      return `${i+1}. ${escapeHtml(qq.text)} (auto: ${pts}/${qq.maxPoints})<br>&nbsp;&nbsp;คำตอบ: ${escapeHtml(text)}`;
-    }).join('<br><br>') + `</div>`;
+      const manual=rec.detail?.writtenManualScores?.[qq.id];
+      return `${i+1}. ${escapeHtml(qq.text)} (auto: ${pts}/${qq.maxPoints})<br>&nbsp;&nbsp;คำตอบ: ${escapeHtml(text)}<br>&nbsp;&nbsp;คะแนนอาจารย์: <input class="dfd-score-input" data-written-score="${qq.id}" type="number" min="0" max="${qq.maxPoints}" step="0.5" value="${manual??pts}"> / ${qq.maxPoints}`;
+    }).join('<br><br>') + `<div class="editor-actions"><button class="btn btn-primary btn-sm" data-save-written>บันทึกคะแนนอัตนัย</button></div></div>`;
     td.innerHTML = renderIntegrityReview(rec) + html;
+    td.querySelector('[data-save-written]')?.addEventListener('click', async event=>{ const scores={}; td.querySelectorAll('[data-written-score]').forEach(input=>scores[input.dataset.writtenScore]=Number(input.value)); try{ await apiUpdateWrittenScores(rec.id,scores); showToast('บันทึกคะแนนอัตนัยแล้ว'); refreshResults(); }catch(error){ showToast(error.message); } });
   }
   tr.appendChild(td);
   rowEl.after(tr);

@@ -17,12 +17,13 @@ function ensureObjectAnalysisSet(db) {
   return db.sets.find(set => set.key === OBJECT_ANALYSIS_SET_KEY);
 }
 
-function registerObjectAnalysisRoutes(app, { readDB, writeDB, newId, isPastDeadline }) {
+function registerObjectAnalysisRoutes(app, { readDB, writeDB, newId, isPastDeadline, isBeforeStart }) {
   app.post('/api/object-analysis-results', async (req, res) => {
     const payload = req.body;
     if (!payload?.studentId || !Array.isArray(payload.levels)) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลการส่งข้อสอบไม่ครบ' });
     const db = readDB();
     const set = ensureObjectAnalysisSet(db);
+    if (isBeforeStart(set)) return res.status(403).json({ error: 'not_started', message: 'ยังไม่ถึงเวลาเริ่มสอบ' });
     if (db.results.some(row => row.studentId === payload.studentId && row.questionKey === set.key)) return res.status(409).json({ error: 'already_submitted', message: 'ส่งข้อสอบวิชานี้แล้ว' });
     if (isPastDeadline(set) && (!set.lateAccessCode || payload.lateCode !== set.lateAccessCode)) return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาสอบแล้ว' });
     const levelScores = [0, 1, 2].map(level => {
