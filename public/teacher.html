@@ -123,6 +123,12 @@ button{font-family:inherit;cursor:pointer;}
 .compact-meta{font-size:11.5px;color:var(--sub);flex:none;background:var(--surface);border:1px solid var(--line);padding:2px 8px;border-radius:999px;}
 .muted-note{color:var(--sub);font-size:12.5px;margin:4px 0 10px;}
 .q-editor-panel{background:var(--surface);border:2px solid var(--blue);border-radius:12px;padding:16px;margin-top:10px;}
+.mc-import-box{margin-top:12px;background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border:1px solid #C4B5FD;border-radius:14px;padding:15px;}
+.mc-import-box h4{margin:0 0 5px;font-family:'Prompt',sans-serif;font-size:14px;color:var(--indigo);}
+.mc-import-box p{margin:0 0 10px;font-size:12px;color:var(--sub);line-height:1.6;}
+.mc-import-box textarea{width:100%;min-height:170px;padding:10px 12px;border:1px solid #C7D2FE;border-radius:10px;font-family:'Sarabun',sans-serif;font-size:13px;line-height:1.6;resize:vertical;background:#fff;}
+.mc-import-preview{margin-top:10px;font-size:12.5px;line-height:1.6;}
+.mc-import-preview .ok{color:var(--green);}.mc-import-preview .bad{color:var(--red);}
 .q-editor-panel .q-editor-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:13px;color:var(--blue);margin-bottom:12px;}
 .wizard-steps-bar{display:flex;align-items:center;gap:6px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
 .wizard-step-chip{font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--grid);color:var(--sub);border:1px solid var(--line);}
@@ -778,6 +784,13 @@ function renderMcPanel(){
     </div>
     <div class="compact-list" id="mcCompactList"></div>
     <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
+    <button class="add-row-btn" id="toggleMcImportBtn" type="button" style="margin-top:8px;border-color:#A78BFA;color:var(--indigo);">✨ นำเข้าข้อปรนัยจาก ChatGPT</button>
+    <div class="mc-import-box hidden" id="mcImportBox">
+      <h4>วางข้อสอบที่สร้างจาก ChatGPT</h4><p>รองรับรูปแบบ: 1. คำถาม / ก. ข. ค. ง. / เฉลย: ข — ตรวจสอบก่อนเพิ่มจริง</p>
+      <textarea id="mcImportText" placeholder="1. CPU มีหน้าที่อะไร&#10;ก. แสดงผล&#10;ข. ประมวลผล&#10;ค. เก็บข้อมูล&#10;ง. พิมพ์เอกสาร&#10;เฉลย: ข"></textarea>
+      <div class="editor-actions"><button class="btn btn-ghost btn-sm" id="previewMcImportBtn" type="button">ตรวจรูปแบบ</button><button class="btn btn-primary btn-sm" id="applyMcImportBtn" type="button" disabled>เพิ่มข้อที่ตรวจแล้ว</button></div>
+      <div class="mc-import-preview" id="mcImportPreview"></div>
+    </div>
     <div class="editor-actions"><button class="btn btn-primary" id="saveSetFromMcBtn" type="button">💾 บันทึกชุดข้อสอบ</button></div>
     <div id="mcEditorSlot"></div>
   </div>`;
@@ -787,8 +800,46 @@ function renderMcPanel(){
     applyPointDistribution('mc'); renderMcCompactList();
   });
   document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
+  bindMcImportEvents();
   document.getElementById('saveSetFromMcBtn').addEventListener('click', saveEditingSet);
   renderOpenEditorIfNeeded('mc');
+}
+function parseChatGptMc(text){
+  const questions=[]; const errors=[]; let current=null; let target=null;
+  const answerIndex = token => ({'ก':0,'ข':1,'ค':2,'ง':3,'a':0,'b':1,'c':2,'d':3,'1':0,'2':1,'3':2,'4':3}[String(token).trim().toLowerCase()]);
+  const finish = () => {
+    if(!current) return;
+    const choices = Array.from({length:4}, (_, index)=>(current.choices[index]||'').trim());
+    if(!current.text.trim() || choices.length!==4 || choices.some(choice=>!choice) || current.answer===undefined) errors.push(`ข้อ ${current.number||'?'}: ต้องมีคำถาม ตัวเลือก 4 ข้อ และเฉลย`);
+    else questions.push({text:current.text.trim(), choices, answer:current.answer});
+  };
+  String(text||'').replace(/\r/g,'').split('\n').forEach(line=>{
+    const question = line.match(/^\s*(\d+)\s*[.)]\s*(.+)$/);
+    const choice = line.match(/^\s*([กขคงa-dA-D1-4])\s*[.)]\s*(.+)$/);
+    const answer = line.match(/^\s*(?:เฉลย|คำตอบ)\s*[:：]\s*([กขคงa-dA-D1-4])/i);
+    if(question){ finish(); current={number:question[1],text:question[2],choices:[],answer:undefined}; target='text'; }
+    else if(!current) { if(line.trim()) errors.push(`ไม่พบเลขข้อคำถาม: ${line.trim().slice(0,40)}`); }
+    else if(choice){ current.choices[answerIndex(choice[1])] = choice[2]; target='choice'; }
+    else if(answer){ current.answer=answerIndex(answer[1]); target=null; }
+    else if(line.trim() && target==='text') current.text += ' '+line.trim();
+    else if(line.trim() && target==='choice') current.choices[current.choices.length-1] = (current.choices[current.choices.length-1]||'')+' '+line.trim();
+  });
+  finish(); return {questions,errors};
+}
+function bindMcImportEvents(){
+  let parsed = null;
+  const box=document.getElementById('mcImportBox'), preview=document.getElementById('mcImportPreview'), apply=document.getElementById('applyMcImportBtn');
+  document.getElementById('toggleMcImportBtn').addEventListener('click', ()=>box.classList.toggle('hidden'));
+  document.getElementById('previewMcImportBtn').addEventListener('click', ()=>{
+    parsed=parseChatGptMc(document.getElementById('mcImportText').value);
+    preview.innerHTML = `<span class="ok">✓ อ่านได้ ${parsed.questions.length} ข้อ</span>${parsed.errors.length?`<br><span class="bad">⚠ ${parsed.errors.map(escapeHtml).join('<br>')}</span>`:''}`;
+    apply.disabled = parsed.questions.length===0;
+  });
+  apply.addEventListener('click', ()=>{
+    if(!parsed?.questions.length) return;
+    editingSet.sections.mc.questions.push(...parsed.questions.map(question=>({id:uid('mc'),...question,points:0})));
+    applyPointDistribution('mc'); renderMcPanel(); showToast(`เพิ่มข้อปรนัย ${parsed.questions.length} ข้อแล้ว`);
+  });
 }
 function renderMcCompactList(){
   const s = editingSet.sections.mc;
