@@ -97,6 +97,7 @@ app.use(express.json({ limit: '2mb' }));
 registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
+console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
 registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule, assetStorage });
 
 if (false) { // Legacy student routes moved to src/routes/students.js.
