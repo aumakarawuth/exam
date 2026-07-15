@@ -116,30 +116,56 @@ async function readPostgresDatabase() {
   });
 }
 
-async function persistPostgres(db) {
-  const clean = normalizeDatabase(db);
+function changedRows(previous, next, idField) {
+  const before = new Map(previous.map(row => [row[idField], JSON.stringify(row)]));
+  return next.filter(row => before.get(row[idField]) !== JSON.stringify(row));
+}
+
+function deletedIds(previous, next, idField) {
+  const remaining = new Set(next.map(row => row[idField]));
+  return previous.filter(row => !remaining.has(row[idField])).map(row => row[idField]);
+}
+
+async function deleteRows(client, table, column, ids) {
+  if (ids.length) await client.query(`DELETE FROM ${table} WHERE ${column} = ANY($1::text[])`, [ids]);
+}
+
+async function persistPostgresChanges(previous, next) {
+  const before = normalizeDatabase(previous);
+  const clean = normalizeDatabase(next);
+  const changes = {
+    sets: changedRows(before.sets, clean.sets, 'key'),
+    students: changedRows(before.students, clean.students, 'studentId'),
+    teachers: changedRows(before.teachers, clean.teachers, 'id'),
+    questionBank: changedRows(before.questionBank, clean.questionBank, 'id'),
+    results: changedRows(before.results, clean.results, 'id')
+  };
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('DELETE FROM results; DELETE FROM question_bank; DELETE FROM exam_sets; DELETE FROM students; DELETE FROM teachers;');
-    for (const set of clean.sets) await client.query(
-      'INSERT INTO exam_sets (key, title, teacher_id, delivery, available_from, available_until, created_at, updated_at, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)',
+    await deleteRows(client, 'results', 'id', deletedIds(before.results, clean.results, 'id'));
+    await deleteRows(client, 'question_bank', 'id', deletedIds(before.questionBank, clean.questionBank, 'id'));
+    await deleteRows(client, 'exam_sets', 'key', deletedIds(before.sets, clean.sets, 'key'));
+    await deleteRows(client, 'students', 'student_id', deletedIds(before.students, clean.students, 'studentId'));
+    await deleteRows(client, 'teachers', 'id', deletedIds(before.teachers, clean.teachers, 'id'));
+    for (const set of changes.sets) await client.query(
+      'INSERT INTO exam_sets (key, title, teacher_id, delivery, available_from, available_until, created_at, updated_at, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT (key) DO UPDATE SET title=EXCLUDED.title, teacher_id=EXCLUDED.teacher_id, delivery=EXCLUDED.delivery, available_from=EXCLUDED.available_from, available_until=EXCLUDED.available_until, created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
       [set.key, set.title || '', set.teacherId || null, set.delivery || null, set.availableFrom || null, set.availableUntil || null, set.createdAt || null, set.updatedAt || null, JSON.stringify(set)]
     );
-    for (const student of clean.students) await client.query(
-      'INSERT INTO students (student_id, first_name, last_name, class_room, created_at, data) VALUES ($1,$2,$3,$4,$5,$6::jsonb)',
+    for (const student of changes.students) await client.query(
+      'INSERT INTO students (student_id, first_name, last_name, class_room, created_at, data) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (student_id) DO UPDATE SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, class_room=EXCLUDED.class_room, created_at=EXCLUDED.created_at, data=EXCLUDED.data',
       [student.studentId, student.firstName || '', student.lastName || '', student.classRoom || null, student.createdAt || null, JSON.stringify(student)]
     );
-    for (const teacher of clean.teachers) await client.query(
-      'INSERT INTO teachers (id, username, first_name, last_name, created_at, data) VALUES ($1,$2,$3,$4,$5,$6::jsonb)',
+    for (const teacher of changes.teachers) await client.query(
+      'INSERT INTO teachers (id, username, first_name, last_name, created_at, data) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username, first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, created_at=EXCLUDED.created_at, data=EXCLUDED.data',
       [teacher.id, teacher.username, teacher.firstName || '', teacher.lastName || '', teacher.createdAt || null, JSON.stringify(teacher)]
     );
-    for (const question of clean.questionBank) await client.query(
-      'INSERT INTO question_bank (id, owner_id, course_name, created_at, data) VALUES ($1,$2,$3,$4,$5::jsonb)',
+    for (const question of changes.questionBank) await client.query(
+      'INSERT INTO question_bank (id, owner_id, course_name, created_at, data) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (id) DO UPDATE SET owner_id=EXCLUDED.owner_id, course_name=EXCLUDED.course_name, created_at=EXCLUDED.created_at, data=EXCLUDED.data',
       [question.id, question.ownerId || null, question.courseName || '', question.createdAt || null, JSON.stringify(question)]
     );
-    for (const result of clean.results) await client.query(
-      'INSERT INTO results (id, student_id, question_key, submitted_at, published, overall_score_20, data) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)',
+    for (const result of changes.results) await client.query(
+      'INSERT INTO results (id, student_id, question_key, submitted_at, published, overall_score_20, data) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT (id) DO UPDATE SET student_id=EXCLUDED.student_id, question_key=EXCLUDED.question_key, submitted_at=EXCLUDED.submitted_at, published=EXCLUDED.published, overall_score_20=EXCLUDED.overall_score_20, data=EXCLUDED.data',
       [result.id, result.studentId, result.questionKey, result.submittedAt || null, !!result.published, result.overallScore20 ?? null, JSON.stringify(result)]
     );
     await client.query('COMMIT');
@@ -149,6 +175,10 @@ async function persistPostgres(db) {
   } finally {
     client.release();
   }
+}
+
+async function persistPostgres(db) {
+  return persistPostgresChanges(emptyDatabase(), db);
 }
 
 async function initializePostgres() {
@@ -221,13 +251,14 @@ function readDB() {
 
 function writeDB(db) {
   const snapshot = normalizeDatabase(structuredClone(db));
+  const previous = currentDatabase;
   currentDatabase = snapshot;
   if (!DATABASE_URL) {
     replaceSqliteDatabase(currentDatabase);
     return Promise.resolve();
   }
-  writeChain = writeChain.then(() => persistPostgres(snapshot));
+  writeChain = writeChain.then(() => persistPostgresChanges(previous, snapshot));
   return writeChain;
 }
 
-module.exports = { readDB, writeDB, databaseReady, SQLITE_PATH };
+module.exports = { readDB, writeDB, databaseReady, SQLITE_PATH, changedRows, deletedIds };
