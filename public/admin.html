@@ -131,6 +131,12 @@ button{font-family:inherit;cursor:pointer;}
 .mc-import-box textarea{width:100%;min-height:170px;padding:10px 12px;border:1px solid #C7D2FE;border-radius:10px;font-family:'Sarabun',sans-serif;font-size:13px;line-height:1.6;resize:vertical;background:#fff;}
 .mc-import-preview{margin-top:10px;font-size:12.5px;line-height:1.6;}
 .mc-import-preview .ok{color:var(--green);}.mc-import-preview .bad{color:var(--red);}
+.google-import-dialog{border:0;padding:0;border-radius:18px;width:min(620px,calc(100% - 28px));background:var(--surface);color:var(--ink);box-shadow:0 24px 70px -18px rgba(15,23,42,.45);}
+.google-import-dialog::backdrop{background:rgba(15,23,42,.52);backdrop-filter:blur(2px);}
+.google-import-dialog-inner{padding:22px;}.google-import-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px;}
+.google-import-dialog-head h3{margin:0;font-size:18px;}.google-import-dialog-head p{margin:4px 0 0;color:var(--sub);font-size:12.5px;line-height:1.6;}
+.google-import-dialog input{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:13px;}.google-import-dialog input:focus{outline:none;border-color:var(--blue);}
+.google-import-step{border:1px solid #C7D2FE;background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border-radius:13px;padding:15px;}.google-import-step h4{font-family:'Prompt',sans-serif;margin:0 0 5px;font-size:14px;color:var(--indigo);}.google-import-step p{color:var(--sub);font-size:12.5px;line-height:1.65;margin:0 0 12px;}
 .q-editor-panel .q-editor-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:13px;color:var(--blue);margin-bottom:12px;}
 .wizard-steps-bar{display:flex;align-items:center;gap:6px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
 .wizard-step-chip{font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--grid);color:var(--sub);border:1px solid var(--line);}
@@ -224,7 +230,7 @@ button{font-family:inherit;cursor:pointer;}
             <h2>ชุดข้อสอบทั้งหมด</h2>
             <p class="sub" style="margin:0;">จัดกลุ่มตามชื่อวิชา — 1 วิชาอาจมีทั้งข้อสอบกลางภาคและปลายภาค</p>
           </div>
-          <button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button>
+          <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" id="importGoogleFormsSetBtn">นำเข้าข้อสอบจาก Forms</button><button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button></div>
         </div>
         <div id="setListWrap"><div class="loading-note">กำลังโหลด...</div></div>
       </div>
@@ -329,6 +335,14 @@ button{font-family:inherit;cursor:pointer;}
 </div>
 
 <!-- ================= EXAM SET WIZARD (full-page, mirrors the student exam-taking flow) ================= -->
+<dialog class="google-import-dialog" id="googleFormsSetDialog">
+  <div class="google-import-dialog-inner">
+    <div class="google-import-dialog-head"><div><h3>🟢 นำเข้าข้อสอบจาก Google Forms</h3><p>นำเข้าเฉพาะข้อปรนัยที่มีเฉลยและตัวเลือกครบ 4 ตัวเลือก</p></div><button class="btn btn-ghost btn-sm" type="button" id="closeGoogleFormsSetDialog">✕</button></div>
+    <div class="google-import-step" id="googleFormsConnectStep"><h4>ขั้นที่ 1: เชื่อมต่อ Google</h4><p>ใช้บัญชี Google ที่เป็นเจ้าของ หรือมีสิทธิ์แก้ไข Google Forms ชุดนั้น</p><button class="btn btn-primary btn-sm" type="button" id="connectGoogleFormsSetBtn">เชื่อมต่อ Google</button></div>
+    <div class="google-import-step hidden" id="googleFormsImportStep"><h4>ขั้นที่ 2: ตรวจสอบและนำเข้า</h4><p>วางลิงก์หน้าแก้ไขของฟอร์ม เช่น <b>.../forms/d/FORM_ID/edit</b></p><input id="googleFormsSetUrl" type="url" placeholder="วางลิงก์ Google Forms สำหรับแก้ไข"><div class="editor-actions"><button class="btn btn-ghost btn-sm" type="button" id="previewGoogleFormsSetBtn">ตรวจสอบแบบฟอร์ม</button><button class="btn btn-primary btn-sm" type="button" id="applyGoogleFormsSetBtn" disabled>นำเข้าและตั้งค่าชุดข้อสอบ</button></div><div class="mc-import-preview" id="googleFormsSetPreview"></div></div>
+  </div>
+</dialog>
+
 <div id="setWizardScreen" class="hidden" style="min-height:100vh;display:flex;flex-direction:column;background:var(--bg);">
   <div class="admin-topbar">
     <div class="brand" id="wizardTitleBar">🧩 สร้างชุดข้อสอบใหม่</div>
@@ -606,6 +620,7 @@ async function deleteSet(key){
   catch(e){ showToast(e.message); }
 }
 document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(null));
+document.getElementById('importGoogleFormsSetBtn').addEventListener('click', ()=> openGoogleFormsSetDialog());
 
 function round2(n){ return Math.round((n+Number.EPSILON)*100)/100; }
 function distributeEvenly(total, count){
@@ -664,9 +679,9 @@ let wizardStep = 'info'; // 'info'|'access'|'sections'|'hub'|'section:mc'|'secti
 const WIZARD_STEP_ORDER = ['info','access','sections','hub'];
 const WIZARD_STEP_LABELS = {info:'1. ข้อมูล', access:'2. สิทธิ์ & อาจารย์', sections:'3. เลือกส่วน', hub:'4. รายการส่วนข้อสอบ'};
 
-async function openEditor(key){
+async function openEditor(key, draftSet=null){
   editingIsNew = !key;
-  editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : blankSet();
+  editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : (draftSet ? JSON.parse(JSON.stringify(draftSet)) : blankSet());
   if(!editingSet.assignedClasses) editingSet.assignedClasses = [];
   if(!editingSet.examType) editingSet.examType = EXAM_TYPES[0]||'กลางภาค';
   if(editingSet.courseName===undefined || editingSet.courseName==='') editingSet.courseName = editingSet.title || '';
@@ -1049,8 +1064,6 @@ function renderMcPanel(){
       <div class="editor-actions"><button class="btn btn-ghost btn-sm" id="previewMcImportBtn" type="button">ตรวจรูปแบบ</button><button class="btn btn-primary btn-sm" id="applyMcImportBtn" type="button" disabled>เพิ่มข้อที่ตรวจแล้ว</button></div>
       <div class="mc-import-preview" id="mcImportPreview"></div>
     </div>
-    <button class="add-row-btn" id="toggleGoogleFormsImportBtn" type="button" style="margin-top:8px;border-color:#34A853;color:#16733B;">🟢 นำเข้าข้อปรนัยจาก Google Forms</button>
-    <div class="mc-import-box hidden" id="googleFormsImportBox"><h4>นำเข้าจาก Google Forms</h4><p id="googleFormsConnectionNote">เชื่อมต่อบัญชี Google ที่เป็นเจ้าของหรือมีสิทธิ์แก้ไขแบบฟอร์มก่อน</p><div class="editor-actions"><button class="btn btn-ghost btn-sm" id="connectGoogleFormsBtn" type="button">เชื่อมต่อ Google</button></div><input id="googleFormsUrl" type="url" placeholder="วางลิงก์ Google Forms เช่น .../forms/d/FORM_ID/edit"><div class="editor-actions"><button class="btn btn-ghost btn-sm" id="previewGoogleFormsBtn" type="button">ตรวจสอบแบบฟอร์ม</button><button class="btn btn-primary btn-sm" id="applyGoogleFormsBtn" type="button" disabled>นำเข้าข้อที่รองรับ</button></div><div class="mc-import-preview" id="googleFormsPreview"></div></div>
     <div class="editor-actions"><button class="btn btn-primary" id="saveSetFromMcBtn" type="button">💾 บันทึกชุดข้อสอบ</button></div>
     <div id="mcEditorSlot"></div>
   </div>`;
@@ -1062,7 +1075,6 @@ function renderMcPanel(){
   document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
   bindQuestionBankEvents();
   bindMcImportEvents();
-  bindGoogleFormsImportEvents();
   document.getElementById('saveSetFromMcBtn').addEventListener('click', saveEditingSet);
   renderOpenEditorIfNeeded('mc');
 }
@@ -1097,6 +1109,52 @@ function bindGoogleFormsImportEvents(){
   });
   document.getElementById('applyGoogleFormsBtn').addEventListener('click', ()=>{ if(!googleFormsPreview?.questions.length) return; editingSet.sections.mc.questions.push(...googleFormsPreview.questions.map(question=>({id:uid('mc'),text:question.text,choices:question.choices.slice(),answer:question.answer,points:0}))); applyPointDistribution('mc'); renderMcPanel(); showToast(`นำเข้าจาก Google Forms ${googleFormsPreview.questions.length} ข้อแล้ว`); });
 }
+function updateGoogleFormsSetDialog(){
+  const connected=Boolean(googleFormsConnectionId);
+  document.getElementById('googleFormsConnectStep').classList.toggle('hidden',connected);
+  document.getElementById('googleFormsImportStep').classList.toggle('hidden',!connected);
+}
+function openGoogleFormsSetDialog(){
+  googleFormsPreview=null;
+  document.getElementById('googleFormsSetPreview').textContent='';
+  document.getElementById('applyGoogleFormsSetBtn').disabled=true;
+  updateGoogleFormsSetDialog();
+  document.getElementById('googleFormsSetDialog').showModal();
+}
+function setGoogleFormsConnection(connectionId){
+  googleFormsConnectionId=connectionId;
+  if(googleFormsPoll) clearInterval(googleFormsPoll);
+  googleFormsPoll=null;
+  updateGoogleFormsSetDialog();
+  showToast('เชื่อมต่อ Google สำเร็จ — วางลิงก์แบบฟอร์มได้เลย');
+}
+function googleFormsDraftSet(preview){
+  const draft=blankSet();
+  draft.title=preview.title||'';
+  draft.courseName=preview.title||'';
+  draft.sections.mc.questions=preview.questions.map(question=>({id:uid('mc'),text:question.text,choices:question.choices.slice(),answer:question.answer,points:0}));
+  return draft;
+}
+function bindGoogleFormsSetImportEvents(){
+  const dialog=document.getElementById('googleFormsSetDialog');
+  document.getElementById('closeGoogleFormsSetDialog').addEventListener('click',()=>dialog.close());
+  document.getElementById('connectGoogleFormsSetBtn').addEventListener('click',async()=>{
+    try{const result=await apiStartGoogleForms();const popup=window.open(result.authorizationUrl,'googleFormsAuth','width=560,height=700');if(!popup)showToast('กรุณาอนุญาตให้เปิดหน้าต่างเชื่อมต่อ Google');else waitForGoogleFormsConnection(result.requestId);}catch(error){showToast(error.message);}
+  });
+  document.getElementById('previewGoogleFormsSetBtn').addEventListener('click',async()=>{
+    const output=document.getElementById('googleFormsSetPreview'); const formUrl=document.getElementById('googleFormsSetUrl').value.trim();
+    if(!googleFormsConnectionId){showToast('กรุณาเชื่อมต่อ Google ก่อน');return;} if(!formUrl){showToast('กรุณาวางลิงก์ Google Forms');return;}
+    output.textContent='กำลังตรวจสอบแบบฟอร์ม...';
+    try{googleFormsPreview=await apiPreviewGoogleForm(googleFormsConnectionId,formUrl);document.getElementById('applyGoogleFormsSetBtn').disabled=!googleFormsPreview.questions.length;output.innerHTML=`<span class="ok">พบข้อที่นำเข้าได้ ${googleFormsPreview.questions.length} ข้อ</span>${googleFormsPreview.skipped.length?`<br><span class="bad">ข้าม ${googleFormsPreview.skipped.length} ข้อ: ${googleFormsPreview.skipped.map(item=>escapeHtml(item.title+' — '+item.reason)).join(' · ')}</span>`:''}`;}catch(error){googleFormsPreview=null;document.getElementById('applyGoogleFormsSetBtn').disabled=true;output.textContent=error.message;}
+  });
+  document.getElementById('applyGoogleFormsSetBtn').addEventListener('click',()=>{
+    if(!googleFormsPreview?.questions.length)return;
+    dialog.close();
+    openEditor(null,googleFormsDraftSet(googleFormsPreview));
+    showToast(`นำเข้าข้อสอบ ${googleFormsPreview.questions.length} ข้อแล้ว — กรอกรายละเอียดชุดข้อสอบต่อได้เลย`);
+  });
+}
+bindGoogleFormsSetImportEvents();
 function bindQuestionBankEvents(){
   document.getElementById('saveMcToBankBtn').addEventListener('click', async ()=>{
     if(!editingSet.sections.mc.questions.length){ showToast('ยังไม่มีข้อปรนัยให้เก็บ'); return; }
