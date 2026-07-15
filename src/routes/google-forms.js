@@ -5,6 +5,7 @@ const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const CONNECTION_TTL_MS = 30 * 60 * 1000;
 const oauthStates = new Map();
 const connections = new Map();
+const completedConnections = new Map();
 
 function token() { return crypto.randomBytes(24).toString('hex'); }
 function configured(config = {}) { return Boolean(config.clientId && config.clientSecret && config.redirectUri); }
@@ -21,7 +22,7 @@ function startAuth(config, role) {
     const state = token();
     oauthStates.set(state, { role, ownerId: role === 'teacher' ? req.teacherId : null, expiresAt: Date.now() + OAUTH_STATE_TTL_MS });
     const params = new URLSearchParams({ client_id: config.clientId, redirect_uri: config.redirectUri, response_type: 'code', scope: 'https://www.googleapis.com/auth/forms.body.readonly', access_type: 'online', state, prompt: 'consent' });
-    res.json({ authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
+    res.json({ authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, requestId: state });
   };
 }
 
@@ -45,11 +46,23 @@ function previewForm(role) {
   };
 }
 
+function connectionStatus(role) {
+  return (req, res) => {
+    purgeExpired(completedConnections);
+    const completed = completedConnections.get(String(req.query.requestId || ''));
+    if (!ownerMatches(completed, req, role)) return res.json({ connected: false });
+    completedConnections.delete(String(req.query.requestId || ''));
+    res.json({ connected: true, connectionId: completed.connectionId });
+  };
+}
+
 function registerGoogleFormsRoutes(app, { requireAdmin, requireTeacher, googleFormsConfig }) {
   app.post('/api/admin/google-forms/start', requireAdmin, startAuth(googleFormsConfig, 'admin'));
   app.post('/api/admin/google-forms/preview', requireAdmin, previewForm('admin'));
+  app.get('/api/admin/google-forms/status', requireAdmin, connectionStatus('admin'));
   app.post('/api/teacher/google-forms/start', requireTeacher, startAuth(googleFormsConfig, 'teacher'));
   app.post('/api/teacher/google-forms/preview', requireTeacher, previewForm('teacher'));
+  app.get('/api/teacher/google-forms/status', requireTeacher, connectionStatus('teacher'));
   app.get('/api/google-forms/callback', async (req, res) => {
     const state = oauthStates.get(req.query.state);
     oauthStates.delete(req.query.state);
@@ -61,6 +74,7 @@ function registerGoogleFormsRoutes(app, { requireAdmin, requireTeacher, googleFo
       if (!tokenResponse.ok || !payload.access_token) throw new Error('token exchange failed');
       const connectionId = token();
       connections.set(connectionId, { role: state.role, ownerId: state.ownerId, accessToken: payload.access_token, expiresAt: Date.now() + CONNECTION_TTL_MS });
+      completedConnections.set(req.query.state, { role: state.role, ownerId: state.ownerId, connectionId, expiresAt: Date.now() + OAUTH_STATE_TTL_MS });
       const safeToken = JSON.stringify(connectionId);
       res.type('html').send(`<!doctype html><title>เชื่อมต่อแล้ว</title><script>window.opener&&window.opener.postMessage({type:'google-forms-connected',connectionId:${safeToken}},window.location.origin);window.close()</script>เชื่อมต่อ Google สำเร็จ สามารถปิดหน้านี้ได้`);
     } catch (_) { res.status(502).send('<script>window.close()</script>เชื่อมต่อ Google ไม่สำเร็จ กรุณาลองใหม่'); }

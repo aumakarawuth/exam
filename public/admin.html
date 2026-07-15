@@ -378,6 +378,7 @@ async function apiUploadQuestionAsset(file){
 }
 async function apiStartGoogleForms(){ return apiFetch('/api/admin/google-forms/start', { method:'POST', admin:true }); }
 async function apiPreviewGoogleForm(connectionId, formUrl){ return apiFetch('/api/admin/google-forms/preview', { method:'POST', body:{formUrl}, headers:{'x-google-forms-connection':connectionId}, admin:true }); }
+async function apiGoogleFormsStatus(requestId){ return apiFetch('/api/admin/google-forms/status?requestId='+encodeURIComponent(requestId), { admin:true }); }
 async function apiCreateSet(set){ return apiFetch('/api/sets', { method:'POST', body:set, admin:true }); }
 async function apiUpdateSet(key, set){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'PUT', body:set, admin:true }); }
 async function apiDuplicateSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', admin:true }); }
@@ -1067,16 +1068,27 @@ function renderMcPanel(){
 }
 let googleFormsConnectionId = null;
 let googleFormsPreview = null;
-window.addEventListener('message', event=>{
-  if(event.origin!==window.location.origin || event.data?.type!=='google-forms-connected') return;
-  googleFormsConnectionId=event.data.connectionId;
+let googleFormsPoll = null;
+function setGoogleFormsConnection(connectionId){
+  googleFormsConnectionId=connectionId;
+  if(googleFormsPoll) clearInterval(googleFormsPoll);
+  googleFormsPoll=null;
   const note=document.getElementById('googleFormsConnectionNote'); if(note) note.textContent='เชื่อมต่อ Google แล้ว — วางลิงก์แบบทดสอบเพื่อเริ่มตรวจสอบ';
   showToast('เชื่อมต่อ Google สำเร็จ');
+}
+function waitForGoogleFormsConnection(requestId){
+  if(googleFormsPoll) clearInterval(googleFormsPoll);
+  let tries=0;
+  googleFormsPoll=setInterval(async()=>{ try{ const status=await apiGoogleFormsStatus(requestId); if(status.connected) return setGoogleFormsConnection(status.connectionId); if(++tries>=60){ clearInterval(googleFormsPoll); googleFormsPoll=null; } }catch(_){ clearInterval(googleFormsPoll); googleFormsPoll=null; } },1000);
+}
+window.addEventListener('message', event=>{
+  if(event.origin!==window.location.origin || event.data?.type!=='google-forms-connected') return;
+  setGoogleFormsConnection(event.data.connectionId);
 });
 function bindGoogleFormsImportEvents(){
   const box=document.getElementById('googleFormsImportBox');
   document.getElementById('toggleGoogleFormsImportBtn').addEventListener('click', ()=>box.classList.toggle('hidden'));
-  document.getElementById('connectGoogleFormsBtn').addEventListener('click', async()=>{ try{ const result=await apiStartGoogleForms(); const popup=window.open(result.authorizationUrl,'googleFormsAuth','width=560,height=700'); if(!popup) showToast('กรุณาอนุญาตให้เปิดหน้าต่างเชื่อมต่อ Google'); }catch(error){ showToast(error.message); } });
+  document.getElementById('connectGoogleFormsBtn').addEventListener('click', async()=>{ try{ const result=await apiStartGoogleForms(); const popup=window.open(result.authorizationUrl,'googleFormsAuth','width=560,height=700'); if(!popup) showToast('กรุณาอนุญาตให้เปิดหน้าต่างเชื่อมต่อ Google'); else waitForGoogleFormsConnection(result.requestId); }catch(error){ showToast(error.message); } });
   document.getElementById('previewGoogleFormsBtn').addEventListener('click', async()=>{
     const output=document.getElementById('googleFormsPreview'); const formUrl=document.getElementById('googleFormsUrl').value.trim();
     if(!googleFormsConnectionId){ showToast('กรุณาเชื่อมต่อ Google ก่อน'); return; } if(!formUrl){ showToast('กรุณาวางลิงก์ Google Forms'); return; }
