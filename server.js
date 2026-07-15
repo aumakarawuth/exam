@@ -13,7 +13,7 @@
 require('dotenv').config();
 const express = require('express');
 const XLSX = require('xlsx');
-const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR } = require('./src/config');
+const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR, SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET } = require('./src/config');
 const { readDB, writeDB, databaseReady } = require('./src/database');
 const { hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
 const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
@@ -22,6 +22,7 @@ const { registerRoutes } = require('./src/routes');
 const { buildResultsWorkbook: buildResultsWorkbookModule } = require('./src/results-workbook');
 const { applySecurityHeaders } = require('./src/security');
 const { newId } = require('./src/ids');
+const { createAssetStorage } = require('./src/asset-storage');
 
 if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
@@ -95,7 +96,8 @@ app.use(express.json({ limit: '2mb' }));
 /* ---------------------------- PAGES ---------------------------- */
 registerPages(app, PUBLIC_DIR, express);
 
-registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule });
+const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
+registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule, assetStorage });
 
 if (false) { // Legacy student routes moved to src/routes/students.js.
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */

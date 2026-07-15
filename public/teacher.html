@@ -304,6 +304,12 @@ async function apiTeacherLogin(username, password){
 }
 async function apiChangeTeacherPassword(currentPassword, newPassword){ return apiFetch('/api/teacher/change-password', { method:'POST', body:{currentPassword, newPassword}, auth:true }); }
 async function apiGetAdminSets(){ return apiFetch('/api/teacher/sets', { auth:true }); }
+async function apiUploadQuestionAsset(file){
+  const response=await fetch('/api/teacher/assets',{method:'POST',headers:{'x-teacher-token':teacherToken||'','Content-Type':file.type,'x-file-name':encodeURIComponent(file.name)},body:file});
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(body.message||'อัปโหลดไฟล์ไม่สำเร็จ');
+  return body;
+}
 async function apiCreateSet(set){ return apiFetch('/api/teacher/sets', { method:'POST', body:set, auth:true }); }
 async function apiUpdateSet(key, set){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key), { method:'PUT', body:set, auth:true }); }
 async function apiDuplicateSetCall(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', auth:true }); }
@@ -890,6 +896,8 @@ function bindEditorPanelEvents(section, index){
     else if(section==='matching') saveMatchingPairFromEditor(index);
     else if(section==='written') saveWrittenQuestionFromEditor(index);
   });
+  if(section==='mc') bindMcResourceUpload();
+  if(section==='written') bindWrittenResourceUpload();
 }
 
 /* ---------- MC section ---------- */
@@ -1026,6 +1034,7 @@ function mcEditorPanelHtml(index){
   return `<div class="q-editor-panel">
     <div class="q-editor-title">${isNew?'เพิ่มข้อปรนัยใหม่':'แก้ไขข้อที่ '+(index+1)}</div>
     <div class="field"><label>โจทย์</label><textarea id="qeMcText" placeholder="พิมพ์คำถาม...">${escapeHtml(q.text)}</textarea></div>
+    ${mcResourceEditorHtml(q,isNew)}
     ${q.choices.map((c,ci)=>`
       <div class="choice-edit-row">
         <input type="radio" name="qeMcAns" data-ci="${ci}" ${q.answer===ci?'checked':''} title="ทำเครื่องหมายคำตอบที่ถูกต้อง">
@@ -1037,6 +1046,42 @@ function mcEditorPanelHtml(index){
     </div>
   </div>`;
 }
+function mcResourceEditorHtml(q,isNew){
+  const resources=isNew?(openQEditor.resources||(openQEditor.resources={attachments:[]})):(q.resources||(q.resources={attachments:[]}));
+  const attachments=(resources.attachments||[]).map(item=>`<li>${escapeHtml(item.name||'ไฟล์แนบ')}</li>`).join('')||'<li>ยังไม่มีไฟล์แนบ</li>';
+  return `<div class="field"><label>โค้ดประกอบโจทย์ (ถ้ามี)</label><select id="qeMcCodeLanguage"><option value="">เลือกภาษา</option>${['C','C++','Java','HTML','SQL','อื่น ๆ'].map(x=>`<option ${resources.language===x?'selected':''}>${x}</option>`).join('')}</select><textarea id="qeMcCode" placeholder="วางโค้ดที่ต้องการแสดงในโจทย์">${escapeHtml(resources.code||'')}</textarea></div>
+    <div class="field"><label>ตารางประกอบโจทย์ (วางจาก Excel/CSV ได้)</label><textarea id="qeMcTable" placeholder="คอลัมน์ A,คอลัมน์ B\nข้อมูล 1,ข้อมูล 2">${escapeHtml(resources.table||'')}</textarea></div>
+    <div class="field"><label>รูปภาพหรือไฟล์แนบ (ไม่เกิน 5 MB)</label><input id="qeMcAsset" type="file" accept="image/*,.pdf,.docx,.pptx,.zip"><ul id="qeMcAssetList">${attachments}</ul></div>`;
+}
+function bindMcResourceUpload(){
+  const input=document.getElementById('qeMcAsset');
+  if(!input) return;
+  input.addEventListener('change',async()=>{
+    const file=input.files?.[0]; if(!file) return;
+    input.disabled=true;
+    try{ const asset=await apiUploadQuestionAsset(file); openQEditor.resources=openQEditor.resources||{attachments:[]}; openQEditor.resources.attachments.push(asset); document.getElementById('qeMcAssetList').innerHTML=openQEditor.resources.attachments.map(item=>`<li>${escapeHtml(item.name)}</li>`).join(''); showToast('อัปโหลดไฟล์แล้ว'); }
+    catch(error){ showToast(error.message); }
+    finally{ input.value=''; input.disabled=false; }
+  });
+}
+function writtenResourceEditorHtml(q,isNew){
+  const resources=isNew?(openQEditor.resources||(openQEditor.resources={attachments:[]})):(q.resources||(q.resources={attachments:[]}));
+  const attachments=(resources.attachments||[]).map(item=>`<li>${escapeHtml(item.name||'ไฟล์แนบ')}</li>`).join('')||'<li>ยังไม่มีไฟล์แนบ</li>';
+  return `<div class="field"><label>โค้ดประกอบโจทย์ (ถ้ามี)</label><select id="qeWCodeLanguage"><option value="">เลือกภาษา</option>${['C','C++','Java','HTML','SQL','อื่น ๆ'].map(x=>`<option ${resources.language===x?'selected':''}>${x}</option>`).join('')}</select><textarea id="qeWCode" placeholder="วางโค้ดที่ต้องการแสดงในโจทย์">${escapeHtml(resources.code||'')}</textarea></div>
+    <div class="field"><label>ตารางประกอบโจทย์ (วางจาก Excel/CSV ได้)</label><textarea id="qeWTable" placeholder="คอลัมน์ A,คอลัมน์ B\nข้อมูล 1,ข้อมูล 2">${escapeHtml(resources.table||'')}</textarea></div>
+    <div class="field"><label>รูปภาพหรือไฟล์แนบ (ไม่เกิน 5 MB)</label><input id="qeWAsset" type="file" accept="image/*,.pdf,.docx,.pptx,.zip"><ul id="qeWAssetList">${attachments}</ul></div>`;
+}
+function bindWrittenResourceUpload(){
+  const input=document.getElementById('qeWAsset');
+  if(!input) return;
+  input.addEventListener('change',async()=>{
+    const file=input.files?.[0]; if(!file) return;
+    input.disabled=true;
+    try{ const asset=await apiUploadQuestionAsset(file); openQEditor.resources=openQEditor.resources||{attachments:[]}; openQEditor.resources.attachments.push(asset); document.getElementById('qeWAssetList').innerHTML=openQEditor.resources.attachments.map(item=>`<li>${escapeHtml(item.name)}</li>`).join(''); showToast('อัปโหลดไฟล์แล้ว'); }
+    catch(error){ showToast(error.message); }
+    finally{ input.value=''; input.disabled=false; }
+  });
+}
 function saveMcQuestionFromEditor(index){
   const text = document.getElementById('qeMcText').value.trim();
   if(!text){ alert('กรุณากรอกคำถาม'); return; }
@@ -1045,8 +1090,13 @@ function saveMcQuestionFromEditor(index){
   const answerRadio = document.querySelector('input[name="qeMcAns"]:checked');
   const answer = answerRadio ? parseInt(answerRadio.dataset.ci,10) : 0;
   const s = editingSet.sections.mc;
-  if(index===null) s.questions.push({id:uid('mc'), text, choices, answer, points:0});
-  else Object.assign(s.questions[index], {text, choices, answer});
+  const old=index===null?{}:s.questions[index];
+  const resources=openQEditor.resources||old.resources||{attachments:[]};
+  resources.code=document.getElementById('qeMcCode').value.trim();
+  resources.language=document.getElementById('qeMcCodeLanguage').value;
+  resources.table=document.getElementById('qeMcTable').value.trim();
+  if(index===null) s.questions.push({id:uid('mc'), text, choices, answer, points:0, resources});
+  else Object.assign(s.questions[index], {text, choices, answer, resources});
   applyPointDistribution('mc');
   closeQuestionEditor();
 }
@@ -1183,7 +1233,7 @@ function writtenEditorPanelHtml(index){
   return `<div class="q-editor-panel">
     <div class="q-editor-title">${isNew?'เพิ่มข้ออัตนัยใหม่':'แก้ไขข้อที่ '+(index+1)}</div>
     <div class="field"><label>โจทย์</label><textarea id="qeWText" placeholder="พิมพ์คำถาม...">${escapeHtml(q.text)}</textarea></div>
-    <div class="field"><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" id="qeWKeywords" value="${escapeAttr((q.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์"></div>
+    <div class="field"><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" id="qeWKeywords" value="${escapeAttr((q.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์"></div>${writtenResourceEditorHtml(q,isNew)}
     <div class="editor-actions">
       <button class="btn btn-ghost btn-sm" id="qeCancelBtn" type="button">ยกเลิก</button>
       <button class="btn btn-primary btn-sm" id="qeSaveBtn" type="button">${isNew?'เพิ่มข้อนี้':'บันทึกการแก้ไข'}</button>
@@ -1195,8 +1245,13 @@ function saveWrittenQuestionFromEditor(index){
   if(!text){ alert('กรุณากรอกคำถาม'); return; }
   const keywords = document.getElementById('qeWKeywords').value.split(',').map(k=>k.trim()).filter(Boolean);
   const s = editingSet.sections.written;
-  if(index===null) s.questions.push({id:uid('w'), text, keywords, maxPoints:0});
-  else Object.assign(s.questions[index], {text, keywords});
+  const old=index===null?{}:s.questions[index];
+  const resources=openQEditor.resources||old.resources||{attachments:[]};
+  resources.code=document.getElementById('qeWCode').value.trim();
+  resources.language=document.getElementById('qeWCodeLanguage').value;
+  resources.table=document.getElementById('qeWTable').value.trim();
+  if(index===null) s.questions.push({id:uid('w'), text, keywords, maxPoints:0, resources});
+  else Object.assign(s.questions[index], {text, keywords, resources});
   applyPointDistribution('written');
   closeQuestionEditor();
 }

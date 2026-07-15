@@ -109,6 +109,16 @@ button{font-family:inherit;cursor:pointer;}
 .qblock{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:18px;}
 .qblock .qnum{font-family:'Prompt',sans-serif;font-size:12px;color:var(--blue);font-weight:600;margin-bottom:6px;}
 .qblock .qtext{font-size:15.5px;line-height:1.8;margin-bottom:16px;}
+.question-resources{display:grid;gap:12px;margin:0 0 18px;}
+.question-code{margin:0;padding:14px 16px;overflow:auto;border-radius:12px;background:#172033;color:#e7efff;font:13px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre;}
+.question-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;}
+.question-table{width:100%;border-collapse:collapse;font-size:13px;}
+.question-table th,.question-table td{padding:9px 11px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;}
+.question-table th{background:var(--grid);font-weight:650;}
+.question-table tr:last-child td{border-bottom:0;}
+.question-assets{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;}
+.question-asset-image{display:block;max-width:min(100%,560px);max-height:380px;border:1px solid var(--line);border-radius:12px;object-fit:contain;background:#fff;}
+.question-asset-link{display:inline-flex;align-items:center;gap:6px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;color:var(--blue);background:var(--grid);font-size:13px;text-decoration:none;}
 .choice-list{display:flex;flex-direction:column;gap:10px;}
 .choice-item{display:flex;align-items:center;gap:12px;background:var(--grid);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px;}
 .choice-item:hover{border-color:var(--blue);}
@@ -971,7 +981,7 @@ function renderSection(){
     html += `<div class="progress-badge ${answeredCount===s.questions.length?'complete':''}">ตอบแล้ว ${answeredCount}/${s.questions.length} ข้อ</div>`;
     html += s.questions.map((qq,i)=>{
       const val = draftAnswers.written[qq.id] || '';
-      return `<div class="qblock"><div class="qnum">ข้อ ${i+1}</div><div class="qtext">${escapeHtml(qq.text)}</div>
+      return `<div class="qblock"><div class="qnum">ข้อ ${i+1}</div><div class="qtext">${escapeHtml(qq.text)}</div>${renderQuestionResources(qq)}
         <textarea class="written-textarea" data-qid="${qq.id}" placeholder="พิมพ์คำตอบที่นี่...">${escapeHtml(val)}</textarea></div>`;
     }).join('');
   }
@@ -1028,6 +1038,7 @@ function renderMcSection(){
     <div class="qblock">
       <div class="qnum">ข้อ ${idx+1} จาก ${total}</div>
       <div class="qtext">${escapeHtml(qq.text)}</div>
+      ${renderQuestionResources(qq)}
       <div class="choice-list">${choicesHtml}</div>
     </div>
     <div class="mc-nav-row">
@@ -1222,6 +1233,27 @@ function attemptResumeSession(){
   runGlobalTimer();
   saveSession();
   return true;
+}
+
+function renderQuestionResources(question){
+  const resources=question?.resources;
+  if(!resources || typeof resources!=='object') return '';
+  const parts=[];
+  if(resources.code) parts.push(`<pre class="question-code"><code>${escapeHtml(resources.code)}</code></pre>`);
+  if(resources.table){
+    const rows=String(resources.table).split(/\r?\n/).map(row=>row.trim()).filter(Boolean).map(row=>row.includes('\t')?row.split('\t'):row.split(','));
+    if(rows.length){
+      const head=rows.shift();
+      parts.push(`<div class="question-table-wrap"><table class="question-table"><thead><tr>${head.map(cell=>`<th>${escapeHtml(cell.trim())}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${head.map((_,i)=>`<td>${escapeHtml((row[i]||'').trim())}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+    }
+  }
+  const assets=(resources.attachments||[]).filter(item=>{
+    try { const url=new URL(item?.url); return url.protocol==='https:'; } catch(_) { return false; }
+  });
+  if(assets.length) parts.push(`<div class="question-assets">${assets.map(item=>String(item.type||'').startsWith('image/')
+    ? `<img class="question-asset-image" src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name||'รูปภาพประกอบโจทย์')}" loading="lazy">`
+    : `<a class="question-asset-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(item.name||'เปิดไฟล์แนบ')}</a>`).join('')}</div>`);
+  return parts.length ? `<div class="question-resources">${parts.join('')}</div>` : '';
 }
 
 function escapeHtml(str){

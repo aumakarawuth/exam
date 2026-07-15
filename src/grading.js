@@ -53,9 +53,9 @@ function sanitizeSetForStudent(set) {
     shuffleChoices: !!set.shuffleChoices, availableUntil: set.availableUntil || null,
     lateAccessRequired: isPastDeadline(set),
     sections: {
-      mc: { title: set.sections.mc.title, desc: set.sections.mc.desc, questions: set.sections.mc.questions.map(q => ({ id: q.id, text: q.text, choices: q.choices, points: q.points })) },
+      mc: { title: set.sections.mc.title, desc: set.sections.mc.desc, questions: set.sections.mc.questions.map(q => ({ id: q.id, text: q.text, choices: q.choices, points: q.points, resources: q.resources || null })) },
       matching: { title: set.sections.matching.title, desc: set.sections.matching.desc, left: set.sections.matching.left, right: set.sections.matching.right, pointsEach: set.sections.matching.pointsEach },
-      written: { title: set.sections.written.title, desc: set.sections.written.desc, questions: set.sections.written.questions.map(q => ({ id: q.id, text: q.text, maxPoints: q.maxPoints })) }
+      written: { title: set.sections.written.title, desc: set.sections.written.desc, questions: set.sections.written.questions.map(q => ({ id: q.id, text: q.text, maxPoints: q.maxPoints, resources: q.resources || null })) }
     }
   };
 }

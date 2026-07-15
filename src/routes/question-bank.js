@@ -3,7 +3,16 @@ function sanitizeQuestion(question, newId, ownerId) {
   const choices = Array.isArray(question?.choices) ? question.choices.map(choice => String(choice || '').trim()) : [];
   const answer = Number(question?.answer);
   if (!text || choices.length !== 4 || choices.some(choice => !choice) || !Number.isInteger(answer) || answer < 0 || answer > 3) return null;
-  return { id: newId('bankq'), ownerId, courseName: String(question.courseName || '').trim(), tags: Array.isArray(question.tags) ? question.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 8) : [], text, choices, answer, createdAt: new Date().toISOString() };
+  const sourceResources = question?.resources && typeof question.resources === 'object' ? question.resources : {};
+  const attachments = Array.isArray(sourceResources.attachments) ? sourceResources.attachments.slice(0, 8).map(item => ({
+    name: String(item?.name || 'ไฟล์แนบ').slice(0, 180), type: String(item?.type || '').slice(0, 100),
+    size: Number(item?.size) || 0, url: String(item?.url || '').slice(0, 2000)
+  })).filter(item => /^https:\/\//.test(item.url)) : [];
+  const resources = {
+    code: String(sourceResources.code || '').slice(0, 50000), language: String(sourceResources.language || '').slice(0, 30),
+    table: String(sourceResources.table || '').slice(0, 30000), attachments
+  };
+  return { id: newId('bankq'), ownerId, courseName: String(question.courseName || '').trim(), tags: Array.isArray(question.tags) ? question.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 8) : [], text, choices, answer, resources, createdAt: new Date().toISOString() };
 }
 
 function registerQuestionBankRoutes(app, { readDB, writeDB, newId, requireAdmin, requireTeacher }) {

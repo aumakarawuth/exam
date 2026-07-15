@@ -11,5 +11,9 @@ module.exports = {
   PORT: process.env.PORT || 3000,
   DATABASE_URL: process.env.DATABASE_URL || '',
   ADMIN_KEY: process.env.ADMIN_KEY || 'changeme123',
+  SUPABASE_URL: (process.env.SUPABASE_URL || '').replace(/\/$/, ''),
+  // New Supabase secret keys replace legacy service-role keys. Keep the fallback for older projects.
+  SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET || 'exam-assets',
   EXAM_TYPES: ['กลางภาค', 'ปลายภาค']
 };

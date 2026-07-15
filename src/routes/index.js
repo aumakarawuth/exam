@@ -10,6 +10,7 @@ const { registerTeacherSetRoutes } = require('./teacher-sets');
 const { registerExportRoutes } = require('./exports');
 const { registerObjectAnalysisRoutes } = require('./object-analysis');
 const { registerQuestionBankRoutes } = require('./question-bank');
+const { registerAssetRoutes } = require('./assets');
 
 function registerRoutes(app, dependencies) {
   registerAccountRoutes(app, dependencies);
@@ -24,6 +25,7 @@ function registerRoutes(app, dependencies) {
   registerExportRoutes(app, dependencies);
   registerObjectAnalysisRoutes(app, dependencies);
   registerQuestionBankRoutes(app, dependencies);
+  registerAssetRoutes(app, dependencies);
 }
 
 module.exports = { registerRoutes };
