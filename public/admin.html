@@ -141,6 +141,9 @@ button{font-family:inherit;cursor:pointer;}
 .course-group{margin-bottom:22px;}
 .course-group-head{display:flex;justify-content:space-between;align-items:center;background:var(--grid);border:1px solid var(--line);border-radius:12px;padding:12px 16px;cursor:pointer;margin-bottom:12px;}
 .course-group-head:hover{border-color:var(--blue);}
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start;}
+.settings-grid .panel{margin-bottom:0;}
+.settings-data-tools{display:grid;gap:18px;}
 .course-group-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:14.5px;}
 .course-group-count{font-size:12px;color:var(--sub);}
 .course-group-body.collapsed{display:none;}
@@ -196,7 +199,6 @@ button{font-family:inherit;cursor:pointer;}
     <div class="brand">🛠️ ระบบจัดการข้อสอบ (สำหรับผู้ดูแล/อาจารย์)</div>
     <div style="display:flex;gap:8px;align-items:center;">
       <button class="btn btn-ghost btn-sm" id="pageRefreshBtn" title="โหลดข้อมูลล่าสุดโดยไม่ออกจากระบบ">↻ รีเฟรชข้อมูล</button>
-      <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
     </div>
   </div>
   <div class="admin-tabs">
@@ -205,6 +207,7 @@ button{font-family:inherit;cursor:pointer;}
     <button class="admin-tab-btn" data-atab="students">รายชื่อนักเรียน</button>
     <button class="admin-tab-btn" data-atab="teachers">อาจารย์ผู้สอน</button>
     <button class="admin-tab-btn" data-atab="results">ผลสอบนักเรียน</button>
+    <button class="admin-tab-btn" data-atab="settings">⚙️ ตั้งค่า</button>
   </div>
   <div class="admin-body">
     <div class="admin-inner">
@@ -234,14 +237,14 @@ button{font-family:inherit;cursor:pointer;}
             <p class="sub" style="margin:0;">ใช้ตรวจสิทธิ์ตอนนักเรียนกรอกรหัสเข้าสอบ และดึงชื่อ-สกุล-ห้องมาแสดงอัตโนมัติ</p>
           </div>
         </div>
-        <div class="panel">
+        <div class="panel" id="studentPasteImportPanel">
           <h3>นำเข้ารายชื่อแบบรวดเร็ว (วางจาก Excel)</h3>
           <p class="panel-sub">คัดลอกคอลัมน์ รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง จาก Excel แล้ววางที่นี่ (1 บรรทัดต่อ 1 คน) หากมีรหัสซ้ำในระบบอยู่แล้ว ระบบจะอัปเดตข้อมูลแทนการเพิ่มซ้ำ</p>
           <textarea id="bulkImportText" placeholder="10001&#9;สมชาย&#9;ใจดี&#9;ม.3/1&#10;10002&#9;สมหญิง&#9;รักเรียน&#9;ม.3/1" style="width:100%;min-height:120px;padding:12px;border:1.5px solid var(--line);border-radius:10px;font-family:monospace;font-size:12.5px;"></textarea>
           <div class="editor-actions"><button class="btn btn-primary btn-sm" id="bulkImportBtn">นำเข้ารายชื่อ</button></div>
           <div id="importReport"></div>
         </div>
-        <div class="panel">
+        <div class="panel" id="studentFileImportPanel">
           <h3>📁 นำเข้า/ส่งออกไฟล์</h3>
           <p class="panel-sub">นำเข้า Excel ที่มีหัวคอลัมน์: รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง — รหัสซ้ำจะอัปเดตข้อมูลเดิมโดยไม่ลบ PIN</p>
           <div class="editor-actions" style="justify-content:flex-start;flex-wrap:wrap;">
@@ -302,10 +305,22 @@ button{font-family:inherit;cursor:pointer;}
             <select class="filter-select" id="examTypeFilterSelect"><option value="">ทุกประเภทข้อสอบ</option></select>
             <select class="filter-select" id="setFilterSelect"><option value="">ทุกรายวิชา</option></select>
             <button class="btn btn-ghost btn-sm" id="refreshResultsBtn">↻ รีเฟรช</button>
-            <button class="btn btn-primary btn-sm" id="exportExcelBtn">⬇ ส่งออก Excel</button>
           </div>
         </div>
         <div id="resultsWrap"><div class="loading-note">กำลังโหลด...</div></div>
+      </div>
+
+      <!-- ============ SETTINGS TAB ============ -->
+      <div id="atab-settings" class="hidden">
+        <div class="toolbar-row"><div><h2>ตั้งค่า</h2><p class="sub" style="margin:0;">รวมการนำเข้า ส่งออก และการจัดการระบบไว้ในที่เดียว</p></div></div>
+        <div class="settings-grid">
+          <div id="adminDataToolsHost" class="settings-data-tools"><div class="panel"><h3>ส่งออกผลสอบ</h3><p class="panel-sub">ดาวน์โหลดผลสอบตามตัวกรองที่เลือกไว้ในหน้าผลสอบ</p><button class="btn btn-primary btn-sm" id="exportExcelBtn">⬇ ส่งออก Excel</button></div></div>
+          <div class="panel">
+            <h3>บัญชีผู้ดูแล</h3>
+            <p class="panel-sub">ออกจากระบบเมื่อใช้งานบนเครื่องสาธารณะหรือใช้งานเสร็จแล้ว</p>
+            <button class="btn btn-danger btn-sm" id="adminExitBtn">ออกจากระบบ</button>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -423,6 +438,11 @@ document.getElementById('adminExitBtn').addEventListener('click', ()=>{
   adminKey = null; adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
   document.getElementById('adminKeyInput').value=''; document.getElementById('adminLoginError').style.display='none';
 });
+function organizeAdminSettings(){
+  const host=document.getElementById('adminDataToolsHost');
+  ['studentPasteImportPanel','studentFileImportPanel'].forEach(id=>{ const panel=document.getElementById(id); if(panel) host.appendChild(panel); });
+}
+organizeAdminSettings();
 
 function refreshCurrentPageData(){
   const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset.atab;
@@ -438,7 +458,7 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['dashboard','sets','students','teachers','results'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    ['dashboard','sets','students','teachers','results','settings'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
     if(btn.dataset.atab==='dashboard') refreshDashboard();
     if(btn.dataset.atab==='results') refreshResults();
     if(btn.dataset.atab==='students') refreshStudents();
@@ -553,9 +573,9 @@ function renderSetList(){
     return `<div class="course-group">
       <div class="course-group-head" data-togglegroup="1">
         <span class="course-group-title">📚 ${escapeHtml(course)}</span>
-        <span class="course-group-count">${sets.length} ชุด</span>
+        <span class="course-group-count">${sets.length} ชุด · กดเพื่อดู</span>
       </div>
-      <div class="set-list course-group-body">${cardsHtml}</div>
+      <div class="set-list course-group-body collapsed">${cardsHtml}</div>
     </div>`;
   }).join('');
   wrap.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openEditor(b.dataset.edit)));

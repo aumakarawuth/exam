@@ -141,6 +141,9 @@ button{font-family:inherit;cursor:pointer;}
 .course-group{margin-bottom:22px;}
 .course-group-head{display:flex;justify-content:space-between;align-items:center;background:var(--grid);border:1px solid var(--line);border-radius:12px;padding:12px 16px;cursor:pointer;margin-bottom:12px;}
 .course-group-head:hover{border-color:var(--blue);}
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start;}
+.settings-grid .panel{margin-bottom:0;}
+.settings-data-tools{display:grid;gap:18px;}
 .course-group-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:14.5px;}
 .course-group-count{font-size:12px;color:var(--sub);}
 .course-group-body.collapsed{display:none;}
@@ -205,13 +208,12 @@ button{font-family:inherit;cursor:pointer;}
     <div class="brand">🧑‍🏫 ระบบข้อสอบของฉัน (<span id="teacherNameLabel"></span>)</div>
     <div style="display:flex;gap:8px;align-items:center;">
       <button class="btn btn-ghost btn-sm" id="pageRefreshBtn" title="โหลดข้อมูลล่าสุดโดยไม่ออกจากระบบ">↻ รีเฟรชข้อมูล</button>
-      <button class="btn btn-ghost btn-sm" id="changePasswordBtn">🔐 เปลี่ยนรหัสผ่าน</button>
-      <button class="btn btn-ghost btn-sm" id="adminExitBtn">ออกจากระบบ</button>
     </div>
   </div>
   <div class="admin-tabs">
     <button class="admin-tab-btn active" data-atab="sets">ชุดข้อสอบของฉัน</button>
     <button class="admin-tab-btn" data-atab="results">ผลสอบนักเรียน</button>
+    <button class="admin-tab-btn" data-atab="settings">⚙️ ตั้งค่า</button>
   </div>
   <div class="admin-body">
     <div class="admin-inner">
@@ -239,10 +241,22 @@ button{font-family:inherit;cursor:pointer;}
             <select class="filter-select" id="examTypeFilterSelect"><option value="">ทุกประเภทข้อสอบ</option></select>
             <select class="filter-select" id="setFilterSelect"><option value="">ทุกรายวิชา</option></select>
             <button class="btn btn-ghost btn-sm" id="refreshResultsBtn">↻ รีเฟรช</button>
-            <button class="btn btn-primary btn-sm" id="exportExcelBtn">⬇ ส่งออก Excel</button>
           </div>
         </div>
         <div id="resultsWrap"><div class="loading-note">กำลังโหลด...</div></div>
+      </div>
+
+      <!-- ============ SETTINGS TAB ============ -->
+      <div id="atab-settings" class="hidden">
+        <div class="toolbar-row"><div><h2>ตั้งค่า</h2><p class="sub" style="margin:0;">จัดการบัญชีและการส่งออกข้อมูล</p></div></div>
+        <div class="settings-grid">
+          <div id="teacherDataToolsHost" class="settings-data-tools"><div class="panel"><h3>ส่งออกผลสอบ</h3><p class="panel-sub">ดาวน์โหลดผลสอบตามตัวกรองที่เลือกไว้ในหน้าผลสอบ</p><button class="btn btn-primary btn-sm" id="exportExcelBtn">⬇ ส่งออก Excel</button></div></div>
+          <div class="panel">
+            <h3>บัญชีของฉัน</h3>
+            <p class="panel-sub">เปลี่ยนรหัสผ่านหรือออกจากระบบเมื่อใช้งานเสร็จ</p>
+            <div class="editor-actions" style="justify-content:flex-start;"><button class="btn btn-ghost btn-sm" id="changePasswordBtn">🔐 เปลี่ยนรหัสผ่าน</button><button class="btn btn-danger btn-sm" id="adminExitBtn">ออกจากระบบ</button></div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -407,7 +421,7 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['sets','results'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    ['sets','results','settings'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
     if(btn.dataset.atab==='results') refreshResults();
   });
 });
@@ -463,9 +477,9 @@ function renderSetList(){
     return `<div class="course-group">
       <div class="course-group-head" data-togglegroup="1">
         <span class="course-group-title">📚 ${escapeHtml(course)}</span>
-        <span class="course-group-count">${sets.length} ชุด</span>
+        <span class="course-group-count">${sets.length} ชุด · กดเพื่อดู</span>
       </div>
-      <div class="set-list course-group-body">${cardsHtml}</div>
+      <div class="set-list course-group-body collapsed">${cardsHtml}</div>
     </div>`;
   }).join('');
   wrap.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openEditor(b.dataset.edit)));
