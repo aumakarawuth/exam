@@ -37,7 +37,7 @@ function previewForm(role) {
     const connection = connectionFor(req, role);
     if (!connection) return res.status(401).json({ error: 'google_connection_required', message: 'กรุณาเชื่อมต่อ Google ก่อนนำเข้า' });
     const formId = formIdFrom(req.body?.formUrl);
-    if (!formId) return res.status(400).json({ error: 'invalid_form_url', message: 'ลิงก์ Google Forms ไม่ถูกต้อง' });
+    if (!formId) return res.status(400).json({ error: 'invalid_form_url', message: 'กรุณาใช้ลิงก์หน้าแก้ไข Google Forms (/forms/d/.../edit) ไม่ใช่ลิงก์ตอบแบบฟอร์ม (/forms/d/e/.../viewform)' });
     try {
       const response = await fetch(`https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}`, { headers: { Authorization: `Bearer ${connection.accessToken}` } });
       if (!response.ok) return res.status(response.status === 403 ? 403 : 400).json({ error: 'google_form_fetch_failed', message: response.status === 403 ? 'บัญชี Google นี้ไม่มีสิทธิ์อ่านแบบฟอร์ม หรือแบบฟอร์มไม่ใช่ Quiz' : 'ไม่สามารถอ่าน Google Forms นี้ได้' });

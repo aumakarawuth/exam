@@ -4,6 +4,7 @@ const { formIdFrom, parseGoogleForm } = require('../src/google-forms');
 
 test('extracts a form id from a Google Forms edit URL', () => {
   assert.equal(formIdFrom('https://docs.google.com/forms/d/abc_123-XYZ/edit'), 'abc_123-XYZ');
+  assert.equal(formIdFrom('https://docs.google.com/forms/d/e/1FAIpQLSeHJXXwTemyxZx6atCL81MIV-NppaPoSjVDUrjAFl-YT9V_CA/viewform'), null);
   assert.equal(formIdFrom('not a form'), null);
 });
 

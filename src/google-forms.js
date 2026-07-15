@@ -1,5 +1,6 @@
 function formIdFrom(value) {
   const text = String(value || '').trim();
+  if (/forms\/d\/e\//.test(text)) return null;
   const match = text.match(/forms\/d\/([a-zA-Z0-9_-]+)/) || text.match(/^([a-zA-Z0-9_-]+)$/);
   return match ? match[1] : null;
 }
