@@ -23,6 +23,12 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     res.json({ studentId: student.studentId, hasPin: Boolean(student.pinHash) });
   });
 
+  app.get('/api/student/session', requireStudent, (req, res) => {
+    const student = findStudent(readDB().students, req.studentId);
+    if (!student) return res.status(401).json({ error: 'unauthorized' });
+    res.json({ student: publicStudent(student) });
+  });
+
   app.post('/api/students/:studentId/set-pin', async (req, res) => {
     const db = readDB();
     const student = findStudent(db.students, req.params.studentId);

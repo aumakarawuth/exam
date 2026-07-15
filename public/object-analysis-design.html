@@ -366,7 +366,7 @@ button{font-family:inherit;cursor:pointer;}
     <div class="final-list" id="finalList"></div>
     <div class="start-actions">
       <button class="btn btn-ghost" id="redownloadBtn" style="display:none;">ดาวน์โหลด PDF คำตอบ</button>
-      <button class="btn btn-primary" id="restartAllBtn">เริ่มทำข้อสอบใหม่ทั้งหมด</button>
+      <button class="btn btn-primary" id="restartAllBtn">เลือกวิชาอื่น</button>
     </div>
   </div>
 </div>
@@ -1854,7 +1854,7 @@ document.getElementById('redownloadBtn').addEventListener('click', ()=>{
   else alert('กำลังสร้างไฟล์ PDF กรุณาลองอีกครั้ง');
 });
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
-  location.reload();
+  location.href='/?continue=1';
 });
 
 let submittedToBackend = false;

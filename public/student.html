@@ -365,7 +365,7 @@ button{font-family:inherit;cursor:pointer;}
     <div class="final-list" id="finalList"></div>
     <div class="start-actions">
       <span></span>
-      <button class="btn btn-primary" id="restartAllBtn">ออกจากระบบ</button>
+      <button class="btn btn-primary" id="restartAllBtn">เลือกวิชาอื่น</button>
     </div>
   </div>
 </div>
@@ -1172,11 +1172,10 @@ async function finalizeExam(reason){
 }
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   clearSessionData();
-  sessionStorage.removeItem('examStudentToken');
-  hideAllTopScreens(); startScreen.classList.remove('hidden');
-  app = {studentId:null, studentName:'', classRoom:'', studentToken:'', questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
+  app = {studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, studentToken:app.studentToken, questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
   state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0, integrityEvents:[]};
   draftAnswers = {mc:{}, matching:{}, written:{}};
+  proceedToSelectScreen();
 });
 
 /* ============ RESUME AFTER REFRESH ============ */
@@ -1235,8 +1234,27 @@ function showToast(msg){
   setTimeout(()=>t.remove(), 2800);
 }
 
+async function continueVerifiedStudent(){
+  if(new URLSearchParams(location.search).get('continue')!=='1' || !app.studentToken) return false;
+  try{
+    const result = await apiFetch('/api/student/session');
+    app.studentId = result.student.studentId;
+    app.studentName = result.student.firstName+' '+result.student.lastName;
+    app.classRoom = result.student.classRoom;
+    history.replaceState({},'',location.pathname);
+    await proceedToSelectScreen();
+    return true;
+  }catch(e){
+    sessionStorage.removeItem('examStudentToken');
+    app.studentToken = '';
+    return false;
+  }
+}
+
 /* ============ INIT ============ */
-if(!attemptResumeSession()){ startScreen.classList.remove('hidden'); }
+if(!attemptResumeSession()){
+  continueVerifiedStudent().then(continued=>{ if(!continued) startScreen.classList.remove('hidden'); });
+}
 
 })();
 </script>
