@@ -15,5 +15,8 @@ module.exports = {
   // New Supabase secret keys replace legacy service-role keys. Keep the fallback for older projects.
   SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET || 'exam-assets',
+  GOOGLE_FORMS_CLIENT_ID: process.env.GOOGLE_FORMS_CLIENT_ID || '',
+  GOOGLE_FORMS_CLIENT_SECRET: process.env.GOOGLE_FORMS_CLIENT_SECRET || '',
+  GOOGLE_FORMS_REDIRECT_URI: process.env.GOOGLE_FORMS_REDIRECT_URI || '',
   EXAM_TYPES: ['กลางภาค', 'ปลายภาค']
 };

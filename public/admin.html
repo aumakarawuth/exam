@@ -376,6 +376,8 @@ async function apiUploadQuestionAsset(file){
   if(!response.ok) throw new Error(body.message||'อัปโหลดไฟล์ไม่สำเร็จ');
   return body;
 }
+async function apiStartGoogleForms(){ return apiFetch('/api/admin/google-forms/start', { method:'POST', admin:true }); }
+async function apiPreviewGoogleForm(connectionId, formUrl){ return apiFetch('/api/admin/google-forms/preview', { method:'POST', body:{formUrl}, headers:{'x-google-forms-connection':connectionId}, admin:true }); }
 async function apiCreateSet(set){ return apiFetch('/api/sets', { method:'POST', body:set, admin:true }); }
 async function apiUpdateSet(key, set){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'PUT', body:set, admin:true }); }
 async function apiDuplicateSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', admin:true }); }
@@ -1046,6 +1048,8 @@ function renderMcPanel(){
       <div class="editor-actions"><button class="btn btn-ghost btn-sm" id="previewMcImportBtn" type="button">ตรวจรูปแบบ</button><button class="btn btn-primary btn-sm" id="applyMcImportBtn" type="button" disabled>เพิ่มข้อที่ตรวจแล้ว</button></div>
       <div class="mc-import-preview" id="mcImportPreview"></div>
     </div>
+    <button class="add-row-btn" id="toggleGoogleFormsImportBtn" type="button" style="margin-top:8px;border-color:#34A853;color:#16733B;">🟢 นำเข้าข้อปรนัยจาก Google Forms</button>
+    <div class="mc-import-box hidden" id="googleFormsImportBox"><h4>นำเข้าจาก Google Forms</h4><p id="googleFormsConnectionNote">เชื่อมต่อบัญชี Google ที่เป็นเจ้าของหรือมีสิทธิ์แก้ไขแบบฟอร์มก่อน</p><div class="editor-actions"><button class="btn btn-ghost btn-sm" id="connectGoogleFormsBtn" type="button">เชื่อมต่อ Google</button></div><input id="googleFormsUrl" type="url" placeholder="วางลิงก์ Google Forms เช่น .../forms/d/FORM_ID/edit"><div class="editor-actions"><button class="btn btn-ghost btn-sm" id="previewGoogleFormsBtn" type="button">ตรวจสอบแบบฟอร์ม</button><button class="btn btn-primary btn-sm" id="applyGoogleFormsBtn" type="button" disabled>นำเข้าข้อที่รองรับ</button></div><div class="mc-import-preview" id="googleFormsPreview"></div></div>
     <div class="editor-actions"><button class="btn btn-primary" id="saveSetFromMcBtn" type="button">💾 บันทึกชุดข้อสอบ</button></div>
     <div id="mcEditorSlot"></div>
   </div>`;
@@ -1057,8 +1061,29 @@ function renderMcPanel(){
   document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
   bindQuestionBankEvents();
   bindMcImportEvents();
+  bindGoogleFormsImportEvents();
   document.getElementById('saveSetFromMcBtn').addEventListener('click', saveEditingSet);
   renderOpenEditorIfNeeded('mc');
+}
+let googleFormsConnectionId = null;
+let googleFormsPreview = null;
+window.addEventListener('message', event=>{
+  if(event.origin!==window.location.origin || event.data?.type!=='google-forms-connected') return;
+  googleFormsConnectionId=event.data.connectionId;
+  const note=document.getElementById('googleFormsConnectionNote'); if(note) note.textContent='เชื่อมต่อ Google แล้ว — วางลิงก์แบบทดสอบเพื่อเริ่มตรวจสอบ';
+  showToast('เชื่อมต่อ Google สำเร็จ');
+});
+function bindGoogleFormsImportEvents(){
+  const box=document.getElementById('googleFormsImportBox');
+  document.getElementById('toggleGoogleFormsImportBtn').addEventListener('click', ()=>box.classList.toggle('hidden'));
+  document.getElementById('connectGoogleFormsBtn').addEventListener('click', async()=>{ try{ const result=await apiStartGoogleForms(); const popup=window.open(result.authorizationUrl,'googleFormsAuth','width=560,height=700'); if(!popup) showToast('กรุณาอนุญาตให้เปิดหน้าต่างเชื่อมต่อ Google'); }catch(error){ showToast(error.message); } });
+  document.getElementById('previewGoogleFormsBtn').addEventListener('click', async()=>{
+    const output=document.getElementById('googleFormsPreview'); const formUrl=document.getElementById('googleFormsUrl').value.trim();
+    if(!googleFormsConnectionId){ showToast('กรุณาเชื่อมต่อ Google ก่อน'); return; } if(!formUrl){ showToast('กรุณาวางลิงก์ Google Forms'); return; }
+    output.textContent='กำลังตรวจสอบแบบฟอร์ม...';
+    try{ googleFormsPreview=await apiPreviewGoogleForm(googleFormsConnectionId,formUrl); document.getElementById('applyGoogleFormsBtn').disabled=!googleFormsPreview.questions.length; output.innerHTML=`<span class="ok">พบข้อที่นำเข้าได้ ${googleFormsPreview.questions.length} ข้อ</span>${googleFormsPreview.skipped.length?`<br><span class="bad">ข้าม ${googleFormsPreview.skipped.length} ข้อ: ${googleFormsPreview.skipped.map(item=>escapeHtml(item.title+' — '+item.reason)).join(' · ')}</span>`:''}`; }catch(error){ googleFormsPreview=null; document.getElementById('applyGoogleFormsBtn').disabled=true; output.textContent=error.message; }
+  });
+  document.getElementById('applyGoogleFormsBtn').addEventListener('click', ()=>{ if(!googleFormsPreview?.questions.length) return; editingSet.sections.mc.questions.push(...googleFormsPreview.questions.map(question=>({id:uid('mc'),text:question.text,choices:question.choices.slice(),answer:question.answer,points:0}))); applyPointDistribution('mc'); renderMcPanel(); showToast(`นำเข้าจาก Google Forms ${googleFormsPreview.questions.length} ข้อแล้ว`); });
 }
 function bindQuestionBankEvents(){
   document.getElementById('saveMcToBankBtn').addEventListener('click', async ()=>{

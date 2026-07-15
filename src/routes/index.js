@@ -11,6 +11,7 @@ const { registerExportRoutes } = require('./exports');
 const { registerObjectAnalysisRoutes } = require('./object-analysis');
 const { registerQuestionBankRoutes } = require('./question-bank');
 const { registerAssetRoutes } = require('./assets');
+const { registerGoogleFormsRoutes } = require('./google-forms');
 
 function registerRoutes(app, dependencies) {
   registerAccountRoutes(app, dependencies);
@@ -26,6 +27,7 @@ function registerRoutes(app, dependencies) {
   registerObjectAnalysisRoutes(app, dependencies);
   registerQuestionBankRoutes(app, dependencies);
   registerAssetRoutes(app, dependencies);
+  registerGoogleFormsRoutes(app, dependencies);
 }
 
 module.exports = { registerRoutes };
