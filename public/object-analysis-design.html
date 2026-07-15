@@ -599,7 +599,7 @@ const LEVEL_TITLES = {0:'Level 0 — Context Diagram', 1:'Level 1 — แตก 
 
 /* ============ APP / SESSION STATE ============ */
 let app = {
-  studentId: null, studentName: '', classRoom: '', questionKey: null,
+  studentId: null, studentName: '', classRoom: '', studentToken: sessionStorage.getItem('examStudentToken') || '', questionKey: null,
   level: null,          // currently open level, null when at hub
   attempts: {0:null, 1:null, 2:null},
   timeLeft: 60*60, examEndTime: null, tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, reloadCount: 0, integrityEvents: [],
@@ -1864,20 +1864,16 @@ async function submitObjectAnalysisResult(){
     const attempt = app.attempts[level];
     return { level, score: attempt ? attempt.best.result.total : 0, shapes: attempt ? attempt.latest.shapes : [], connections: attempt ? attempt.latest.connections : [] };
   });
-  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom, levels, tabSwitches: app.tabSwitches, fullscreenExitAttempts: app.fullscreenExitAttempts, reloadCount: app.reloadCount, integrityEvents: app.integrityEvents }) });
+  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json','x-student-token':app.studentToken}, body:JSON.stringify({ levels, tabSwitches: app.tabSwitches, fullscreenExitAttempts: app.fullscreenExitAttempts, reloadCount: app.reloadCount, integrityEvents: app.integrityEvents }) });
   if(!response.ok){ const body = await response.json().catch(()=>({})); throw new Error(body.message || 'ไม่สามารถบันทึกคำตอบได้'); }
   submittedToBackend = true;
 }
 window.startObjectAnalysisExam = async function(student){
+  app.studentToken = sessionStorage.getItem('examStudentToken') || '';
   try {
-    const response = await fetch('/api/students/' + encodeURIComponent(student.studentId) + '/results');
-    if(!response.ok) throw new Error('ไม่สามารถตรวจสอบสิทธิ์เข้าสอบได้');
-    const results = await response.json();
-    if(results.some(result => result.questionKey === 'object_analysis_design_dfd')){
-      if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
-      alert('รหัสนักเรียนนี้ทำข้อสอบ Data Flow Diagram ไปแล้ว จึงไม่สามารถเริ่มทำซ้ำได้');
-      return false;
-    }
+    const response = await fetch('/api/object-analysis/access', { headers:{'x-student-token':app.studentToken} });
+    const body = await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(body.message || 'ไม่สามารถตรวจสอบสิทธิ์เข้าสอบได้');
   } catch(error) {
     if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
     alert(error.message || 'ไม่สามารถตรวจสอบสิทธิ์เข้าสอบได้ กรุณาลองใหม่อีกครั้ง');
@@ -1902,7 +1898,7 @@ function attemptResumeDfdSession(){
 
   QUESTIONS.coffee.title = 'การวิเคราะห์และออกแบบเชิงวัตถุ: Data Flow Diagram';
   QUESTIONS.coffee.tagline = 'Object Analysis & Design';
-  app.studentId=saved.studentId; app.studentName=saved.studentName||''; app.classRoom=saved.classRoom||'';
+  app.studentId=saved.studentId; app.studentName=saved.studentName||''; app.classRoom=saved.classRoom||''; app.studentToken=sessionStorage.getItem('examStudentToken')||'';
   app.questionKey='coffee'; app.attempts=saved.attempts||{0:null,1:null,2:null}; app.examEndTime=saved.examEndTime;
   app.timeLeft=remaining; app.tabSwitches=saved.tabSwitches||0; app.tabWarningAcknowledged=saved.tabWarningAcknowledged||0; app.fullscreenExitAttempts=saved.fullscreenExitAttempts||0; app.reloadCount=(saved.reloadCount||0)+1; app.examEnded=false;
   app.integrityEvents=Array.isArray(saved.integrityEvents)?saved.integrityEvents:[]; recordDfdIntegrityEvent('reload');
@@ -1956,7 +1952,7 @@ attemptResumeDfdSession();
     window.requestDfdFullscreen?.();
     const pin = document.getElementById('sharedPin').value.trim(); const confirmPin = document.getElementById('sharedPinConfirm').value.trim(); const error = document.getElementById('sharedPinSetupError');
     if (!/^\d{4,6}$/.test(pin) || pin !== confirmPin) { error.textContent = 'กรอก PIN ตัวเลข 4-6 หลักให้ตรงกัน'; error.style.display = 'block'; return; }
-    try { await request('/api/students/' + encodeURIComponent(student.studentId) + '/set-pin', {method:'POST', body:{pin}}); show('startScreen'); window.startObjectAnalysisExam(student); }
+    try { const result=await request('/api/students/' + encodeURIComponent(student.studentId) + '/set-pin', {method:'POST', body:{pin}}); student=result.student; sessionStorage.setItem('examStudentToken', result.token); show('startScreen'); window.startObjectAnalysisExam(student); }
     catch (err) { error.textContent = err.message; error.style.display = 'block'; }
   });
   document.getElementById('sharedPinVerifyNext').addEventListener('click', async () => {
@@ -1965,7 +1961,7 @@ attemptResumeDfdSession();
     try {
       const result = await request('/api/students/' + encodeURIComponent(student.studentId) + '/verify-pin', {method:'POST', body:{pin:document.getElementById('sharedPinVerify').value.trim()}});
       if (!result.ok) throw new Error(result.locked ? 'PIN ถูกล็อก กรุณาติดต่อผู้ดูแลระบบ' : `PIN ไม่ถูกต้อง (เหลือ ${result.remainingAttempts} ครั้ง)`);
-      show('startScreen'); window.startObjectAnalysisExam(student);
+      student=result.student; sessionStorage.setItem('examStudentToken', result.token); show('startScreen'); window.startObjectAnalysisExam(student);
     } catch (err) { error.textContent = err.message; error.style.display = 'block'; }
   });
 })();

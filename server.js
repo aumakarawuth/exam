@@ -11,23 +11,20 @@
        /admin   -> public/admin.html    (teachers / admin)
    ====================================================================== */
 require('dotenv').config();
-const crypto = require('crypto');
 const express = require('express');
 const XLSX = require('xlsx');
 const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR } = require('./src/config');
 const { readDB, writeDB, databaseReady } = require('./src/database');
-const { hashPassword, verifyPassword, requireTeacher, requireAdmin, createTeacherSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
+const { hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
 const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
 const { registerPages, registerFallback } = require('./src/pages');
 const { registerRoutes } = require('./src/routes');
 const { buildResultsWorkbook: buildResultsWorkbookModule } = require('./src/results-workbook');
 const { applySecurityHeaders } = require('./src/security');
+const { newId } = require('./src/ids');
 
 if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
-}
-function newId(prefix) {
-  return prefix + '_' + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex');
 }
 /* Seed one example exam set (full score = 20) + example students on first run */
 async function seedIfEmpty() {
@@ -89,6 +86,7 @@ const seedReady = seedIfEmpty();
 
 /* ---------------------------- APP SETUP ---------------------------- */
 const app = express();
+app.ready = Promise.all([databaseReady, seedReady]);
 // Railway sits behind a reverse proxy; trust its first hop so login rate limits use the visitor IP.
 app.set('trust proxy', 1);
 app.use(applySecurityHeaders);
@@ -97,7 +95,7 @@ app.use(express.json({ limit: '2mb' }));
 /* ---------------------------- PAGES ---------------------------- */
 registerPages(app, PUBLIC_DIR, express);
 
-registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, createTeacherSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule });
+registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule });
 
 if (false) { // Legacy student routes moved to src/routes/students.js.
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */

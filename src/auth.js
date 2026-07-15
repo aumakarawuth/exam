@@ -17,6 +17,8 @@ function verifyPassword(password, stored) {
 
 const teacherSessions = new Map();
 const TEACHER_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const studentSessions = new Map();
+const STUDENT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
 function requireTeacher(req, res, next) {
   const token = req.get('x-teacher-token');
@@ -38,9 +40,27 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireStudent(req, res, next) {
+  const token = req.get('x-student-token');
+  const session = token && studentSessions.get(token);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) studentSessions.delete(token);
+    return res.status(401).json({ error: 'unauthorized', message: 'Student session expired. Please sign in again.' });
+  }
+  session.expiresAt = Date.now() + STUDENT_SESSION_TTL_MS;
+  req.studentId = session.studentId;
+  next();
+}
+
 function createTeacherSession(teacherId) {
   const token = crypto.randomBytes(24).toString('hex');
   teacherSessions.set(token, { teacherId, expiresAt: Date.now() + TEACHER_SESSION_TTL_MS });
+  return token;
+}
+
+function createStudentSession(studentId) {
+  const token = crypto.randomBytes(24).toString('hex');
+  studentSessions.set(token, { studentId, expiresAt: Date.now() + STUDENT_SESSION_TTL_MS });
   return token;
 }
 
@@ -51,6 +71,7 @@ function removeTeacherSessions(teacherId) {
 }
 
 module.exports = {
-  hashPassword, verifyPassword, requireTeacher, requireAdmin,
-  createTeacherSession, removeTeacherSessions, teacherSessions, TEACHER_SESSION_TTL_MS
+  hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent,
+  createTeacherSession, createStudentSession, removeTeacherSessions,
+  teacherSessions, studentSessions, TEACHER_SESSION_TTL_MS, STUDENT_SESSION_TTL_MS
 };

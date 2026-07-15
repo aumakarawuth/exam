@@ -1,8 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+process.env.NODE_ENV = 'test';
 const app = require('../server');
 const { ADMIN_KEY } = require('../src/config');
+const { readDB, databaseReady } = require('../src/database');
+const { createStudentSession } = require('../src/auth');
+
+async function studentHeaders() {
+  await Promise.all([databaseReady, app.ready]);
+  const student = readDB().students[0];
+  return { 'x-student-token': createStudentSession(student.studentId) };
+}
 
 function request(path, { method = 'GET', headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
@@ -30,6 +39,11 @@ test('public exam types endpoint remains available', async () => {
   assert.equal(response.headers['x-frame-options'], 'DENY');
 });
 
+test('exam sets require a verified student session', async () => {
+  const response = await request('/api/sets');
+  assert.equal(response.status, 401);
+});
+
 test('admin routes reject requests without an admin key', async () => {
   const response = await request('/api/admin/sets');
   assert.equal(response.status, 401);
@@ -54,13 +68,13 @@ test('teacher results require a teacher session', async () => {
 });
 
 test('submissions reject a missing student or exam identifier', async () => {
-  const response = await request('/api/results', { method: 'POST', body: {} });
+  const response = await request('/api/results', { method: 'POST', headers: await studentHeaders(), body: {} });
   assert.equal(response.status, 400);
   assert.equal(JSON.parse(response.body).error, 'invalid_payload');
 });
 
 test('public exam data never includes answer keys', async () => {
-  const response = await request('/api/sets');
+  const response = await request('/api/sets', { headers: await studentHeaders() });
   assert.equal(response.status, 200);
   const sets = JSON.parse(response.body);
   for (const set of sets) {
@@ -105,13 +119,13 @@ test('result deletion requires administrator authentication', async () => {
 });
 
 test('late-access verification rejects an unknown exam set', async () => {
-  const response = await request('/api/sets/unknown-set/verify-late-code', { method: 'POST', body: { code: 'anything' } });
+  const response = await request('/api/sets/unknown-set/verify-late-code', { method: 'POST', headers: await studentHeaders(), body: { code: 'anything' } });
   assert.equal(response.status, 404);
   assert.equal(JSON.parse(response.body).ok, false);
 });
 
 test('submissions reject an unknown exam set', async () => {
-  const response = await request('/api/results', { method: 'POST', body: { studentId: '10001', questionKey: 'unknown-set' } });
+  const response = await request('/api/results', { method: 'POST', headers: await studentHeaders(), body: { questionKey: 'unknown-set' } });
   assert.equal(response.status, 404);
   assert.equal(JSON.parse(response.body).error, 'not_found');
 });

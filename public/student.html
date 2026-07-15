@@ -402,6 +402,7 @@ const API_BASE = '';
 async function apiFetch(path, options){
   options = options || {};
   const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
+  if(app.studentToken) headers['x-student-token'] = app.studentToken;
   let res;
   try{
     res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
@@ -417,7 +418,7 @@ async function apiFetch(path, options){
 async function apiLookupStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id)); }
 async function apiSetPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/set-pin', { method:'POST', body:{pin} }); }
 async function apiVerifyPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/verify-pin', { method:'POST', body:{pin} }); }
-async function apiGetEligibleSets(classRoom){ return apiFetch('/api/sets?classRoom='+encodeURIComponent(classRoom)); }
+async function apiGetEligibleSets(){ return apiFetch('/api/sets'); }
 async function apiSubmitResult(record){ return apiFetch('/api/results', { method:'POST', body:record }); }
 async function apiGetMyResults(studentId){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/results'); }
 
@@ -427,7 +428,7 @@ const SECTION_ICON = {mc:'📝', matching:'🔗', written:'✍️'};
 
 /* ============ APP / SESSION STATE ============ */
 let app = {
-  studentId: null, studentName: '', classRoom: '',
+  studentId: null, studentName: '', classRoom: '', studentToken: sessionStorage.getItem('examStudentToken') || '',
   questionKey: null, section: null, lateCode: null,
   submittedSections: {mc:false, matching:false, written:false},
   mcState: null, /* {forKey, order:[qid...], choiceOrder:{qid:[origIdx...]}, currentIndex} */
@@ -437,6 +438,13 @@ let app = {
 let state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0, integrityEvents: [] };
 let draftAnswers = { mc:{}, matching:{}, written:{} };
 let ELIGIBLE_SETS = [];
+function setStudentSession(result){
+  app.studentToken = result.token;
+  app.studentId = result.student.studentId;
+  app.studentName = result.student.firstName + ' ' + result.student.lastName;
+  app.classRoom = result.student.classRoom;
+  sessionStorage.setItem('examStudentToken', result.token);
+}
 let ELIGIBLE_SETS_BY_KEY = {};
 function currentQuestion(){ return ELIGIBLE_SETS_BY_KEY[app.questionKey]; }
 
@@ -630,8 +638,6 @@ async function tryLogin(){
   try{
     const student = await apiLookupStudent(val);
     app.studentId = student.studentId;
-    app.studentName = student.firstName + ' ' + student.lastName;
-    app.classRoom = student.classRoom;
     hideAllTopScreens();
     const screen = student.hasPin ? pinVerifyScreen : pinSetupScreen;
     screen.classList.remove('hidden');
@@ -658,7 +664,7 @@ document.getElementById('pinSetupConfirmBtn').addEventListener('click', async ()
   if(!/^\d{4,6}$/.test(pin)){ error.textContent='PIN ต้องเป็นตัวเลข 4-6 หลัก'; error.style.display='block'; return; }
   if(pin !== confirmPin){ error.textContent='PIN ทั้งสองช่องไม่ตรงกัน'; error.style.display='block'; return; }
   const button = document.getElementById('pinSetupConfirmBtn'); button.disabled=true;
-  try{ await apiSetPin(app.studentId, pin); error.style.display='none'; await proceedToSelectScreen(); }
+  try{ setStudentSession(await apiSetPin(app.studentId, pin)); error.style.display='none'; await proceedToSelectScreen(); }
   catch(e){ error.textContent=e.message; error.style.display='block'; }
   button.disabled=false;
 });
@@ -671,7 +677,7 @@ document.getElementById('pinVerifyConfirmBtn').addEventListener('click', async (
   const button = document.getElementById('pinVerifyConfirmBtn'); button.disabled=true;
   try{
     const result = await apiVerifyPin(app.studentId, pin);
-    if(result.ok){ error.style.display='none'; await proceedToSelectScreen(); }
+    if(result.ok){ setStudentSession(result); error.style.display='none'; await proceedToSelectScreen(); }
     else { error.textContent=result.locked ? 'PIN ถูกล็อก กรุณาติดต่อผู้ดูแลระบบ' : `PIN ไม่ถูกต้อง (เหลือ ${result.remainingAttempts} ครั้ง)`; error.style.display='block'; }
   }catch(e){ error.textContent=e.message; error.style.display='block'; }
   button.disabled=false;
@@ -682,7 +688,7 @@ let pickedKey = null;
 let COMPLETED_KEYS = new Set();
 async function refreshSelectScreen(){
   document.getElementById('qgridWrap').innerHTML = '<div class="loading-note">กำลังโหลดรายวิชา...</div>';
-  try{ ELIGIBLE_SETS = await apiGetEligibleSets(app.classRoom); }
+  try{ ELIGIBLE_SETS = await apiGetEligibleSets(); }
   catch(e){ document.getElementById('qgridWrap').innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
   ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
   try{
@@ -1166,8 +1172,9 @@ async function finalizeExam(reason){
 }
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   clearSessionData();
+  sessionStorage.removeItem('examStudentToken');
   hideAllTopScreens(); startScreen.classList.remove('hidden');
-  app = {studentId:null, studentName:'', classRoom:'', questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
+  app = {studentId:null, studentName:'', classRoom:'', studentToken:'', questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
   state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0, integrityEvents:[]};
   draftAnswers = {mc:{}, matching:{}, written:{}};
 });

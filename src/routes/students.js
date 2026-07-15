@@ -1,8 +1,9 @@
 const express = require('express');
 const XLSX = require('xlsx');
 
-function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, hashPassword, verifyPassword }) {
+function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
+  const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom });
 
   app.get('/api/students/export.xlsx', requireAdmin, (req, res) => {
     const rows = readDB().students
@@ -19,7 +20,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, hashPasswor
   app.get('/api/students/:studentId', (req, res) => {
     const student = findStudent(readDB().students, req.params.studentId);
     if (!student) return res.status(404).json({ error: 'not_found', message: 'ไม่พบรหัสนักเรียนนี้ในระบบ' });
-    res.json({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, hasPin: Boolean(student.pinHash) });
+    res.json({ studentId: student.studentId, hasPin: Boolean(student.pinHash) });
   });
 
   app.post('/api/students/:studentId/set-pin', async (req, res) => {
@@ -32,7 +33,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, hashPasswor
     student.pinHash = hashPassword(pin);
     student.pinFailedAttempts = 0;
     await writeDB(db);
-    res.json({ ok: true });
+    res.json({ ok: true, token: createStudentSession(student.studentId), student: publicStudent(student) });
   });
 
   app.post('/api/students/:studentId/verify-pin', async (req, res) => {
@@ -46,7 +47,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, hashPasswor
     if (verifyPassword(pin, student.pinHash)) {
       student.pinFailedAttempts = 0;
       await writeDB(db);
-      return res.json({ ok: true });
+      return res.json({ ok: true, token: createStudentSession(student.studentId), student: publicStudent(student) });
     }
     student.pinFailedAttempts = (student.pinFailedAttempts || 0) + 1;
     await writeDB(db);
@@ -64,7 +65,8 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, hashPasswor
     res.json({ ok: true });
   });
 
-  app.get('/api/students/:studentId/results', (req, res) => {
+  app.get('/api/students/:studentId/results', requireStudent, (req, res) => {
+    if (req.studentId !== req.params.studentId.trim()) return res.status(403).json({ error: 'forbidden', message: 'No access to this student result.' });
     const results = readDB().results.filter(result => result.studentId === req.params.studentId.trim()).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).map(result => ({ questionKey: result.questionKey, questionTitle: result.questionTitle, examType: result.examType, submittedAt: result.submittedAt, published: !!result.published, overallScore20: result.published ? result.overallScore20 : null, sectionScores: result.published ? result.sectionScores : null }));
     res.json(results);
   });
