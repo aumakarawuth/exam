@@ -22,6 +22,7 @@ button{font-family:inherit;cursor:pointer;}
 .btn-primary{background:var(--blue);color:#fff;box-shadow:0 8px 20px -8px rgba(37,99,235,.6);}
 .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);}
 .btn-primary:disabled{background:var(--sub);box-shadow:none;cursor:not-allowed;transform:none;}
+.button-spinner{width:15px;height:15px;display:inline-block;vertical-align:-2px;margin-right:7px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:buttonSpin .7s linear infinite;}@keyframes buttonSpin{to{transform:rotate(360deg)}}
 .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
 .btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
 .btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);}
@@ -1371,7 +1372,15 @@ function renderOpenEditorIfNeeded(section){
   bindEditorPanelEvents(section, openQEditor.index);
 }
 
+let isSavingSet = false;
+function setSetSaveButtonsLoading(loading){
+  document.querySelectorAll('#wizSaveBtn,#saveSetFromMcBtn').forEach(button=>{
+    button.disabled=loading;
+    button.innerHTML=loading?'<span class="button-spinner"></span>กำลังบันทึก...':'💾 บันทึกชุดข้อสอบ';
+  });
+}
 async function saveEditingSet(){
+  if(isSavingSet) return;
   const s = editingSet;
   if(!editingUiEnabled.matching) Object.assign(s.sections.matching, {left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0});
   if(!editingUiEnabled.written) Object.assign(s.sections.written, {questions:[], sectionPointsTotal:0});
@@ -1383,16 +1392,18 @@ async function saveEditingSet(){
     if(!confirm(`คะแนนเต็มรวมขณะนี้คือ ${total} คะแนน ไม่เท่ากับ 20 พอดี ต้องการบันทึกต่อหรือไม่?`)) return;
   }
 
-  const saveBtn = document.getElementById('wizSaveBtn');
-  if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...'; }
+  isSavingSet = true;
+  setSetSaveButtonsLoading(true);
   try{
     if(editingIsNew) await apiCreateSet(s); else await apiUpdateSet(s.key, s);
     ADMIN_SETS = await apiGetAdminSets();
+    isSavingSet = false;
     closeEditor(); renderSetList(); populateSetFilterOptions();
     showToast('บันทึกชุดข้อสอบเรียบร้อยแล้ว นักเรียนในห้องที่กำหนดจะเห็นวิชานี้ทันที');
   }catch(e){
     showToast(e.message);
-    if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = '💾 บันทึกชุดข้อสอบ'; }
+    isSavingSet = false;
+    setSetSaveButtonsLoading(false);
   }
 }
 
