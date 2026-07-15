@@ -1,0 +1,52 @@
+const XLSX = require('xlsx');
+
+const round = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const difficultyLabel = value => value < .2 ? 'ยากมาก' : value < .4 ? 'ยาก' : value < .6 ? 'ปานกลาง' : value < .8 ? 'ง่าย' : 'ง่ายมาก';
+const discriminationLabel = value => value >= .4 ? 'ดีมาก' : value >= .2 ? 'พอใช้' : value >= 0 ? 'ควรปรับปรุง' : 'ผิดปกติ';
+
+function buildQuestionAnalysis(set, results) {
+  const questions = set?.sections?.mc?.questions || [];
+  const answered = results.filter(row => row?.detail?.answers?.mc && typeof row.detail.answers.mc === 'object');
+  const responseScores = answered.map(row => ({ row, score: questions.reduce((sum, question) => sum + (String(row.detail.answers.mc[question.id]) === String(question.answer) ? 1 : 0), 0) }));
+  const groupSize = Math.max(1, Math.ceil(responseScores.length * .27));
+  const ordered = [...responseScores].sort((a, b) => b.score - a.score);
+  const upper = ordered.slice(0, groupSize);
+  const lower = ordered.slice(-groupSize);
+  const items = questions.map((question, index) => {
+    const choices = Array.isArray(question.choices) ? question.choices : [];
+    const counts = choices.map(() => 0);
+    let correctCount = 0;
+    for (const entry of responseScores) {
+      const answer = entry.row.detail.answers.mc[question.id];
+      const choiceIndex = choices.findIndex((_, itemIndex) => String(itemIndex) === String(answer));
+      if (choiceIndex >= 0) counts[choiceIndex]++;
+      if (String(answer) === String(question.answer)) correctCount++;
+    }
+    const upperCorrect = upper.filter(entry => String(entry.row.detail.answers.mc[question.id]) === String(question.answer)).length;
+    const lowerCorrect = lower.filter(entry => String(entry.row.detail.answers.mc[question.id]) === String(question.answer)).length;
+    const difficulty = responseScores.length ? correctCount / responseScores.length : 0;
+    const discrimination = responseScores.length >= 4 ? upperCorrect / groupSize - lowerCorrect / groupSize : null;
+    return { number: index + 1, text: question.text || '', choices, correctIndex: Number(question.answer), choiceCounts: counts, respondents: responseScores.length, correctCount, incorrectCount: responseScores.length - correctCount, difficulty: round(difficulty), difficultyLabel: difficultyLabel(difficulty), discrimination: discrimination === null ? null : round(discrimination), discriminationLabel: discrimination === null ? 'ข้อมูลไม่พอ' : discriminationLabel(discrimination) };
+  });
+  let reliability = null;
+  if (items.length > 1 && responseScores.length > 1) {
+    const average = responseScores.reduce((sum, entry) => sum + entry.score, 0) / responseScores.length;
+    const variance = responseScores.reduce((sum, entry) => sum + (entry.score - average) ** 2, 0) / responseScores.length;
+    const sumPq = items.reduce((sum, item) => sum + item.difficulty * (1 - item.difficulty), 0);
+    if (variance > 0) reliability = round((items.length / (items.length - 1)) * (1 - sumPq / variance));
+  }
+  return { setKey: set?.key || '', title: set?.title || '', respondents: responseScores.length, questionCount: items.length, reliability, items };
+}
+
+function buildQuestionAnalysisWorkbook(analysis) {
+  const workbook = XLSX.utils.book_new();
+  const summary = [{ 'ชุดข้อสอบ': analysis.title, 'จำนวนผู้เข้าสอบ': analysis.respondents, 'จำนวนข้อปรนัย': analysis.questionCount, 'ความเชื่อมั่น KR-20': analysis.reliability ?? 'ข้อมูลไม่พอ' }];
+  const items = analysis.items.map(item => ({ 'ข้อ': item.number, 'คำถาม': item.text, 'ผู้ตอบ': item.respondents, 'ตอบถูก': item.correctCount, 'ตอบผิด': item.incorrectCount, 'ค่าความยาก (P)': item.difficulty, 'แปลผลความยาก': item.difficultyLabel, 'อำนาจจำแนก (D)': item.discrimination ?? 'ข้อมูลไม่พอ', 'แปลผลอำนาจจำแนก': item.discriminationLabel, 'เฉลย': item.choices[item.correctIndex] || '' }));
+  const choices = analysis.items.flatMap(item => item.choices.map((choice, index) => ({ 'ข้อ': item.number, 'คำถาม': item.text, 'ตัวเลือก': String.fromCharCode(65 + index), 'ข้อความตัวเลือก': choice, 'จำนวนผู้เลือก': item.choiceCounts[index] || 0, 'ร้อยละ': item.respondents ? round((item.choiceCounts[index] || 0) / item.respondents * 100) : 0, 'เป็นคำตอบที่ถูก': index === item.correctIndex ? 'ใช่' : 'ไม่' })));
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summary), 'สรุป');
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(items), 'วิเคราะห์รายข้อ');
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(choices), 'การเลือกตัวเลือก');
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+}
+
+module.exports = { buildQuestionAnalysis, buildQuestionAnalysisWorkbook };

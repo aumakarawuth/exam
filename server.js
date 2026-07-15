@@ -20,6 +20,7 @@ const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeSt
 const { registerPages, registerFallback } = require('./src/pages');
 const { registerRoutes } = require('./src/routes');
 const { buildResultsWorkbook: buildResultsWorkbookModule } = require('./src/results-workbook');
+const { buildQuestionAnalysis, buildQuestionAnalysisWorkbook } = require('./src/question-analysis');
 const { applySecurityHeaders } = require('./src/security');
 const { newId } = require('./src/ids');
 const { createAssetStorage } = require('./src/asset-storage');
@@ -98,7 +99,7 @@ registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
 console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
-registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule, assetStorage, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
+registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
 
 if (false) { // Legacy student routes moved to src/routes/students.js.
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */

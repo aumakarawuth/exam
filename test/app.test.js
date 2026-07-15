@@ -100,6 +100,21 @@ test('admin result export returns an Excel workbook', async () => {
   assert.ok(response.body.length > 0);
 });
 
+test('question analysis requires admin access and exports an Excel workbook', async () => {
+  await Promise.all([databaseReady, app.ready]);
+  const setKey = readDB().sets[0].key;
+  const denied = await request('/api/question-analysis?setKey=' + encodeURIComponent(setKey));
+  assert.equal(denied.status, 401);
+  const [analysis, workbook] = await Promise.all([
+    request('/api/question-analysis?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } }),
+    request('/api/export/question-analysis.xlsx?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } })
+  ]);
+  assert.equal(analysis.status, 200);
+  assert.ok(Array.isArray(JSON.parse(analysis.body).items));
+  assert.equal(workbook.status, 200);
+  assert.match(workbook.headers['content-type'], /spreadsheetml/);
+});
+
 test('admin set creation rejects an incomplete payload without changing data', async () => {
   const response = await request('/api/sets', { method: 'POST', headers: { 'x-admin-key': ADMIN_KEY }, body: {} });
   assert.equal(response.status, 400);
