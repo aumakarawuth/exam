@@ -145,7 +145,8 @@ button{font-family:inherit;cursor:pointer;}
 .mc-legend .dot.answered{background:rgba(22,163,74,.12);border-color:var(--green);}
 .mc-legend .dot.current{border-color:var(--blue);}
 .mc-legend .dot.todo{background:var(--grid);}
-.mc-nav-row{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:10px;}
+.mc-nav-row{margin-top:16px;}
+.mc-nav-row .btn,.mc-submit-row .btn{width:100%;justify-content:center;}
 .choice-clear-btn{margin-left:auto;background:transparent;border:none;color:var(--red);font-weight:700;font-size:14px;padding:4px 8px;border-radius:6px;flex:none;}
 .choice-clear-btn:hover{background:rgba(220,38,38,.1);}
 
@@ -1041,11 +1042,8 @@ function renderMcSection(){
       ${renderQuestionResources(qq)}
       <div class="choice-list">${choicesHtml}</div>
     </div>
-    <div class="mc-nav-row">
-      <button class="btn btn-ghost" id="mcPrevBtn" ${idx===0?'disabled':''}>← ข้อก่อนหน้า</button>
-      <button class="btn btn-ghost" id="mcNextBtn" ${isLast?'disabled':''}>ข้อถัดไป →</button>
-    </div>
-    ${isLast ? `<div class="section-actions"><button class="btn btn-primary" id="submitSectionBtn">บันทึกคำตอบส่วนนี้</button></div>` : ''}
+    ${idx>0 ? `<div class="mc-nav-row"><button class="btn btn-ghost" id="mcPrevBtn">← ข้อก่อนหน้า</button></div>` : ''}
+    ${isLast ? `<div class="section-actions mc-submit-row"><button class="btn btn-primary" id="submitSectionBtn">${isOnlyMcSection()?'ส่งข้อสอบ':'บันทึกคำตอบส่วนนี้'}</button></div>` : ''}
   `;
 
   inner.querySelectorAll('.choice-item').forEach(item=>{
@@ -1059,6 +1057,7 @@ function renderMcSection(){
       }
       draftAnswers.mc[qid] = parseInt(item.dataset.origidx,10);
       scheduleSave();
+      if(app.mcState.currentIndex < s.questions.length-1) app.mcState.currentIndex++;
       renderMcSection();
     });
   });
@@ -1066,9 +1065,7 @@ function renderMcSection(){
     btn.addEventListener('click', ()=>{ app.mcState.currentIndex = parseInt(btn.dataset.jump,10); scheduleSave(); renderMcSection(); });
   });
   const prevBtn = document.getElementById('mcPrevBtn');
-  const nextBtn = document.getElementById('mcNextBtn');
   if(prevBtn) prevBtn.addEventListener('click', ()=>{ if(app.mcState.currentIndex>0){ app.mcState.currentIndex--; scheduleSave(); renderMcSection(); } });
-  if(nextBtn) nextBtn.addEventListener('click', ()=>{ if(app.mcState.currentIndex<s.questions.length-1){ app.mcState.currentIndex++; scheduleSave(); renderMcSection(); } });
   const mcSubmitBtn = document.getElementById('submitSectionBtn');
   if(mcSubmitBtn) mcSubmitBtn.addEventListener('click', submitSection);
 }
