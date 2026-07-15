@@ -638,6 +638,9 @@ function wizardAccessStepHtml(){
     <p class="panel-sub">ถ้าไม่เพิ่มห้องใดเลย ระบบจะเปิดให้ทุกห้องสอบวิชานี้ได้ (ค่าเริ่มต้น)</p>
     <div class="chip-row" id="classChipRow"></div>
     <div class="add-chip-row">
+      <select id="classGroupSelect" class="filter-select" aria-label="เลือกห้องจากกลุ่ม">
+        ${buildGroupedClassOptions(knownClasses)}
+      </select>
       <input type="text" id="addClassInput" list="knownClassesList" placeholder="พิมพ์ชื่อห้อง เช่น ม.3/1 แล้วกดเพิ่ม">
       <datalist id="knownClassesList">${knownClasses.map(c=>`<option value="${escapeAttr(c)}">`).join('')}</datalist>
       <button class="btn btn-ghost btn-sm" id="addClassBtn" type="button">+ เพิ่มห้อง</button>
@@ -652,6 +655,30 @@ function wizardAccessStepHtml(){
     <button class="btn btn-ghost" id="wizBackBtn" type="button">← ย้อนกลับ</button>
     <button class="btn btn-primary" id="wizNextBtn" type="button">ถัดไป →</button>
   </div>`;
+}
+
+function classGroupForName(className){
+  const name=String(className||'').trim();
+  // เช่น CIT.1/5 = ปวช.1, CIT.2/5 = ปวช.2 และ สธ.242 = ปวส.2
+  if(/\.\s*1\/\d+/i.test(name)) return 'ปวช.1';
+  if(/\.\s*2\/\d+/i.test(name)) return 'ปวช.2';
+  if(/\.\s*1\d{2}\b/i.test(name)) return 'ปวส.1';
+  if(/\.\s*2\d{2}\b/i.test(name)) return 'ปวส.2';
+  if(/^ม\.\s*\d+/i.test(name)) return 'มัธยม';
+  return 'ห้องอื่น ๆ';
+}
+
+function buildGroupedClassOptions(classes){
+  const order=['ปวช.1','ปวช.2','ปวส.1','ปวส.2','มัธยม','ห้องอื่น ๆ'];
+  const groups=new Map(order.map(group=>[group,[]]));
+  [...new Set(classes||[])].sort((a,b)=>String(a).localeCompare(String(b),'th')).forEach(className=>{
+    groups.get(classGroupForName(className)).push(className);
+  });
+  return '<option value="">เลือกห้องจากกลุ่ม</option>'+order.map(group=>{
+    const rooms=groups.get(group);
+    if(!rooms.length) return '';
+    return `<optgroup label="${escapeAttr(group)}">${rooms.map(room=>`<option value="${escapeAttr(room)}">${escapeHtml(room)}</option>`).join('')}</optgroup>`;
+  }).join('');
 }
 
 /* ---------- Step 3: choose sections ---------- */
@@ -746,9 +773,13 @@ function bindWizardStepEvents(){
     renderClassChips();
     document.getElementById('addClassBtn').addEventListener('click', ()=>{
       const inp = document.getElementById('addClassInput');
-      const val = inp.value.trim();
+      const picker = document.getElementById('classGroupSelect');
+      const val = picker.value || inp.value.trim();
       if(val && !s.assignedClasses.includes(val)) s.assignedClasses.push(val);
-      inp.value=''; renderClassChips();
+      inp.value=''; picker.value=''; renderClassChips();
+    });
+    document.getElementById('classGroupSelect').addEventListener('change', (e)=>{
+      if(e.target.value) document.getElementById('addClassBtn').click();
     });
     document.getElementById('addClassInput').addEventListener('keydown', (e)=>{
       if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }

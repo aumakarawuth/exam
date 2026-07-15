@@ -846,7 +846,7 @@ document.addEventListener('visibilitychange', ()=>{
     tag.classList.add('badge-warn');
     saveDfdSession();
     if(app.tabSwitches>=4){ document.getElementById('tabWarningModal').classList.add('hidden'); forceTimeUp(); }
-  }, 250);
+  }, 80);
 });
 document.getElementById('tabWarningAckBtn').addEventListener('click', ()=>{
   app.tabWarningAcknowledged = app.tabSwitches;

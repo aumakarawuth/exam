@@ -539,7 +539,7 @@ document.addEventListener('visibilitychange', ()=>{
         document.getElementById('tabWarningModal').classList.add('hidden');
         finalizeExam('tabswitch');
       }
-    }, 250);
+    }, 80);
   } else {
     clearTimeout(tabSwitchCheckTimer);
     if(state.tabSwitches>state.tabWarningAcknowledged && state.tabSwitches<=3 && !app.examEnded){
