@@ -1055,6 +1055,8 @@ function renderMcSection(){
         renderMcSection();
         return;
       }
+      // A click on a label also triggers its radio input. Prevent the second click from advancing twice.
+      e.preventDefault();
       draftAnswers.mc[qid] = parseInt(item.dataset.origidx,10);
       scheduleSave();
       if(app.mcState.currentIndex < s.questions.length-1) app.mcState.currentIndex++;
