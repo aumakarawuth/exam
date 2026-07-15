@@ -1151,9 +1151,7 @@ function mcEditorPanelHtml(index){
 function mcResourceEditorHtml(q,isNew){
   const resources=isNew?(openQEditor.resources||(openQEditor.resources={attachments:[]})):(q.resources||(q.resources={attachments:[]}));
   const attachments=(resources.attachments||[]).map(item=>`<li>${escapeHtml(item.name||'ไฟล์แนบ')}</li>`).join('')||'<li>ยังไม่มีไฟล์แนบ</li>';
-  return `<div class="field"><label>โค้ดประกอบโจทย์ (ถ้ามี)</label><select id="qeMcCodeLanguage"><option value="">เลือกภาษา</option>${['C','C++','Java','HTML','SQL','อื่น ๆ'].map(x=>`<option ${resources.language===x?'selected':''}>${x}</option>`).join('')}</select><textarea id="qeMcCode" placeholder="วางโค้ดที่ต้องการแสดงในโจทย์">${escapeHtml(resources.code||'')}</textarea></div>
-    <div class="field"><label>ตารางประกอบโจทย์ (วางจาก Excel/CSV ได้)</label><textarea id="qeMcTable" placeholder="คอลัมน์ A,คอลัมน์ B\nข้อมูล 1,ข้อมูล 2">${escapeHtml(resources.table||'')}</textarea></div>
-    <div class="field"><label>รูปภาพหรือไฟล์แนบ (ไม่เกิน 5 MB)</label><input id="qeMcAsset" type="file" accept="image/*,.pdf,.docx,.pptx,.zip"><ul id="qeMcAssetList">${attachments}</ul></div>`;
+  return `<div class="field"><label>รูปภาพหรือไฟล์แนบ (ไม่เกิน 5 MB)</label><input id="qeMcAsset" type="file" accept="image/*,.pdf,.docx,.pptx,.zip"><ul id="qeMcAssetList">${attachments}</ul></div>`;
 }
 function bindMcResourceUpload(){
   const input=document.getElementById('qeMcAsset');
@@ -1194,9 +1192,6 @@ function saveMcQuestionFromEditor(index){
   const s = editingSet.sections.mc;
   const old=index===null?{}:s.questions[index];
   const resources=openQEditor.resources||old.resources||{attachments:[]};
-  resources.code=document.getElementById('qeMcCode').value.trim();
-  resources.language=document.getElementById('qeMcCodeLanguage').value;
-  resources.table=document.getElementById('qeMcTable').value.trim();
   if(index===null) s.questions.push({id:uid('mc'), text, choices, answer, points:0, resources});
   else Object.assign(s.questions[index], {text, choices, answer, resources});
   applyPointDistribution('mc');
