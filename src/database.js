@@ -29,13 +29,33 @@ sqlite.exec(`
   CREATE TABLE IF NOT EXISTS question_bank (id TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS results (
     id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL,
-    submitted_at TEXT, published INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL,
-    UNIQUE (student_id, question_key)
+    submitted_at TEXT, published INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_students_class_room ON students(class_room);
   CREATE INDEX IF NOT EXISTS idx_results_question_key ON results(question_key);
   CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id);
 `);
+
+function ensureSqliteResultAttemptsSchema() {
+  const indexes = sqlite.prepare('PRAGMA index_list(results)').all();
+  const legacyUnique = indexes.some(index => index.unique && sqlite.prepare(`PRAGMA index_info(${index.name})`).all().map(column => column.name).join(',') === 'student_id,question_key');
+  if (!legacyUnique) return;
+  sqlite.exec(`
+    BEGIN IMMEDIATE;
+    CREATE TABLE results_rebuilt (
+      id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL,
+      submitted_at TEXT, published INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL
+    );
+    INSERT INTO results_rebuilt (id, student_id, question_key, submitted_at, published, data)
+      SELECT id, student_id, question_key, submitted_at, published, data FROM results;
+    DROP TABLE results;
+    ALTER TABLE results_rebuilt RENAME TO results;
+    CREATE INDEX idx_results_question_key ON results(question_key);
+    CREATE INDEX idx_results_student_id ON results(student_id);
+    COMMIT;
+  `);
+}
+ensureSqliteResultAttemptsSchema();
 
 function parseSqliteRows(statement) {
   return statement.all().map(row => JSON.parse(row.data));
@@ -206,9 +226,9 @@ async function initializePostgres() {
     );
     CREATE TABLE IF NOT EXISTS results (
       id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL, submitted_at TIMESTAMPTZ,
-      published BOOLEAN NOT NULL DEFAULT FALSE, overall_score_20 DOUBLE PRECISION, data JSONB NOT NULL,
-      UNIQUE (student_id, question_key)
+      published BOOLEAN NOT NULL DEFAULT FALSE, overall_score_20 DOUBLE PRECISION, data JSONB NOT NULL
     );
+    ALTER TABLE results DROP CONSTRAINT IF EXISTS results_student_id_question_key_key;
     CREATE INDEX IF NOT EXISTS idx_exam_sets_teacher_id ON exam_sets(teacher_id);
     CREATE INDEX IF NOT EXISTS idx_exam_sets_available_from ON exam_sets(available_from);
     CREATE INDEX IF NOT EXISTS idx_students_class_room ON students(class_room);
