@@ -705,6 +705,7 @@ function wizardAccessStepHtml(){
     <p class="panel-sub">ถ้าไม่เพิ่มห้องใดเลย ระบบจะเปิดให้ทุกห้องสอบวิชานี้ได้ (ค่าเริ่มต้น)</p>
     <div class="chip-row" id="classChipRow"></div><div id="examSchedulesWrap"></div>
     <div class="add-chip-row">
+      <select id="schedulePeriodFilter" class="filter-select" aria-label="กรองรอบเรียน"><option value="">ทุกรอบเรียน</option><option value="เช้า">รอบเช้า</option><option value="บ่าย">รอบบ่าย</option><option value="ทวิภาคี">รอบทวิภาคี</option></select>
       <select id="classGroupSelect" class="filter-select" aria-label="เลือกห้องจากกลุ่ม">
         ${buildGroupedClassOptions(knownClasses)}
       </select>
@@ -733,6 +734,12 @@ function classGroupForName(className){
   if(/\.\s*2\d{2}\b/i.test(name)) return 'ปวส.2';
   if(/^ม\.\s*\d+/i.test(name)) return 'มัธยม';
   return 'ห้องอื่น ๆ';
+}
+function classEducationLevelForName(className){
+  const group=classGroupForName(className);
+  if(group.startsWith('ปวช.')) return 'ปวช.';
+  if(group.startsWith('ปวส.')) return 'ปวส.';
+  return '';
 }
 
 function buildGroupedClassOptions(classes){
@@ -843,12 +850,16 @@ function bindWizardStepEvents(){
       const picker = document.getElementById('classGroupSelect');
       const val = picker.value || inp.value.trim();
       if(val && !classPeriods[val]){ showToast('ห้อง '+val+' ยังไม่ได้กำหนดรอบเรียน กรุณาตั้งรอบเรียนของห้องก่อน'); return; }
+      if(val && classEducationLevelForName(val)!==s.educationLevel){ showToast('กรุณาเลือกห้องระดับ '+s.educationLevel+' ให้ตรงกับชุดข้อสอบ'); return; }
+      const selectedPeriod=document.getElementById('schedulePeriodFilter').value;
+      if(val && selectedPeriod && classPeriods[val]!==selectedPeriod){ showToast('ห้อง '+val+' ไม่ได้อยู่ในรอบที่กรองไว้'); return; }
       if(val && !s.assignedClasses.includes(val)){ s.assignedClasses.push(val); syncExamSchedulesFromAssignedClasses(); renderExamSchedules(); }
       inp.value=''; picker.value=''; renderClassChips();
     });
     document.getElementById('classGroupSelect').addEventListener('change', (e)=>{
       if(e.target.value) document.getElementById('addClassBtn').click();
     });
+    document.getElementById('schedulePeriodFilter').addEventListener('change', renderExamSchedules);
     document.getElementById('addClassInput').addEventListener('keydown', (e)=>{
       if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
     });
@@ -890,7 +901,8 @@ function syncExamSchedulesFromAssignedClasses(){
 }
 function renderExamSchedules(){
   const host=document.getElementById('examSchedulesWrap'); if(!host) return; const s=editingSet;
-  const picker=document.getElementById('classGroupSelect'); if(picker){picker.innerHTML=buildGroupedClassOptions(knownClasses.filter(room=>!s.assignedClasses.includes(room)));}
+  const picker=document.getElementById('classGroupSelect'); const selectedPeriod=document.getElementById('schedulePeriodFilter')?.value||'';
+  if(picker){picker.innerHTML=buildGroupedClassOptions(knownClasses.filter(room=>!s.assignedClasses.includes(room)&&classEducationLevelForName(room)===s.educationLevel&&(!selectedPeriod||classPeriods[room]===selectedPeriod)));}
   if(!s.examSchedules.length){host.innerHTML='<div class="mini-card" style="margin:14px 0;"><h3 style="margin:0 0 4px;">🗓️ รอบสอบแยกตามห้อง</h3><p class="panel-sub">เลือกห้องด้านล่างก่อน ระบบจะแยกห้องเข้ารอบตามรอบเรียนที่ตั้งไว้ให้ทันที</p></div>';return;}
   host.innerHTML=`<div class="mini-card" style="margin:14px 0;"><h3 style="margin:0 0 4px;">🗓️ รอบสอบแยกตามห้อง</h3><p class="panel-sub">ระบบจัดกลุ่มตามรอบเรียนของห้องอัตโนมัติ กำหนดเฉพาะวันและเวลาในแต่ละรอบ</p>${s.examSchedules.map((item,index)=>{const period=classPeriods[item.classes[0]],kind=period==='บ่าย'?'afternoon':period==='ทวิภาคี'?'cooperative':'';return `<div class="exam-schedule-card ${kind}"><div class="schedule-card-head"><div><h4>${escapeHtml(item.name)}</h4><p>แสดงจากรอบเรียนที่กำหนดให้ห้อง</p></div></div><div class="field schedule-room-field"><label>ห้องในรอบนี้</label><div class="chip-row">${item.classes.map((room,roomIndex)=>`<span class="chip">${escapeHtml(room)}<button type="button" data-remove-schedule-room="${index}:${roomIndex}">✕</button></span>`).join('')}</div></div><div class="schedule-time-grid"><div class="field"><label>วันเริ่มสอบ</label><input type="text" data-schedule-start-date="${index}" value="${formatExamDate(item.availableFrom)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาเริ่มสอบ</label><input type="text" data-schedule-start-time="${index}" value="${formatExamTime(item.availableFrom)}" placeholder="09.00"></div><div class="field"><label>วันสิ้นสุด</label><input type="text" data-schedule-end-date="${index}" value="${formatExamDate(item.availableUntil)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาสิ้นสุด</label><input type="text" data-schedule-end-time="${index}" value="${formatExamTime(item.availableUntil)}" placeholder="10.00"></div></div></div>`;}).join('')}</div>`;
   const sync=index=>{const item=s.examSchedules[index];item.availableFrom=parseExamDateTime(host.querySelector(`[data-schedule-start-date="${index}"]`).value,host.querySelector(`[data-schedule-start-time="${index}"]`).value);item.availableUntil=parseExamDateTime(host.querySelector(`[data-schedule-end-date="${index}"]`).value,host.querySelector(`[data-schedule-end-time="${index}"]`).value);};
