@@ -708,6 +708,7 @@ async function openEditor(key, draftSet=null){
   editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : (draftSet ? JSON.parse(JSON.stringify(draftSet)) : blankSet());
   if(!editingSet.assignedClasses) editingSet.assignedClasses = [];
   if(!Array.isArray(editingSet.examSchedules)) editingSet.examSchedules = [];
+  if(!editingSet.examSchedules.length && (editingSet.availableFrom || editingSet.availableUntil || editingSet.assignedClasses.length)) editingSet.examSchedules=[{name:'รอบเช้า',classes:[...(editingSet.assignedClasses||[])],availableFrom:editingSet.availableFrom||'',availableUntil:editingSet.availableUntil||'',lateAccessCode:editingSet.lateAccessCode||''}];
   if(!editingSet.examType) editingSet.examType = EXAM_TYPES[0]||'กลางภาค';
   if(editingSet.courseName===undefined || editingSet.courseName==='') editingSet.courseName = editingSet.title || '';
   if(editingSet.teacherId===undefined) editingSet.teacherId = null;
@@ -774,11 +775,6 @@ function wizardInfoStepHtml(){
       <div class="field"><label>แท็กไลน์ (ถ้ามี)</label><input type="text" id="fTagline" value="${escapeAttr(s.tagline)}" placeholder="เช่น Unit 1 Quiz"></div>
     </div>
     <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
-    <div class="field-row">
-      <div class="deadline-card"><span class="deadline-icon">▶️</span><div class="field"><label>วันเริ่มสอบ</label><input class="date-time-input" type="text" id="fStartDate" value="${formatExamDate(s.availableFrom)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาเริ่มสอบ</label><input class="date-time-input" type="text" id="fStartTime" value="${formatExamTime(s.availableFrom)}" placeholder="13.30"></div></div>
-      <div class="deadline-card"><span class="deadline-icon">⏹️</span><div class="field"><label>วันสิ้นสุดสอบ</label><input class="date-time-input" type="text" id="fEndDate" value="${formatExamDate(s.availableUntil)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาสิ้นสุดสอบ</label><input class="date-time-input" type="text" id="fEndTime" value="${formatExamTime(s.availableUntil)}" placeholder="13.30"></div></div>
-      <div class="field"><label>รหัสเข้าสอบกรณีเกินเวลา</label><input type="text" id="fLateCode" value="${escapeAttr(s.lateAccessCode||'')}" placeholder="เช่น LATE2569"></div>
-    </div>
   </div>
   <div class="wizard-nav-row">
     <button class="btn btn-ghost" id="wizCancelBtn" type="button">ยกเลิก</button>
@@ -924,9 +920,6 @@ function bindWizardStepEvents(){
     document.getElementById('fTitle').addEventListener('input', e=>{ s.title = e.target.value; });
     document.getElementById('fTagline').addEventListener('input', e=>{ s.tagline = e.target.value; });
     document.getElementById('fDesc').addEventListener('input', e=>{ s.desc = e.target.value; });
-    ['fStartDate','fStartTime'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ s.availableFrom=parseExamDateTime(document.getElementById('fStartDate').value,document.getElementById('fStartTime').value); }));
-    ['fEndDate','fEndTime'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ s.availableUntil=parseExamDateTime(document.getElementById('fEndDate').value,document.getElementById('fEndTime').value); }));
-    document.getElementById('fLateCode').addEventListener('input', e=>{ s.lateAccessCode = e.target.value; });
     document.getElementById('wizCancelBtn').addEventListener('click', ()=>{
       if(confirm('ยกเลิกการแก้ไข? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
     });
