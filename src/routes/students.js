@@ -41,8 +41,11 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   });
   app.get('/api/exam-drafts/:questionKey', requireStudent, (req, res) => {
     const db = readDB();
+    const resitAccessId = req.query.resitAccessId || null;
+    const submitted = db.results.some(result => result.studentId === req.studentId && result.questionKey === req.params.questionKey && (resitAccessId ? result.resitAccessId === resitAccessId : result.attemptType !== 'resit'));
+    if (submitted) return res.json({ draft: null, submitted: true });
     const draft = db.drafts.find(item => item.draftKey === `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`);
-    res.json({ draft: draft || null });
+    res.json({ draft: draft || null, submitted: false });
   });
   app.put('/api/exam-drafts/:questionKey', requireStudent, async (req, res) => {
     const db = readDB(); const student = findStudent(db.students, req.studentId);

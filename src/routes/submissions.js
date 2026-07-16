@@ -32,6 +32,14 @@ function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeM
       integrityEvents, published: set.publishMode === 'auto', detail: { answers, writtenPerQuestion: written.perQuestion }, submittedAt: new Date().toISOString()
     };
     db.results.push(record);
+    // A completed attempt makes every in-progress copy of this attempt obsolete.
+    // Remove the server draft here (not only in the browser) so another device
+    // cannot remain locked or restore an exam that has already been submitted.
+    db.drafts = (db.drafts || []).filter(draft => !(
+      draft.studentId === student.studentId &&
+      draft.questionKey === payload.questionKey &&
+      (resit ? draft.resitAccessId === resit.id : !draft.resitAccessId)
+    ));
     if (resit) { record.convertedScore = resitScore(record.overallScore20, resit.scoreMax); resit.usedResultId = record.id; resit.usedAt = record.submittedAt; }
     await writeDB(db);
     res.status(201).json({ id: record.id, message: 'บันทึกคำตอบเรียบร้อยแล้ว' });

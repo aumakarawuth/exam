@@ -1174,6 +1174,12 @@ async function submitFinalAnswers(autoSubmit){
     }
   }
   console.error('ส่งคำตอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ', lastErr);
+  if(lastErr && lastErr.payload && lastErr.payload.error==='already_submitted'){
+    // Another device completed this attempt. Treat this device as completed too,
+    // then remove its local/server draft instead of trapping the student here.
+    showToast('ข้อสอบชุดนี้ส่งจากอุปกรณ์อื่นเรียบร้อยแล้ว กำลังปิดข้อสอบบนเครื่องนี้');
+    return {alreadySubmitted:true};
+  }
   showToast(lastErr && lastErr.payload && lastErr.payload.error==='already_submitted'
     ? 'รหัสนักเรียนนี้ได้ทำข้อสอบวิชานี้ไปแล้ว ระบบไม่รับคำตอบซ้ำ'
     : 'เกิดปัญหาในการส่งคำตอบ กรุณาลองใหม่ หรือแจ้งอาจารย์/ผู้ดูแลระบบ');
@@ -1189,7 +1195,8 @@ async function finalizeExam(reason){
   app.examInProgress = false;
   clearInterval(app.globalTimerHandle);
   saveSession();
-  try{ await submitFinalAnswers(auto); }
+  let submission;
+  try{ submission = await submitFinalAnswers(auto); }
   catch(e){ app.examEnded=false; app.examInProgress=true; runGlobalTimer(); return; }
   try{ await apiClearExamDraft(app.questionKey,app.resitAccessId); }catch(error){}
   clearSessionData();
@@ -1209,8 +1216,10 @@ async function finalizeExam(reason){
     timeup: 'ครบเวลา 60 นาทีแล้ว ระบบปิดการทำข้อสอบและส่งคำตอบของคุณเข้าสู่ระบบให้อัตโนมัติ (แม้จะยังตอบไม่ครบทุกข้อ)',
     tabswitch: 'คุณสลับหน้าจอ/แท็บหลังจากได้รับคำเตือนแล้ว ระบบจึงปิดการทำข้อสอบและส่งคำตอบที่มีอยู่ให้อัตโนมัติ'
   };
-  document.getElementById('finalHeadline').textContent = headlines[reason] || headlines.manual;
-  document.getElementById('finalSummaryText').textContent = summaries[reason] || summaries.manual;
+  document.getElementById('finalHeadline').textContent = submission?.alreadySubmitted ? 'ข้อสอบชุดนี้ส่งเรียบร้อยแล้ว' : (headlines[reason] || headlines.manual);
+  document.getElementById('finalSummaryText').textContent = submission?.alreadySubmitted
+    ? 'ตรวจพบว่าคำตอบของชุดนี้ถูกส่งจากอุปกรณ์อื่นแล้ว ระบบจึงปิดข้อสอบบนเครื่องนี้และล้างร่างที่ค้างไว้ให้เรียบร้อย'
+    : (summaries[reason] || summaries.manual);
   const list = document.getElementById('finalList');
   list.innerHTML = activeSections.map(sec=>{
     const done = app.submittedSections[sec];
