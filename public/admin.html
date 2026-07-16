@@ -247,6 +247,7 @@ button{font-family:inherit;cursor:pointer;}
             <p class="sub" style="margin:0;">ใช้ตรวจสิทธิ์ตอนนักเรียนกรอกรหัสเข้าสอบ และดึงชื่อ-สกุล-ห้องมาแสดงอัตโนมัติ</p>
           </div>
         </div>
+        <div class="panel"><h3>🕒 ตั้งรอบเรียนรายห้อง</h3><p class="panel-sub">เลือกห้องหนึ่งครั้ง แล้วกำหนดให้นักเรียนทุกคนในห้องเป็นรอบเดียวกัน</p><div class="editor-actions" style="justify-content:flex-start;flex-wrap:wrap;"><select class="filter-select" id="roomPeriodSelect"><option value="">เลือกห้อง</option></select><button class="btn btn-primary btn-sm" data-set-room-period="เช้า">เช้า</button><button class="btn btn-ghost btn-sm" data-set-room-period="บ่าย" style="border-color:#F59E0B;color:#92400E;">บ่าย</button><button class="btn btn-ghost btn-sm" data-set-room-period="ทวิภาคี">ทวิภาคี</button></div></div>
         <div class="panel" id="studentPasteImportPanel">
           <h3>นำเข้ารายชื่อแบบรวดเร็ว (วางจาก Excel)</h3>
           <p class="panel-sub">คัดลอกคอลัมน์ รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง จาก Excel แล้ววางที่นี่ (1 บรรทัดต่อ 1 คน) หากมีรหัสซ้ำในระบบอยู่แล้ว ระบบจะอัปเดตข้อมูลแทนการเพิ่มซ้ำ</p>
@@ -419,6 +420,7 @@ async function apiImportStudentsExcel(file){
 }
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiUpdateStudent(id, body){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'PUT', body, admin:true }); }
+async function apiSetClassExamPeriod(classRoom, examPeriod){ return apiFetch('/api/classes/'+encodeURIComponent(classRoom)+'/exam-period', { method:'POST', body:{examPeriod}, admin:true }); }
 async function apiResetStudentPin(id){ return apiFetch('/api/students/'+encodeURIComponent(id)+'/reset-pin', { method:'POST', admin:true }); }
 async function apiGetClasses(period){ return apiFetch('/api/classes'+(period?('?period='+encodeURIComponent(period)):''), { admin:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
@@ -1573,6 +1575,7 @@ async function refreshStudents(){
     const current = sel.value;
     sel.innerHTML = '<option value="">ทุกห้อง</option>' + classes.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
     sel.value = current;
+    const roomSel=document.getElementById('roomPeriodSelect'); if(roomSel){ const previous=roomSel.value; roomSel.innerHTML='<option value="">เลือกห้อง</option>'+classes.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join(''); roomSel.value=previous; }
   }catch(e){}
 
   if(!students.length){
@@ -1587,7 +1590,7 @@ async function refreshStudents(){
         <td>${escapeHtml(s.firstName)}</td>
         <td>${escapeHtml(s.lastName)}</td>
         <td>${escapeHtml(s.classRoom)}</td>
-        <td><select class="filter-select" data-student-period="${escapeAttr(s.studentId)}"><option value="" ${!s.examPeriod?'selected':''}>ยังไม่กำหนด</option><option value="เช้า" ${s.examPeriod==='เช้า'?'selected':''}>เช้า</option><option value="บ่าย" ${s.examPeriod==='บ่าย'?'selected':''}>บ่าย</option></select></td>
+        <td>${escapeHtml(s.examPeriod||'ยังไม่กำหนด')}</td>
         <td><button class="btn btn-danger btn-sm" data-delstu="${escapeAttr(s.studentId)}">ลบ</button></td>
       </tr>`).join('') + `</tbody></table>`;
   const header = document.createElement('th');
@@ -1614,7 +1617,6 @@ async function refreshStudents(){
     try{ await apiDeleteStudent(b.dataset.delstu); refreshStudents(); showToast('ลบนักเรียนแล้ว'); }
     catch(e){ showToast(e.message); }
   }));
-  wrap.querySelectorAll('[data-student-period]').forEach(select=>select.addEventListener('change',async()=>{ try{ await apiUpdateStudent(select.dataset.studentPeriod,{examPeriod:select.value}); showToast('บันทึกรอบเรียนแล้ว'); }catch(error){showToast(error.message);refreshStudents();} }));
   wrap.querySelectorAll('[data-resetpin]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('รีเซ็ต PIN ของนักเรียนรหัส '+b.dataset.resetpin+'? นักเรียนจะต้องตั้ง PIN ใหม่')) return;
     try{ await apiResetStudentPin(b.dataset.resetpin); refreshStudents(); showToast('รีเซ็ต PIN แล้ว'); }
@@ -1623,6 +1625,7 @@ async function refreshStudents(){
 }
 document.getElementById('refreshStudentsBtn').addEventListener('click', refreshStudents);
 document.getElementById('classFilterSelect').addEventListener('change', refreshStudents);
+document.querySelectorAll('[data-set-room-period]').forEach(button=>button.addEventListener('click',async()=>{ const room=document.getElementById('roomPeriodSelect').value; if(!room){showToast('กรุณาเลือกห้องก่อน');return;} try{const result=await apiSetClassExamPeriod(room,button.dataset.setRoomPeriod);showToast(`กำหนดรอบ${button.dataset.setRoomPeriod} ให้ห้อง ${room} จำนวน ${result.updated} คนแล้ว`);refreshStudents();}catch(error){showToast(error.message);} }));
 document.getElementById('addStudentBtn').addEventListener('click', async ()=>{
   const studentId = document.getElementById('fsId').value.trim();
   const firstName = document.getElementById('fsFirst').value.trim();

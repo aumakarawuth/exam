@@ -89,7 +89,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     const db = readDB();
     const studentId = body.studentId.trim();
     if (db.students.some(student => student.studentId === studentId)) return res.status(409).json({ error: 'duplicate', message: 'มีรหัสนักเรียนนี้อยู่ในระบบแล้ว' });
-    db.students.push({ studentId, firstName: body.firstName.trim(), lastName: body.lastName.trim(), classRoom: body.classRoom.trim(), examPeriod: ['เช้า','บ่าย'].includes(body.examPeriod) ? body.examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() });
+    db.students.push({ studentId, firstName: body.firstName.trim(), lastName: body.lastName.trim(), classRoom: body.classRoom.trim(), examPeriod: ['เช้า','บ่าย','ทวิภาคี'].includes(body.examPeriod) ? body.examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() });
     await writeDB(db);
     res.status(201).json({ ok: true });
   });
@@ -101,8 +101,8 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     lines.forEach((line, index) => {
       const [studentId, firstName, lastName, classRoom, examPeriod] = (line.includes('\t') ? line.split('\t') : line.split(',')).map(value => (value || '').trim());
       if (!studentId || !firstName || !lastName || !classRoom) { errors.push(`บรรทัดที่ ${index + 1}: ข้อมูลไม่ครบ ("${line}")`); return; }
-      if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '' }); updated++; }
-      else { const student = { studentId, firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported++; }
+      if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย','ทวิภาคี'].includes(examPeriod) ? examPeriod : '' }); updated++; }
+      else { const student = { studentId, firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย','ทวิภาคี'].includes(examPeriod) ? examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported++; }
     });
     await writeDB(db); res.json({ imported, updated, errors });
   });
@@ -135,8 +135,16 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   app.put('/api/students/:studentId', requireAdmin, async (req, res) => {
     const db = readDB(); const student = findStudent(db.students, req.params.studentId);
     if (!student) return res.status(404).json({ error: 'not_found' });
-    Object.assign(student, { firstName: req.body.firstName ?? student.firstName, lastName: req.body.lastName ?? student.lastName, classRoom: req.body.classRoom ?? student.classRoom, examPeriod: req.body.examPeriod === '' ? '' : (['เช้า','บ่าย'].includes(req.body.examPeriod) ? req.body.examPeriod : student.examPeriod) });
+    Object.assign(student, { firstName: req.body.firstName ?? student.firstName, lastName: req.body.lastName ?? student.lastName, classRoom: req.body.classRoom ?? student.classRoom, examPeriod: req.body.examPeriod === '' ? '' : (['เช้า','บ่าย','ทวิภาคี'].includes(req.body.examPeriod) ? req.body.examPeriod : student.examPeriod) });
     await writeDB(db); res.json({ ok: true });
+  });
+  app.post('/api/classes/:classRoom/exam-period', requireAdmin, async (req, res) => {
+    const examPeriod = String(req.body?.examPeriod || '');
+    if (!['เช้า', 'บ่าย', 'ทวิภาคี', ''].includes(examPeriod)) return res.status(400).json({ error: 'invalid_payload' });
+    const db = readDB(); const room = req.params.classRoom; let updated = 0;
+    db.students.forEach(student => { if (student.classRoom === room) { student.examPeriod = examPeriod; updated++; } });
+    if (!updated) return res.status(404).json({ error: 'not_found' });
+    await writeDB(db); res.json({ ok: true, updated });
   });
 
   app.delete('/api/students/:studentId', requireAdmin, async (req, res) => {
