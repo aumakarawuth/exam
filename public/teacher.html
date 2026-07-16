@@ -754,10 +754,22 @@ function classEducationLevelForName(className){
   return '';
 }
 
+function compareClassRooms(a,b){
+  const left=String(a||''), right=String(b||'');
+  const leftNumbers=left.match(/\d+/g)||[], rightNumbers=right.match(/\d+/g)||[];
+  const count=Math.max(leftNumbers.length,rightNumbers.length);
+  for(let index=0;index<count;index++){
+    if(leftNumbers[index]===undefined) return -1;
+    if(rightNumbers[index]===undefined) return 1;
+    const difference=Number(leftNumbers[index])-Number(rightNumbers[index]);
+    if(difference) return difference;
+  }
+  return left.localeCompare(right,'th');
+}
 function buildGroupedClassOptions(classes){
   const order=['ปวช.1','ปวช.2','ปวช.3','ปวส.1','ปวส.2','ห้องอื่น ๆ'];
   const groups=new Map(order.map(group=>[group,[]]));
-  [...new Set(classes||[])].sort((a,b)=>String(a).localeCompare(String(b),'th')).forEach(className=>{
+  [...new Set(classes||[])].sort(compareClassRooms).forEach(className=>{
     groups.get(classGroupForName(className)).push(className);
   });
   return '<option value="">เลือกห้องจากกลุ่ม</option>'+order.map(group=>{
