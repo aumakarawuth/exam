@@ -16,7 +16,7 @@ const XLSX = require('xlsx');
 const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR, SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET, GOOGLE_FORMS_CLIENT_ID, GOOGLE_FORMS_CLIENT_SECRET, GOOGLE_FORMS_REDIRECT_URI } = require('./src/config');
 const { readDB, writeDB, databaseReady } = require('./src/database');
 const { hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
-const { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
+const { round2, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
 const { registerPages, registerFallback } = require('./src/pages');
 const { registerRoutes } = require('./src/routes');
 const { buildResultsWorkbook: buildResultsWorkbookModule } = require('./src/results-workbook');
@@ -99,7 +99,7 @@ registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
 console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
-registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
+registerRoutes(app, { ADMIN_KEY, EXAM_TYPES, readDB, writeDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, buildResultsWorkbook: buildResultsWorkbookModule, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
 
 if (false) { // Legacy student routes moved to src/routes/students.js.
 /* ---------------------------- STUDENTS (ROSTER) ---------------------------- */

@@ -37,21 +37,33 @@ function gradeWritten(section, answers) {
   return { total: round2(total), perQuestion };
 }
 
-function isPastDeadline(set) {
-  return !!(set.availableUntil && Date.now() > new Date(set.availableUntil).getTime());
+function getExamSchedule(set, classRoom) {
+  const schedules = Array.isArray(set.examSchedules) ? set.examSchedules.filter(item => item && Array.isArray(item.classes)) : [];
+  if (schedules.length) return schedules.find(item => (item.classes || []).includes(classRoom)) || schedules.find(item => !(item.classes || []).length) || null;
+  return { classes: set.assignedClasses || [], availableFrom: set.availableFrom, availableUntil: set.availableUntil, lateAccessCode: set.lateAccessCode || '' };
 }
-function isBeforeStart(set) {
-  return !!(set.availableFrom && Date.now() < new Date(set.availableFrom).getTime());
+function isPastDeadline(set, classRoom) {
+  const schedule = getExamSchedule(set, classRoom);
+  return !!(schedule?.availableUntil && Date.now() > new Date(schedule.availableUntil).getTime());
+}
+function isBeforeStart(set, classRoom) {
+  const schedule = getExamSchedule(set, classRoom);
+  return !!(schedule?.availableFrom && Date.now() < new Date(schedule.availableFrom).getTime());
+}
+function hasExamAccess(set, classRoom) {
+  const schedule = getExamSchedule(set, classRoom);
+  return !!schedule && (!(schedule.classes || []).length || schedule.classes.includes(classRoom));
 }
 
-function sanitizeSetForStudent(set) {
+function sanitizeSetForStudent(set, classRoom) {
+  const schedule = getExamSchedule(set, classRoom);
   return {
     key: set.key, title: set.title, courseName: set.courseName || set.title, tagline: set.tagline, desc: set.desc,
     examType: set.examType || '', assignedClasses: set.assignedClasses || [],
     subjectTeacherName: set.subjectTeacherName || '', shuffleQuestions: !!set.shuffleQuestions,
-    availableFrom: set.availableFrom || null,
-    shuffleChoices: !!set.shuffleChoices, availableUntil: set.availableUntil || null,
-    lateAccessRequired: isPastDeadline(set),
+    availableFrom: schedule?.availableFrom || null,
+    shuffleChoices: !!set.shuffleChoices, availableUntil: schedule?.availableUntil || null,
+    lateAccessRequired: isPastDeadline(set, classRoom),
     sections: {
       mc: { title: set.sections.mc.title, desc: set.sections.mc.desc, questions: set.sections.mc.questions.map(q => ({ id: q.id, text: q.text, choices: q.choices, points: q.points, resources: q.resources || null })) },
       matching: { title: set.sections.matching.title, desc: set.sections.matching.desc, left: set.sections.matching.left, right: set.sections.matching.right, pointsEach: set.sections.matching.pointsEach },
@@ -60,4 +72,4 @@ function sanitizeSetForStudent(set) {
   };
 }
 
-module.exports = { round2, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, sanitizeSetForStudent };
+module.exports = { round2, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, sanitizeSetForStudent };

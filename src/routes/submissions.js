@@ -1,4 +1,4 @@
-function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeMatching, gradeWritten, isPastDeadline, isBeforeStart, round2, requireStudent }) {
+function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, round2, requireStudent }) {
   app.post('/api/results', requireStudent, async (req, res) => {
     const payload = req.body;
     if (!payload || !payload.questionKey) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลผลสอบไม่ครบ' });
@@ -7,10 +7,11 @@ function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeM
     if (!student) return res.status(401).json({ error: 'unauthorized' });
     const set = db.sets.find(item => item.key === payload.questionKey);
     if (!set) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
-    if (isBeforeStart(set)) return res.status(403).json({ error: 'not_started', message: 'ยังไม่ถึงเวลาเริ่มสอบ' });
-    if (set.assignedClasses.length && !set.assignedClasses.includes(student.classRoom)) return res.status(403).json({ error: 'forbidden', message: 'ไม่มีสิทธิ์เข้าสอบชุดนี้' });
+    if (isBeforeStart(set, student.classRoom)) return res.status(403).json({ error: 'not_started', message: 'ยังไม่ถึงเวลาเริ่มสอบ' });
+    if (!hasExamAccess(set, student.classRoom)) return res.status(403).json({ error: 'forbidden', message: 'ไม่มีสิทธิ์เข้าสอบชุดนี้' });
     if (db.results.some(item => item.studentId === student.studentId && item.questionKey === payload.questionKey)) return res.status(409).json({ error: 'already_submitted', message: 'ทำข้อสอบชุดนี้ไปแล้ว' });
-    if (isPastDeadline(set) && (!set.lateAccessCode || payload.lateCode !== set.lateAccessCode)) return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาสอบแล้ว' });
+    const schedule=getExamSchedule(set, student.classRoom);
+    if (isPastDeadline(set, student.classRoom) && (!schedule?.lateAccessCode || payload.lateCode !== schedule.lateAccessCode)) return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาสอบแล้ว' });
     const answers = payload.answers || {};
     if (!payload.autoSubmit) {
       const incomplete = (set.sections.mc.questions || []).some(q => answers.mc?.[q.id] == null) || (set.sections.matching.left || []).some(q => !answers.matching?.[q.id]) || (set.sections.written.questions || []).some(q => !String(answers.written?.[q.id] || '').trim());

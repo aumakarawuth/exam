@@ -684,7 +684,7 @@ function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||''
 
 function blankSet(){
   return {
-    key: uid('set'), title:'', courseName:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', teacherId:null, assignedClasses:[], subjectTeacherName:'', subjectTeacherEmail:'',
+    key: uid('set'), title:'', courseName:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', teacherId:null, assignedClasses:[], examSchedules:[], subjectTeacherName:'', subjectTeacherEmail:'',
     shuffleQuestions:false, shuffleChoices:false, publishMode:'manual', availableUntil:'', lateAccessCode:'',
     sections:{
       mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[], sectionPointsTotal:0 },
@@ -703,6 +703,7 @@ async function openEditor(key, draftSet=null){
   editingIsNew = !key;
   editingSet = key ? JSON.parse(JSON.stringify(ADMIN_SETS.find(s=>s.key===key))) : (draftSet ? JSON.parse(JSON.stringify(draftSet)) : blankSet());
   if(!editingSet.assignedClasses) editingSet.assignedClasses = [];
+  if(!Array.isArray(editingSet.examSchedules)) editingSet.examSchedules = [];
   if(!editingSet.examType) editingSet.examType = EXAM_TYPES[0]||'กลางภาค';
   if(editingSet.courseName===undefined || editingSet.courseName==='') editingSet.courseName = editingSet.title || '';
   if(editingSet.teacherId===undefined) editingSet.teacherId = null;
@@ -787,7 +788,7 @@ function wizardAccessStepHtml(){
   return `<div class="panel">
     <h3>🏫 ห้องที่มีสิทธิสอบวิชานี้</h3>
     <p class="panel-sub">ถ้าไม่เพิ่มห้องใดเลย ระบบจะเปิดให้ทุกห้องสอบวิชานี้ได้ (ค่าเริ่มต้น)</p>
-    <div class="chip-row" id="classChipRow"></div>
+    <div class="chip-row" id="classChipRow"></div><div id="examSchedulesWrap"></div>
     <div class="add-chip-row">
       <select id="classGroupSelect" class="filter-select" aria-label="เลือกห้องจากกลุ่ม">
         ${buildGroupedClassOptions(knownClasses)}
@@ -931,6 +932,7 @@ function bindWizardStepEvents(){
     });
   } else if(wizardStep==='access'){
     renderClassChips();
+    renderExamSchedules();
     document.getElementById('addClassBtn').addEventListener('click', ()=>{
       const inp = document.getElementById('addClassInput');
       const picker = document.getElementById('classGroupSelect');
@@ -981,6 +983,14 @@ function updateTotalIndicator(){
   if(wizardStep==='hub'){ const el = document.querySelector('.total-indicator'); if(el){ const total = computeSetTotal(editingSet); const ok = total===20; el.className = 'total-indicator '+(ok?'ok':'warn'); el.textContent = `🎯 คะแนนเต็มรวมขณะนี้: ${total} / 20 ${ok?'✓ ครบพอดี':'⚠️ ยังไม่เท่ากับ 20'}`; } }
 }
 
+function renderExamSchedules(){
+  const host=document.getElementById('examSchedulesWrap'); if(!host) return; const s=editingSet;
+  host.innerHTML=`<div class="mini-card" style="margin:14px 0;"><h3 style="margin:0 0 4px;">🗓️ รอบสอบแยกตามห้อง</h3><p class="panel-sub">เพิ่มรอบสำหรับแต่ละห้อง เช่น รอบปกติ, รอบ จศ. หรือรอบพิเศษ ระบบจะใช้รอบที่ตรงกับห้องนักเรียน</p><div id="examScheduleCards">${s.examSchedules.map((item,index)=>`<div class="deadline-card" style="margin:10px 0;align-items:flex-start;flex-wrap:wrap;"><div class="field"><label>ชื่อรอบสอบ</label><input type="text" data-schedule-name="${index}" value="${escapeAttr(item.name||'รอบสอบ '+(index+1))}"></div><div class="field"><label>ห้อง (คั่นด้วย ,)</label><input type="text" data-schedule-classes="${index}" value="${escapeAttr((item.classes||[]).join(', '))}" placeholder="ม.3/1, ม.3/2"></div><div class="field"><label>วันเริ่ม dd/mm/yyyy</label><input type="text" data-schedule-start-date="${index}" value="${formatExamDate(item.availableFrom)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาเริ่ม</label><input type="text" data-schedule-start-time="${index}" value="${formatExamTime(item.availableFrom)}" placeholder="09.00"></div><div class="field"><label>วันสิ้นสุด dd/mm/yyyy</label><input type="text" data-schedule-end-date="${index}" value="${formatExamDate(item.availableUntil)}" placeholder="dd/mm/yyyy"></div><div class="field"><label>เวลาสิ้นสุด</label><input type="text" data-schedule-end-time="${index}" value="${formatExamTime(item.availableUntil)}" placeholder="10.00"></div><button class="btn btn-danger btn-sm" type="button" data-remove-schedule="${index}">ลบรอบ</button></div>`).join('')}</div><button class="btn btn-ghost btn-sm" id="addExamScheduleBtn" type="button">+ เพิ่มรอบสอบ</button></div>`;
+  const sync=index=>{ const item=s.examSchedules[index]; item.name=host.querySelector(`[data-schedule-name="${index}"]`).value.trim(); item.classes=host.querySelector(`[data-schedule-classes="${index}"]`).value.split(',').map(x=>x.trim()).filter(Boolean); item.availableFrom=parseExamDateTime(host.querySelector(`[data-schedule-start-date="${index}"]`).value,host.querySelector(`[data-schedule-start-time="${index}"]`).value); item.availableUntil=parseExamDateTime(host.querySelector(`[data-schedule-end-date="${index}"]`).value,host.querySelector(`[data-schedule-end-time="${index}"]`).value); s.assignedClasses=[...new Set(s.examSchedules.flatMap(row=>row.classes||[]))]; renderClassChips(); };
+  host.querySelectorAll('[data-schedule-name],[data-schedule-classes],[data-schedule-start-date],[data-schedule-start-time],[data-schedule-end-date],[data-schedule-end-time]').forEach(input=>input.addEventListener('change',()=>sync(Number(input.dataset.scheduleName??input.dataset.scheduleClasses??input.dataset.scheduleStartDate??input.dataset.scheduleStartTime??input.dataset.scheduleEndDate??input.dataset.scheduleEndTime))));
+  host.querySelectorAll('[data-remove-schedule]').forEach(button=>button.addEventListener('click',()=>{s.examSchedules.splice(Number(button.dataset.removeSchedule),1);s.assignedClasses=[...new Set(s.examSchedules.flatMap(row=>row.classes||[]))];renderExamSchedules();renderClassChips();}));
+  host.querySelector('#addExamScheduleBtn').addEventListener('click',()=>{s.examSchedules.push({name:'รอบสอบ '+(s.examSchedules.length+1),classes:[],availableFrom:'',availableUntil:'',lateAccessCode:''});renderExamSchedules();});
+}
 function renderClassChips(){
   const s = editingSet;
   const row = document.getElementById('classChipRow');
@@ -1515,6 +1525,11 @@ async function saveEditingSet(){
   applyPointDistribution('mc'); applyPointDistribution('matching'); applyPointDistribution('written');
   if(!s.title || !s.title.trim()){ alert('กรุณากรอกชื่อชุดข้อสอบ (ย้อนกลับไปขั้นตอนที่ 1)'); wizardStep='info'; renderWizard(); return; }
   if(s.sections.mc.questions.length===0){ alert('กรุณาเพิ่มข้อปรนัยอย่างน้อย 1 ข้อ'); wizardStep='section:mc'; renderWizard(); return; }
+  if(s.examSchedules.length){
+    const invalid=s.examSchedules.find(item=>!(item.classes||[]).length||!item.availableFrom||!item.availableUntil||new Date(item.availableFrom)>=new Date(item.availableUntil));
+    if(invalid){ alert('กรุณากำหนดห้อง วันและเวลาเริ่ม–สิ้นสุดให้ครบถ้วนในทุกรอบสอบ'); wizardStep='access'; renderWizard(); return; }
+    s.assignedClasses=[...new Set(s.examSchedules.flatMap(item=>item.classes||[]))];
+  }
   const total = computeSetTotal(s);
   if(total !== 20){
     if(!confirm(`คะแนนเต็มรวมขณะนี้คือ ${total} คะแนน ไม่เท่ากับ 20 พอดี ต้องการบันทึกต่อหรือไม่?`)) return;
