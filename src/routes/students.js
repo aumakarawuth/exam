@@ -112,7 +112,12 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     let rows;
     try {
       const workbook = XLSX.read(req.body, { type: 'buffer' });
-      rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const firstCell = String(matrix[0]?.[0] ?? '').trim();
+      rows = /^\d{5,}$/.test(firstCell)
+        ? matrix.filter(row => row.some(value => String(value).trim())).map(row => ({ studentid: row[0], firstname: row[1], lastname: row[2], classroom: row[3], examperiod: row[4] }))
+        : XLSX.utils.sheet_to_json(sheet, { defval: '' });
     } catch { return res.status(400).json({ error: 'invalid_file', message: 'ไม่สามารถอ่านไฟล์ Excel นี้ได้' }); }
     const valueOf = (row, names) => {
       const key = Object.keys(row).find(column => names.includes(String(column).trim().toLowerCase()));
