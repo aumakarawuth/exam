@@ -3,13 +3,13 @@ const XLSX = require('xlsx');
 
 function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
-  const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom });
+  const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '' });
 
   app.get('/api/students/export.xlsx', requireAdmin, (req, res) => {
     const rows = readDB().students
       .sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId))
-      .map(student => ({ 'รหัสนักเรียน': student.studentId, 'ชื่อ': student.firstName, 'นามสกุล': student.lastName, 'ห้อง': student.classRoom, 'ตั้ง PIN แล้ว': student.pinHash ? 'ใช่' : 'ไม่' }));
-    const sheet = XLSX.utils.json_to_sheet(rows, { header: ['รหัสนักเรียน', 'ชื่อ', 'นามสกุล', 'ห้อง', 'ตั้ง PIN แล้ว'] });
+      .map(student => ({ 'รหัสนักเรียน': student.studentId, 'ชื่อ': student.firstName, 'นามสกุล': student.lastName, 'ห้อง': student.classRoom, 'รอบเรียน': student.examPeriod || '', 'ตั้ง PIN แล้ว': student.pinHash ? 'ใช่' : 'ไม่' }));
+    const sheet = XLSX.utils.json_to_sheet(rows, { header: ['รหัสนักเรียน', 'ชื่อ', 'นามสกุล', 'ห้อง', 'รอบเรียน', 'ตั้ง PIN แล้ว'] });
     const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, 'รายชื่อนักเรียน');
     const output = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -80,7 +80,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   app.get('/api/students', requireAdmin, (req, res) => {
     let students = readDB().students;
     if (req.query.classRoom) students = students.filter(student => student.classRoom === req.query.classRoom);
-    res.json([...students].sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId)).map(student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, hasPin: Boolean(student.pinHash) })));
+    res.json([...students].sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId)).map(student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '', hasPin: Boolean(student.pinHash) })));
   });
 
   app.post('/api/students', requireAdmin, async (req, res) => {
@@ -89,7 +89,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     const db = readDB();
     const studentId = body.studentId.trim();
     if (db.students.some(student => student.studentId === studentId)) return res.status(409).json({ error: 'duplicate', message: 'มีรหัสนักเรียนนี้อยู่ในระบบแล้ว' });
-    db.students.push({ studentId, firstName: body.firstName.trim(), lastName: body.lastName.trim(), classRoom: body.classRoom.trim(), pinFailedAttempts: 0, createdAt: new Date().toISOString() });
+    db.students.push({ studentId, firstName: body.firstName.trim(), lastName: body.lastName.trim(), classRoom: body.classRoom.trim(), examPeriod: ['เช้า','บ่าย'].includes(body.examPeriod) ? body.examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() });
     await writeDB(db);
     res.status(201).json({ ok: true });
   });
@@ -99,10 +99,10 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     const db = readDB(); const byId = new Map(db.students.map(student => [student.studentId, student]));
     let imported = 0, updated = 0; const errors = [];
     lines.forEach((line, index) => {
-      const [studentId, firstName, lastName, classRoom] = (line.includes('\t') ? line.split('\t') : line.split(',')).map(value => (value || '').trim());
+      const [studentId, firstName, lastName, classRoom, examPeriod] = (line.includes('\t') ? line.split('\t') : line.split(',')).map(value => (value || '').trim());
       if (!studentId || !firstName || !lastName || !classRoom) { errors.push(`บรรทัดที่ ${index + 1}: ข้อมูลไม่ครบ ("${line}")`); return; }
-      if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom }); updated++; }
-      else { const student = { studentId, firstName, lastName, classRoom, pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported++; }
+      if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '' }); updated++; }
+      else { const student = { studentId, firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported++; }
     });
     await writeDB(db); res.json({ imported, updated, errors });
   });
@@ -124,10 +124,10 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
       const studentId = valueOf(row, ['รหัสนักเรียน', 'studentid', 'student_id', 'id']);
       const firstName = valueOf(row, ['ชื่อ', 'firstname', 'first_name']);
       const lastName = valueOf(row, ['นามสกุล', 'lastname', 'last_name']);
-      const classRoom = valueOf(row, ['ห้อง', 'classroom', 'class_room', 'class']);
+      const classRoom = valueOf(row, ['ห้อง', 'classroom', 'class_room', 'class']); const examPeriod = valueOf(row, ['รอบเรียน', 'รอบ', 'period', 'examperiod']);
       if (!studentId || !firstName || !lastName || !classRoom) { errors.push(`แถว ${index + 2}: ข้อมูลไม่ครบ`); return; }
-      if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom }); updated += 1; }
-      else { const student = { studentId, firstName, lastName, classRoom, pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported += 1; }
+      if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '' }); updated += 1; }
+      else { const student = { studentId, firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported += 1; }
     });
     await writeDB(db); res.json({ imported, updated, errors });
   });
@@ -135,7 +135,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   app.put('/api/students/:studentId', requireAdmin, async (req, res) => {
     const db = readDB(); const student = findStudent(db.students, req.params.studentId);
     if (!student) return res.status(404).json({ error: 'not_found' });
-    Object.assign(student, { firstName: req.body.firstName ?? student.firstName, lastName: req.body.lastName ?? student.lastName, classRoom: req.body.classRoom ?? student.classRoom });
+    Object.assign(student, { firstName: req.body.firstName ?? student.firstName, lastName: req.body.lastName ?? student.lastName, classRoom: req.body.classRoom ?? student.classRoom, examPeriod: ['เช้า','บ่าย'].includes(req.body.examPeriod) ? req.body.examPeriod : student.examPeriod });
     await writeDB(db); res.json({ ok: true });
   });
 
@@ -144,7 +144,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     await writeDB(db); res.json({ ok: true });
   });
 
-  app.get('/api/classes', requireAdmin, (req, res) => res.json([...new Set(readDB().students.map(student => student.classRoom))].sort()));
+  app.get('/api/classes', requireAdmin, (req, res) => { const period=String(req.query.period||''); res.json([...new Set(readDB().students.filter(student=>!period||student.examPeriod===period).map(student => student.classRoom))].sort()); });
 }
 
 module.exports = { registerStudentRoutes };

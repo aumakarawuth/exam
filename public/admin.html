@@ -270,7 +270,7 @@ button{font-family:inherit;cursor:pointer;}
             <div class="field"><label>รหัสนักเรียน</label><input type="text" id="fsId" placeholder="เช่น 10004"></div>
             <div class="field"><label>ชื่อ</label><input type="text" id="fsFirst" placeholder="ชื่อ"></div>
             <div class="field"><label>นามสกุล</label><input type="text" id="fsLast" placeholder="นามสกุล"></div>
-            <div class="field"><label>ห้อง</label><input type="text" id="fsClass" placeholder="เช่น ม.3/1"></div>
+            <div class="field"><label>ห้อง</label><input type="text" id="fsClass" placeholder="เช่น ม.3/1"></div><div class="field"><label>รอบเรียน</label><select id="fsExamPeriod"><option value="">ยังไม่กำหนด</option><option value="เช้า">รอบเช้า</option><option value="บ่าย">รอบบ่าย</option></select></div>
           </div>
           <button class="btn btn-primary btn-sm" id="addStudentBtn">+ เพิ่มนักเรียน</button>
         </div>
@@ -419,7 +419,7 @@ async function apiImportStudentsExcel(file){
 }
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiResetStudentPin(id){ return apiFetch('/api/students/'+encodeURIComponent(id)+'/reset-pin', { method:'POST', admin:true }); }
-async function apiGetClasses(){ return apiFetch('/api/classes', { admin:true }); }
+async function apiGetClasses(period){ return apiFetch('/api/classes'+(period?('?period='+encodeURIComponent(period)):''), { admin:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, admin:true }); }
 async function apiUpdateDfdScores(id, dfdLevelScores){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores}, admin:true }); }
@@ -791,6 +791,7 @@ function wizardAccessStepHtml(){
     <p class="panel-sub">ถ้าไม่เพิ่มห้องใดเลย ระบบจะเปิดให้ทุกห้องสอบวิชานี้ได้ (ค่าเริ่มต้น)</p>
     <div class="chip-row" id="classChipRow"></div><div id="examSchedulesWrap"></div>
     <div class="add-chip-row">
+      <select id="schedulePeriodFilter" class="filter-select"><option value="">กรองรอบเรียน</option><option value="เช้า">รอบเช้า</option><option value="บ่าย">รอบบ่าย</option></select>
       <select id="classGroupSelect" class="filter-select" aria-label="เลือกห้องจากกลุ่ม">
         ${buildGroupedClassOptions(knownClasses)}
       </select>
@@ -945,6 +946,7 @@ function bindWizardStepEvents(){
     document.getElementById('classGroupSelect').addEventListener('change', (e)=>{
       if(e.target.value) document.getElementById('addClassBtn').click();
     });
+    document.getElementById('schedulePeriodFilter').addEventListener('change', async e=>{ try{ knownClasses=await apiGetClasses(e.target.value); renderExamSchedules(); }catch(error){showToast(error.message);} });
     document.getElementById('addClassInput').addEventListener('keydown', (e)=>{
       if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
     });
@@ -1622,11 +1624,11 @@ document.getElementById('addStudentBtn').addEventListener('click', async ()=>{
   const studentId = document.getElementById('fsId').value.trim();
   const firstName = document.getElementById('fsFirst').value.trim();
   const lastName = document.getElementById('fsLast').value.trim();
-  const classRoom = document.getElementById('fsClass').value.trim();
+  const classRoom = document.getElementById('fsClass').value.trim(); const examPeriod=document.getElementById('fsExamPeriod').value;
   if(!studentId || !firstName || !lastName || !classRoom){ showToast('กรอกข้อมูลนักเรียนให้ครบทุกช่อง'); return; }
   try{
-    await apiAddStudent({studentId, firstName, lastName, classRoom});
-    ['fsId','fsFirst','fsLast','fsClass'].forEach(id=>document.getElementById(id).value='');
+    await apiAddStudent({studentId, firstName, lastName, classRoom, examPeriod});
+    ['fsId','fsFirst','fsLast','fsClass','fsExamPeriod'].forEach(id=>document.getElementById(id).value='');
     refreshStudents();
     showToast('เพิ่มนักเรียนแล้ว');
   }catch(e){ showToast(e.message); }

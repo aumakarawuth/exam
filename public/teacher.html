@@ -358,7 +358,7 @@ async function apiGetResults(setKey, examType){
   return apiFetch('/api/teacher/results'+(qs.length?('?'+qs.join('&')):''), { auth:true });
 }
 async function apiGetQuestionAnalysis(setKey){ return apiFetch('/api/teacher/question-analysis?setKey='+encodeURIComponent(setKey), { auth:true }); }
-async function apiGetClasses(){ return apiFetch('/api/teacher/classes', { auth:true }); }
+async function apiGetClasses(period){ return apiFetch('/api/teacher/classes'+(period?('?period='+encodeURIComponent(period)):''), { auth:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, auth:true }); }
 async function apiUpdateDfdScores(id, dfdLevelScores){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores}, auth:true }); }
@@ -698,6 +698,7 @@ function wizardAccessStepHtml(){
     <p class="panel-sub">ถ้าไม่เพิ่มห้องใดเลย ระบบจะเปิดให้ทุกห้องสอบวิชานี้ได้ (ค่าเริ่มต้น)</p>
     <div class="chip-row" id="classChipRow"></div><div id="examSchedulesWrap"></div>
     <div class="add-chip-row">
+      <select id="schedulePeriodFilter" class="filter-select"><option value="">กรองรอบเรียน</option><option value="เช้า">รอบเช้า</option><option value="บ่าย">รอบบ่าย</option></select>
       <select id="classGroupSelect" class="filter-select" aria-label="เลือกห้องจากกลุ่ม">
         ${buildGroupedClassOptions(knownClasses)}
       </select>
@@ -843,6 +844,7 @@ function bindWizardStepEvents(){
     document.getElementById('classGroupSelect').addEventListener('change', (e)=>{
       if(e.target.value) document.getElementById('addClassBtn').click();
     });
+    document.getElementById('schedulePeriodFilter').addEventListener('change', async e=>{ try{ knownClasses=await apiGetClasses(e.target.value); renderExamSchedules(); }catch(error){showToast(error.message);} });
     document.getElementById('addClassInput').addEventListener('keydown', (e)=>{
       if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
     });
