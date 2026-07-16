@@ -135,7 +135,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   app.put('/api/students/:studentId', requireAdmin, async (req, res) => {
     const db = readDB(); const student = findStudent(db.students, req.params.studentId);
     if (!student) return res.status(404).json({ error: 'not_found' });
-    Object.assign(student, { firstName: req.body.firstName ?? student.firstName, lastName: req.body.lastName ?? student.lastName, classRoom: req.body.classRoom ?? student.classRoom, examPeriod: ['เช้า','บ่าย'].includes(req.body.examPeriod) ? req.body.examPeriod : student.examPeriod });
+    Object.assign(student, { firstName: req.body.firstName ?? student.firstName, lastName: req.body.lastName ?? student.lastName, classRoom: req.body.classRoom ?? student.classRoom, examPeriod: req.body.examPeriod === '' ? '' : (['เช้า','บ่าย'].includes(req.body.examPeriod) ? req.body.examPeriod : student.examPeriod) });
     await writeDB(db); res.json({ ok: true });
   });
 
