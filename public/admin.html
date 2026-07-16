@@ -832,12 +832,20 @@ function wizardAccessStepHtml(){
 
 function classGroupForName(className){
   const name=String(className||'').trim();
-  // เช่น CIT.1/5 = ปวช.1, CIT.2/5 = ปวช.2 และ สธ.242 = ปวส.2
+  // รองรับ CIT.1/5, ม.3/1, ปวช.2/1, สธ.151, ปวส.2xx เป็นต้น
+  if(/ปวส\.?\s*1/i.test(name)) return 'ปวส.1';
+  if(/ปวส\.?\s*2/i.test(name)) return 'ปวส.2';
+  if(/ปวช\.?\s*1/i.test(name)) return 'ปวช.1';
+  if(/ปวช\.?\s*2/i.test(name)) return 'ปวช.2';
+  if(/ปวช\.?\s*3/i.test(name)) return 'ปวช.3';
   if(/\.\s*1\/\d+/i.test(name)) return 'ปวช.1';
   if(/\.\s*2\/\d+/i.test(name)) return 'ปวช.2';
+  if(/\.\s*3\/\d+/i.test(name)) return 'ปวช.3';
   if(/\.\s*1\d{2}\b/i.test(name)) return 'ปวส.1';
   if(/\.\s*2\d{2}\b/i.test(name)) return 'ปวส.2';
-  if(/^ม\.\s*\d+/i.test(name)) return 'มัธยม';
+  if(/^ม\.\s*1\//i.test(name)) return 'ปวช.1';
+  if(/^ม\.\s*2\//i.test(name)) return 'ปวช.2';
+  if(/^ม\.\s*3\//i.test(name)) return 'ปวช.3';
   return 'ห้องอื่น ๆ';
 }
 function classEducationLevelForName(className){
@@ -848,7 +856,7 @@ function classEducationLevelForName(className){
 }
 
 function buildGroupedClassOptions(classes){
-  const order=['ปวช.1','ปวช.2','ปวส.1','ปวส.2','มัธยม','ห้องอื่น ๆ'];
+  const order=['ปวช.1','ปวช.2','ปวช.3','ปวส.1','ปวส.2','ห้องอื่น ๆ'];
   const groups=new Map(order.map(group=>[group,[]]));
   [...new Set(classes||[])].sort((a,b)=>String(a).localeCompare(String(b),'th')).forEach(className=>{
     groups.get(classGroupForName(className)).push(className);
