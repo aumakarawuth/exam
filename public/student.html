@@ -627,11 +627,11 @@ async function doCheckScore(){
     else{
       wrap.innerHTML = `<table class="score-table"><thead><tr><th>รายวิชา</th><th>ประเภท</th><th>วันที่สอบ</th><th>สถานะ</th><th>คะแนน (/20)</th></tr></thead><tbody>` +
         results.map(r=>`<tr>
-          <td>${escapeHtml(r.questionTitle)}</td>
+          <td>${escapeHtml(r.questionTitle)}${r.attemptType==='resit'?'<br><span class="status-pill pending">สอบซ่อม</span>':''}</td>
           <td>${escapeHtml(r.examType||'-')}</td>
           <td>${new Date(r.submittedAt).toLocaleDateString('th-TH')}</td>
           <td><span class="status-pill ${r.published?'pub':'pending'}">${r.published?'ประกาศแล้ว':'รอประกาศผล'}</span></td>
-          <td><b>${r.published ? r.overallScore20 : '—'}</b></td>
+          <td><b>${r.published ? (r.attemptType==='resit' ? `${r.overallScore20} → ${r.convertedScore}/${r.resitScoreMax}` : r.overallScore20) : '—'}</b></td>
         </tr>`).join('') + `</tbody></table>`;
     }
   }catch(e){ errBox.textContent = e.message; errBox.style.display='block'; }
@@ -704,7 +704,7 @@ async function refreshSelectScreen(){
   ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
   try{
     const mine = await apiGetMyResults(app.studentId);
-    COMPLETED_KEYS = new Set(mine.map(r=>r.questionKey));
+    COMPLETED_KEYS = new Set(mine.filter(r=>r.attemptType!=='resit').map(r=>r.questionKey));
   }catch(e){ COMPLETED_KEYS = new Set(); }
   renderQGrid();
 }
@@ -718,7 +718,8 @@ function renderQGrid(){
     return;
   }
   wrap.innerHTML = `<div class="qgrid">` + ELIGIBLE_SETS.map(q=>{
-    const done = COMPLETED_KEYS.has(q.key);
+    const isResit = q.accessMode==='resit';
+    const done = !isResit && COMPLETED_KEYS.has(q.key);
     const locked = q.lateAccessRequired && !lateCodeVerified[q.key];
     const disabled = done || locked;
     return `<div class="qcard" data-key="${q.key}" ${disabled?'style="opacity:.7;cursor:default;"':''}>
@@ -726,6 +727,7 @@ function renderQGrid(){
       <p>${escapeHtml(q.desc||'')}</p>
       <div class="lvbadges">
         ${done ? `<span class="lvbadge" style="background:var(--green);color:#fff;border-color:var(--green);">✅ ทำข้อสอบแล้ว</span>` : ''}
+        ${isResit ? `<span class="lvbadge" style="background:#F59E0B;color:#fff;border-color:#F59E0B;">🛠️ สิทธิ์สอบซ่อม · คะแนนเต็มหลังแปลง ${q.resitScoreMax}</span>` : ''}
         ${locked ? `<span class="lvbadge" style="background:var(--red);color:#fff;border-color:var(--red);">🔒 หมดเวลาลงทะเบียนสอบ</span>` : ''}
         ${q.examType ? `<span class="lvbadge examtype">${escapeHtml(q.examType)}</span>` : ''}
         <span class="lvbadge">${SECTION_ICON.mc} ปรนัย ${q.sections.mc.questions.length} ข้อ</span>
@@ -747,7 +749,7 @@ function renderQGrid(){
 
   wrap.querySelectorAll('.qcard').forEach(card=>{
     const key = card.dataset.key;
-    const done = COMPLETED_KEYS.has(key);
+    const done = ELIGIBLE_SETS_BY_KEY[key].accessMode!=='resit' && COMPLETED_KEYS.has(key);
     const locked = ELIGIBLE_SETS_BY_KEY[key].lateAccessRequired && !lateCodeVerified[key];
     if(done || locked) return; // not directly selectable
     card.addEventListener('click', ()=>{
@@ -777,8 +779,9 @@ function renderQGrid(){
 }
 document.getElementById('confirmQBtn').addEventListener('click', ()=>{
   if(!pickedKey) return;
-  if(COMPLETED_KEYS.has(pickedKey)){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
+  if(COMPLETED_KEYS.has(pickedKey) && ELIGIBLE_SETS_BY_KEY[pickedKey].accessMode!=='resit'){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
   app.questionKey = pickedKey;
+  app.resitAccessId = ELIGIBLE_SETS_BY_KEY[pickedKey].resitAccessId || null;
   app.lateCode = lateCodeVerified[pickedKey] || null;
   requestExamFullscreen();
   selectScreen.classList.add('hidden');
@@ -1121,7 +1124,7 @@ document.getElementById('modalHubBtn').addEventListener('click', ()=>{ document.
 async function submitFinalAnswers(autoSubmit){
   const record = {
     studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
-    questionKey: app.questionKey, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
+    questionKey: app.questionKey, resitAccessId: app.resitAccessId || null, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
     tabSwitches: state.tabSwitches, reloadCount: app.reloadCount,
     fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
     integrityEvents: state.integrityEvents,

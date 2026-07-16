@@ -74,7 +74,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   // Score lookup is intentionally available by student ID from the public score-check page.
   // Scores remain null until the teacher publishes them.
   app.get('/api/students/:studentId/results', (req, res) => {
-    const results = readDB().results.filter(result => result.studentId === req.params.studentId.trim()).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).map(result => ({ questionKey: result.questionKey, questionTitle: result.questionTitle, examType: result.examType, submittedAt: result.submittedAt, published: !!result.published, overallScore20: result.published ? result.overallScore20 : null, sectionScores: result.published ? result.sectionScores : null }));
+    const results = readDB().results.filter(result => result.studentId === req.params.studentId.trim()).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).map(result => ({ questionKey: result.questionKey, questionTitle: result.questionTitle, examType: result.examType, submittedAt: result.submittedAt, attemptType: result.attemptType || 'normal', resitScoreMax: result.resitScoreMax || null, published: !!result.published, overallScore20: result.published ? result.overallScore20 : null, convertedScore: result.published && result.attemptType === 'resit' ? result.convertedScore : null, sectionScores: result.published ? result.sectionScores : null }));
     res.json(results);
   });
 

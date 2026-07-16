@@ -369,6 +369,7 @@ async function apiSetPublished(id, published){ return apiFetch('/api/teacher/res
 async function apiUpdateDfdScores(id, dfdLevelScores){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores}, auth:true }); }
 async function apiUpdateWrittenScores(id, writtenManualScores){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{writtenManualScores}, auth:true }); }
 async function apiPublishAllForSet(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', auth:true }); }
+async function apiOpenResit(resultId, body){ return apiFetch('/api/teacher/results/'+encodeURIComponent(resultId)+'/resit', { method:'POST', body, auth:true }); }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -1541,6 +1542,7 @@ async function refreshResults(){
         <td><button class="pub-pill ${r.published?'pub-yes':'pub-no'}" data-togglepub="${r.id}">${r.published?'ประกาศแล้ว ✅':'ยังไม่ประกาศ 🔒'}</button></td>
         <td>
           <button class="btn btn-ghost btn-sm" data-viewdetail="${r.id}">ดูรายละเอียด</button>
+          ${r.attemptType!=='resit'?`<button class="btn btn-ghost btn-sm" data-openresit="${r.id}">🛠️ เปิดสอบซ่อม</button>`:''}
           <button class="btn btn-danger btn-sm" data-delres="${r.id}">ลบ</button>
         </td>
       </tr>`).join('') + `</tbody></table>`;
@@ -1553,6 +1555,12 @@ async function refreshResults(){
     const rec = LAST_RESULTS.find(x=>x.id===b.dataset.togglepub);
     try{ await apiSetPublished(b.dataset.togglepub, !rec.published); refreshResults(); }
     catch(e){ showToast(e.message); }
+  }));
+  wrap.querySelectorAll('[data-openresit]').forEach(b=>b.addEventListener('click', async ()=>{
+    const hours=Number(prompt('เปิดสิทธิ์สอบซ่อมกี่ชั่วโมง?', '24')); if(!Number.isFinite(hours)||hours<=0) return;
+    const scoreMax=Number(prompt('คะแนนเต็มหลังแปลง (สูตร: คะแนนซ่อม ÷ 20 × คะแนนเต็มนี้)', '20')); if(!Number.isFinite(scoreMax)||scoreMax<=0) return;
+    const availableFrom=new Date(), availableUntil=new Date(Date.now()+hours*60*60*1000);
+    try{ await apiOpenResit(b.dataset.openresit,{availableFrom:availableFrom.toISOString(),availableUntil:availableUntil.toISOString(),scoreMax}); showToast('อาจารย์อนุมัติเปิดสอบซ่อมแล้ว'); refreshResults(); }catch(e){showToast(e.message);}
   }));
   wrap.querySelectorAll('[data-viewdetail]').forEach(b=>b.addEventListener('click', ()=> toggleDetailRow(b.dataset.viewdetail)));
 }
