@@ -434,6 +434,9 @@ async function apiVerifyPin(studentId, pin){ return apiFetch('/api/students/'+en
 async function apiGetEligibleSets(){ return apiFetch('/api/sets'); }
 async function apiSubmitResult(record){ return apiFetch('/api/results', { method:'POST', body:record }); }
 async function apiGetMyResults(studentId){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/results'); }
+async function apiGetExamDraft(key,resitAccessId){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key)+(resitAccessId?('?resitAccessId='+encodeURIComponent(resitAccessId)):'')); }
+async function apiSaveExamDraft(key,draft){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key),{method:'PUT',body:{draft}}); }
+async function apiClearExamDraft(key,resitAccessId){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key)+(resitAccessId?('?resitAccessId='+encodeURIComponent(resitAccessId)):''),{method:'DELETE'}); }
 
 const SECTION_KEYS = ['mc','matching','written'];
 const SECTION_TITLES = {mc:'ส่วนที่ 1 — ปรนัย', matching:'ส่วนที่ 2 — จับคู่', written:'ส่วนที่ 3 — อัตนัย'};
@@ -484,6 +487,7 @@ function initMcStateIfNeeded(){
 /* ============ SESSION PERSISTENCE (localStorage, per-browser) ============ */
 const SESSION_KEY = 'examSession';
 let _saveDebounceHandle = null;
+let _serverSaveHandle = null;
 let pageIsLeaving = false;
 let tabSwitchCheckTimer = null;
 function saveSession(){
@@ -500,6 +504,15 @@ function saveSession(){
   };
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); updateAutosaveTag('saved'); }
   catch(e){ updateAutosaveTag('error'); }
+  queueServerSave(payload);
+}
+function queueServerSave(payload){
+  if(!navigator.onLine || !app.studentToken || app.examEnded) return;
+  clearTimeout(_serverSaveHandle);
+  _serverSaveHandle=setTimeout(async()=>{
+    const draft={questionKey:payload.questionKey,resitAccessId:app.resitAccessId||null,section:payload.section,lateCode:payload.lateCode,submittedSections:payload.submittedSections,mcState:payload.mcState,examEndTime:payload.examEndTime,reloadCount:payload.reloadCount,tabSwitches:payload.tabSwitches,tabWarningAcknowledged:payload.tabWarningAcknowledged,fullscreenExitAttempts:payload.fullscreenExitAttempts,rightClickAttempts:payload.rightClickAttempts,copyAttempts:payload.copyAttempts,integrityEvents:payload.integrityEvents,draftAnswers:payload.draftAnswers};
+    try{await apiSaveExamDraft(payload.questionKey,draft);updateAutosaveTag('saved');}catch(error){/* local backup remains available while offline */}
+  },1200);
 }
 function updateAutosaveTag(status){
   const tag = document.getElementById('autosaveTag');
@@ -779,12 +792,20 @@ function renderQGrid(){
     });
   });
 }
-document.getElementById('confirmQBtn').addEventListener('click', ()=>{
+function applyServerDraft(draft){
+  if(!draft?.examEndTime || new Date(draft.examEndTime).getTime()<=Date.now()) return false;
+  app.section=draft.section||null; app.lateCode=draft.lateCode||null; app.submittedSections=draft.submittedSections||{mc:false,matching:false,written:false};
+  app.mcState=draft.mcState||null; app.examEndTime=draft.examEndTime; app.timeLeft=Math.max(0,Math.round((new Date(draft.examEndTime).getTime()-Date.now())/1000));
+  app.reloadCount=(Number(draft.reloadCount)||0)+1; state={tabSwitches:Number(draft.tabSwitches)||0,tabWarningAcknowledged:Number(draft.tabWarningAcknowledged)||0,fullscreenExitAttempts:Number(draft.fullscreenExitAttempts)||0,rightClickAttempts:Number(draft.rightClickAttempts)||0,copyAttempts:Number(draft.copyAttempts)||0,integrityEvents:Array.isArray(draft.integrityEvents)?draft.integrityEvents:[]};
+  draftAnswers=draft.draftAnswers||{mc:{},matching:{},written:{}}; return true;
+}
+document.getElementById('confirmQBtn').addEventListener('click', async ()=>{
   if(!pickedKey) return;
   if(COMPLETED_KEYS.has(pickedKey) && ELIGIBLE_SETS_BY_KEY[pickedKey].accessMode!=='resit'){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
   app.questionKey = pickedKey;
   app.resitAccessId = ELIGIBLE_SETS_BY_KEY[pickedKey].resitAccessId || null;
   app.lateCode = lateCodeVerified[pickedKey] || null;
+  try{ const remote=await apiGetExamDraft(pickedKey,app.resitAccessId); if(applyServerDraft(remote.draft)) showToast('กู้คืนคำตอบที่บันทึกไว้จากเซิร์ฟเวอร์แล้ว'); }catch(error){}
   requestExamFullscreen();
   selectScreen.classList.add('hidden');
   runCountdown();
@@ -812,8 +833,7 @@ function beginExam(){
   document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
   document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
   document.getElementById('hubQTagline').textContent = (currentQuestion().examType ? '['+currentQuestion().examType+'] ' : '') + (currentQuestion().tagline||'');
-  app.timeLeft = 60*60;
-  app.examEndTime = Date.now() + app.timeLeft*1000;
+  if(!app.examEndTime){ app.timeLeft = 60*60; app.examEndTime = Date.now() + app.timeLeft*1000; }
   updateReloadTag();
   updateGlobalTimerDisplay();
   showHub();
@@ -1159,7 +1179,9 @@ async function finalizeExam(reason){
   app.examInProgress = false;
   clearInterval(app.globalTimerHandle);
   saveSession();
-  try{ await submitFinalAnswers(auto); }catch(e){ /* toast already shown */ }
+  try{ await submitFinalAnswers(auto); }
+  catch(e){ app.examEnded=false; app.examInProgress=true; runGlobalTimer(); return; }
+  try{ await apiClearExamDraft(app.questionKey,app.resitAccessId); }catch(error){}
   clearSessionData();
   // Once this subject's exam has ended, the anti-cheat counters for it are done being tracked —
   // clear them immediately so they never carry over into a different subject or a shared device.

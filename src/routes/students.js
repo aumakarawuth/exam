@@ -29,6 +29,28 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     res.json({ student: publicStudent(student) });
   });
 
+  const draftId = (questionKey, resitAccessId) => `${questionKey}::${resitAccessId || 'normal'}`;
+  app.get('/api/exam-drafts/:questionKey', requireStudent, (req, res) => {
+    const student = findStudent(readDB().students, req.studentId);
+    const draft = student?.examDrafts?.[draftId(req.params.questionKey, req.query.resitAccessId)];
+    res.json({ draft: draft || null });
+  });
+  app.put('/api/exam-drafts/:questionKey', requireStudent, async (req, res) => {
+    const db = readDB(); const student = findStudent(db.students, req.studentId);
+    const questionKey = String(req.params.questionKey || ''); const payload = req.body?.draft;
+    if (!student || !db.sets.some(set => set.key === questionKey)) return res.status(404).json({ error: 'not_found' });
+    if (!payload || typeof payload !== 'object' || JSON.stringify(payload).length > 250000) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลร่างข้อสอบไม่ถูกต้อง' });
+    student.examDrafts = student.examDrafts && typeof student.examDrafts === 'object' ? student.examDrafts : {};
+    const key = draftId(questionKey, payload.resitAccessId);
+    student.examDrafts[key] = { ...payload, questionKey, savedAt: new Date().toISOString() };
+    await writeDB(db); res.json({ ok: true, savedAt: student.examDrafts[key].savedAt });
+  });
+  app.delete('/api/exam-drafts/:questionKey', requireStudent, async (req, res) => {
+    const db = readDB(); const student = findStudent(db.students, req.studentId);
+    if (student?.examDrafts) delete student.examDrafts[draftId(req.params.questionKey, req.query.resitAccessId)];
+    await writeDB(db); res.status(204).end();
+  });
+
   app.post('/api/students/:studentId/set-pin', async (req, res) => {
     const db = readDB();
     const student = findStudent(db.students, req.params.studentId);
