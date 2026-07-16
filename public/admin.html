@@ -252,7 +252,7 @@ button{font-family:inherit;cursor:pointer;}
             <p class="sub" style="margin:0;">ใช้ตรวจสิทธิ์ตอนนักเรียนกรอกรหัสเข้าสอบ และดึงชื่อ-สกุล-ห้องมาแสดงอัตโนมัติ</p>
           </div>
         </div>
-        <div class="panel"><h3>🕒 ตั้งรอบเรียนรายห้อง</h3><p class="panel-sub">เลือกห้องหนึ่งครั้ง แล้วกำหนดให้นักเรียนทุกคนในห้องเป็นรอบเดียวกัน</p><div class="editor-actions" style="justify-content:flex-start;flex-wrap:wrap;"><select class="filter-select" id="roomPeriodSelect"><option value="">เลือกห้อง</option></select><button class="btn btn-primary btn-sm" data-set-room-period="เช้า">เช้า</button><button class="btn btn-ghost btn-sm" data-set-room-period="บ่าย" style="border-color:#F59E0B;color:#92400E;">บ่าย</button><button class="btn btn-ghost btn-sm" data-set-room-period="ทวิภาคี">ทวิภาคี</button></div></div>
+        <div class="panel"><h3>🕒 ตั้งรอบเรียนรายห้อง</h3><p class="panel-sub">เลือกห้องเพื่อกำหนดรอบครั้งแรก หรือเลือกห้องที่มีรอบแล้วเพื่อย้ายรอบให้นักเรียนทั้งห้อง</p><div class="editor-actions" style="justify-content:flex-start;flex-wrap:wrap;"><select class="filter-select" id="roomPeriodSelect"><option value="">เลือกห้อง</option></select><button class="btn btn-primary btn-sm" data-set-room-period="เช้า">เช้า</button><button class="btn btn-ghost btn-sm" data-set-room-period="บ่าย" style="border-color:#F59E0B;color:#92400E;">บ่าย</button><button class="btn btn-ghost btn-sm" data-set-room-period="ทวิภาคี">ทวิภาคี</button></div></div>
         <div class="panel" id="studentPasteImportPanel">
           <h3>นำเข้ารายชื่อแบบรวดเร็ว (วางจาก Excel)</h3>
           <p class="panel-sub">คัดลอกคอลัมน์ รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง จาก Excel แล้ววางที่นี่ (1 บรรทัดต่อ 1 คน) หากมีรหัสซ้ำในระบบอยู่แล้ว ระบบจะอัปเดตข้อมูลแทนการเพิ่มซ้ำ</p>
@@ -1623,7 +1623,14 @@ async function refreshStudents(){
     const current = sel.value;
     sel.innerHTML = '<option value="">ทุกห้อง</option>' + classes.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
     sel.value = current;
-    const roomSel=document.getElementById('roomPeriodSelect'); if(roomSel){ const previous=roomSel.value; const unset=await apiGetClasses('unset'); roomSel.innerHTML='<option value="">เลือกห้องที่ยังไม่ตั้งรอบ</option>'+unset.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join(''); roomSel.value=previous; }
+    const roomSel=document.getElementById('roomPeriodSelect'); if(roomSel){
+      const previous=roomSel.value;
+      const periods=['เช้า','บ่าย','ทวิภาคี'];
+      const groups=await Promise.all([apiGetClasses('unset'),...periods.map(period=>apiGetClasses(period))]);
+      const labels=['ยังไม่ตั้งรอบ','รอบเช้า','รอบบ่าย','รอบทวิภาคี'];
+      roomSel.innerHTML='<option value="">เลือกห้องเพื่อกำหนดหรือเปลี่ยนรอบ</option>'+groups.map((rooms,index)=>rooms.length?`<optgroup label="${labels[index]}">${rooms.map(room=>`<option value="${escapeAttr(room)}">${escapeHtml(room)}</option>`).join('')}</optgroup>`:'').join('');
+      roomSel.value=previous;
+    }
   }catch(e){}
 
   const search=String(document.getElementById('studentSearchInput').value||'').trim().toLowerCase();
