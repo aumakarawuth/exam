@@ -835,6 +835,8 @@ function classGroupForName(className){
   // รองรับ CIT.1/5, ม.3/1, ปวช.2/1, สธ.151, ปวส.2xx เป็นต้น
   if(/ปวส\.?\s*1/i.test(name)) return 'ปวส.1';
   if(/ปวส\.?\s*2/i.test(name)) return 'ปวส.2';
+  if(/\.\s*1101(?:\s|\(|$)/i.test(name)) return 'ปวส.1';
+  if(/\.\s*2101(?:\s|\(|$)/i.test(name)) return 'ปวส.2';
   if(/ปวช\.?\s*1/i.test(name)) return 'ปวช.1';
   if(/ปวช\.?\s*2/i.test(name)) return 'ปวช.2';
   if(/ปวช\.?\s*3/i.test(name)) return 'ปวช.3';
