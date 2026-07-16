@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ข้อสอบ DFD — Exam Mode</title>
+<script type="text/javascript">try{if(sessionStorage.getItem('examStudentToken'))document.documentElement.classList.add('restoring-session');}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -19,6 +20,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);min-
 h1,h2,h3,.display{font-family:'Prompt',sans-serif;}
 button{font-family:inherit;cursor:pointer;}
 .hidden{display:none !important;}
+html.restoring-session #startScreen{visibility:hidden;}html.restoring-session body::after{content:'กำลังตรวจสอบการเข้าสู่ระบบ…';position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--sub);font-family:'Prompt',sans-serif;font-size:15px;}
 .btn{border:none;border-radius:12px;padding:14px 22px;font-weight:600;font-size:15px;transition:transform .15s,box-shadow .15s,background .15s;}
 .btn-primary{background:var(--blue);color:#fff;box-shadow:0 8px 20px -8px rgba(37,99,235,.6);}
 .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);}
@@ -1923,12 +1925,13 @@ function attemptResumeDfdSession(){
   return true;
 }
 const resumedDfdSession=attemptResumeDfdSession();
-if(!resumedDfdSession && app.studentToken){
+if(resumedDfdSession) document.documentElement.classList.remove('restoring-session');
+else if(app.studentToken){
   fetch('/api/student/session',{headers:{'x-student-token':app.studentToken}})
     .then(response=>response.ok?response.json():Promise.reject())
-    .then(result=>window.startObjectAnalysisExam?.(result.student))
-    .catch(()=>sessionStorage.removeItem('examStudentToken'));
-}
+    .then(result=>{document.documentElement.classList.remove('restoring-session');return window.startObjectAnalysisExam?.(result.student);})
+    .catch(()=>{sessionStorage.removeItem('examStudentToken');document.documentElement.classList.remove('restoring-session');});
+}else document.documentElement.classList.remove('restoring-session');
 
 })();
 </script>

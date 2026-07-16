@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบข้อสอบ — สำหรับนักเรียน</title>
+<script>try{if(sessionStorage.getItem('examStudentToken'))document.documentElement.classList.add('restoring-session');}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -23,6 +24,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);min-
 h1,h2,h3,.display{font-family:'Prompt',sans-serif;}
 button{font-family:inherit;cursor:pointer;}
 .hidden{display:none !important;}
+html.restoring-session #startScreen{visibility:hidden;}html.restoring-session body::after{content:'กำลังตรวจสอบการเข้าสู่ระบบ…';position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--sub);font-family:'Prompt',sans-serif;font-size:15px;}
 .btn{border:none;border-radius:12px;padding:14px 22px;font-weight:600;font-size:15px;transition:transform .15s,box-shadow .15s,background .15s;}
 .btn-primary{background:var(--blue);color:#fff;box-shadow:0 8px 20px -8px rgba(37,99,235,.6);}
 .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);}
@@ -1277,10 +1279,12 @@ async function continueVerifiedStudent(){
     app.classRoom = result.student.classRoom;
     if(new URLSearchParams(location.search).get('continue')==='1') history.replaceState({},'',location.pathname);
     await proceedToSelectScreen();
+    document.documentElement.classList.remove('restoring-session');
     return true;
   }catch(e){
     sessionStorage.removeItem('examStudentToken');
     app.studentToken = '';
+    document.documentElement.classList.remove('restoring-session');
     return false;
   }
 }
@@ -1288,7 +1292,7 @@ async function continueVerifiedStudent(){
 /* ============ INIT ============ */
 if(!attemptResumeSession()){
   continueVerifiedStudent().then(continued=>{ if(!continued) startScreen.classList.remove('hidden'); });
-}
+}else document.documentElement.classList.remove('restoring-session');
 
 })();
 </script>
