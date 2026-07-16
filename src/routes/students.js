@@ -71,8 +71,9 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     res.json({ ok: true });
   });
 
-  app.get('/api/students/:studentId/results', requireStudent, (req, res) => {
-    if (req.studentId !== req.params.studentId.trim()) return res.status(403).json({ error: 'forbidden', message: 'No access to this student result.' });
+  // Score lookup is intentionally available by student ID from the public score-check page.
+  // Scores remain null until the teacher publishes them.
+  app.get('/api/students/:studentId/results', (req, res) => {
     const results = readDB().results.filter(result => result.studentId === req.params.studentId.trim()).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).map(result => ({ questionKey: result.questionKey, questionTitle: result.questionTitle, examType: result.examType, submittedAt: result.submittedAt, published: !!result.published, overallScore20: result.published ? result.overallScore20 : null, sectionScores: result.published ? result.sectionScores : null }));
     res.json(results);
   });
