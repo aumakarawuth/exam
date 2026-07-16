@@ -144,6 +144,7 @@ button{font-family:inherit;cursor:pointer;}
 .google-import-dialog-head h3{margin:0;font-size:18px;}.google-import-dialog-head p{margin:4px 0 0;color:var(--sub);font-size:12.5px;line-height:1.6;}
 .google-import-dialog input{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:13px;}.google-import-dialog input:focus{outline:none;border-color:var(--blue);}
 .google-import-step{border:1px solid #C7D2FE;background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border-radius:13px;padding:15px;}.google-import-step h4{font-family:'Prompt',sans-serif;margin:0 0 5px;font-size:14px;color:var(--indigo);}.google-import-step p{color:var(--sub);font-size:12.5px;line-height:1.65;margin:0 0 12px;}
+.resit-dialog{border:0;padding:0;border-radius:20px;width:min(600px,calc(100% - 28px));background:var(--surface);color:var(--ink);box-shadow:0 24px 70px -18px rgba(15,23,42,.45);}.resit-dialog::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(2px);}.resit-dialog-card{padding:24px;position:relative;}.resit-dialog-card h3{margin:0 0 5px;font-size:20px;}.resit-dialog-card>p{margin:0 0 18px;color:var(--sub);font-size:13px;line-height:1.65;}.resit-close{position:absolute;right:16px;top:15px;padding:6px 9px;line-height:1;}.resit-summary{background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #C7D2FE;border-radius:13px;padding:12px 14px;margin:0 0 16px;font-size:13px;line-height:1.65;}.resit-summary b{font-family:'Prompt',sans-serif;color:var(--blue-dark);}.resit-time-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}.resit-time-grid .field{min-width:0;}.resit-score-note{margin:-4px 0 14px;color:var(--sub);font-size:12px;line-height:1.6;}.resit-error{min-height:18px;color:var(--red);font-size:12.5px;margin:0 0 4px;}@media(max-width:520px){.resit-time-grid{grid-template-columns:1fr;gap:0;}.resit-dialog-card{padding:20px;}}
 .q-editor-panel .q-editor-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:13px;color:var(--blue);margin-bottom:12px;}
 .wizard-steps-bar{display:flex;align-items:center;gap:6px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
 .wizard-step-chip{font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--grid);color:var(--sub);border:1px solid var(--line);}
@@ -288,6 +289,26 @@ button{font-family:inherit;cursor:pointer;}
     <div class="field"><label for="confirmPasswordInput">ยืนยันรหัสผ่านใหม่</label><input type="password" id="confirmPasswordInput" minlength="8" autocomplete="new-password" required></div>
     <div class="password-error" id="changePasswordError"></div>
     <div class="editor-actions"><button class="btn btn-ghost btn-sm" type="button" id="cancelChangePasswordBtn">ยกเลิก</button><button class="btn btn-primary btn-sm" type="submit" id="savePasswordBtn">บันทึกรหัสผ่าน</button></div>
+  </form>
+</dialog>
+
+<dialog class="resit-dialog" id="resitDialog">
+  <form class="resit-dialog-card" id="resitForm">
+    <button class="btn btn-ghost btn-sm resit-close" type="button" id="closeResitDialog" aria-label="ปิด">✕</button>
+    <span class="eyebrow">🛠️ อนุมัติสอบซ่อม</span>
+    <h3>กำหนดสิทธิ์สอบซ่อม</h3>
+    <p>เลือกช่วงเวลาสำหรับนักเรียนคนนี้ และกำหนดคะแนนเต็มหลังแปลงคะแนน</p>
+    <div class="resit-summary" id="resitStudentSummary"></div>
+    <div class="resit-time-grid">
+      <div class="field"><label for="resitStartDate">วันเริ่มสอบ</label><input type="text" id="resitStartDate" placeholder="dd/mm/yyyy" required></div>
+      <div class="field"><label for="resitStartTime">เวลาเริ่มสอบ</label><input type="text" id="resitStartTime" placeholder="13.30" required></div>
+      <div class="field"><label for="resitEndDate">วันสิ้นสุด</label><input type="text" id="resitEndDate" placeholder="dd/mm/yyyy" required></div>
+      <div class="field"><label for="resitEndTime">เวลาสิ้นสุด</label><input type="text" id="resitEndTime" placeholder="13.30" required></div>
+    </div>
+    <div class="field"><label for="resitScoreMax">คะแนนเต็มหลังแปลง</label><input type="number" id="resitScoreMax" min="0.01" max="100" step="0.01" value="20" required></div>
+    <p class="resit-score-note">ระบบคำนวณ: คะแนนสอบซ่อม ÷ 20 × คะแนนเต็มที่กำหนด</p>
+    <div class="resit-error" id="resitDialogError"></div>
+    <div class="editor-actions"><button class="btn btn-ghost btn-sm" type="button" id="cancelResitDialog">ยกเลิก</button><button class="btn btn-primary btn-sm" type="submit" id="approveResitBtn">อนุมัติเปิดสอบซ่อม</button></div>
   </form>
 </dialog>
 
@@ -1507,6 +1528,50 @@ function populateSetFilterOptions(){
   sel.value = current;
 }
 let LAST_RESULTS = [];
+let activeResitResult = null;
+const resitDialog = document.getElementById('resitDialog');
+const resitForm = document.getElementById('resitForm');
+const resitDialogError = document.getElementById('resitDialogError');
+const approveResitBtn = document.getElementById('approveResitBtn');
+
+function closeResitDialog(){
+  if(resitDialog.open) resitDialog.close();
+  activeResitResult=null;
+  resitDialogError.textContent='';
+}
+function openResitDialog(resultId){
+  const result=LAST_RESULTS.find(item=>item.id===resultId);
+  if(!result) return showToast('ไม่พบข้อมูลผลสอบรายการนี้');
+  activeResitResult=result;
+  const from=new Date(), until=new Date(from.getTime()+24*60*60*1000);
+  document.getElementById('resitStudentSummary').innerHTML=`<b>${escapeHtml(result.studentName)}</b> (${escapeHtml(result.studentId)})<br>${escapeHtml(result.questionTitle)} · คะแนนเดิม ${Number(result.overallScore20||0).toFixed(2)}/20`;
+  document.getElementById('resitStartDate').value=formatExamDate(from.toISOString());
+  document.getElementById('resitStartTime').value=formatExamTime(from.toISOString());
+  document.getElementById('resitEndDate').value=formatExamDate(until.toISOString());
+  document.getElementById('resitEndTime').value=formatExamTime(until.toISOString());
+  document.getElementById('resitScoreMax').value='20';
+  resitDialogError.textContent='';
+  resitDialog.showModal();
+}
+document.getElementById('closeResitDialog').addEventListener('click',closeResitDialog);
+document.getElementById('cancelResitDialog').addEventListener('click',closeResitDialog);
+resitForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!activeResitResult) return;
+  const availableFrom=parseExamDateTime(document.getElementById('resitStartDate').value,document.getElementById('resitStartTime').value);
+  const availableUntil=parseExamDateTime(document.getElementById('resitEndDate').value,document.getElementById('resitEndTime').value);
+  const scoreMax=Number(document.getElementById('resitScoreMax').value);
+  if(!availableFrom||!availableUntil){ resitDialogError.textContent='กรุณากรอกวันและเวลาให้ถูกต้อง'; return; }
+  if(new Date(availableUntil)<=new Date(availableFrom)){ resitDialogError.textContent='เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มสอบ'; return; }
+  if(!Number.isFinite(scoreMax)||scoreMax<=0||scoreMax>100){ resitDialogError.textContent='คะแนนเต็มต้องอยู่ระหว่าง 0.01–100'; return; }
+  resitDialogError.textContent=''; approveResitBtn.disabled=true; approveResitBtn.innerHTML='<span class="button-spinner"></span>กำลังอนุมัติ...';
+  try{
+    await apiOpenResit(activeResitResult.id,{availableFrom,availableUntil,scoreMax});
+    closeResitDialog(); showToast('อนุมัติเปิดสอบซ่อมแล้ว'); refreshResults();
+  }catch(error){ resitDialogError.textContent=error.message; }
+  finally{ approveResitBtn.disabled=false; approveResitBtn.textContent='อนุมัติเปิดสอบซ่อม'; }
+});
+
 async function refreshResults(){
   const wrap = document.getElementById('resultsWrap');
   wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
@@ -1556,12 +1621,7 @@ async function refreshResults(){
     try{ await apiSetPublished(b.dataset.togglepub, !rec.published); refreshResults(); }
     catch(e){ showToast(e.message); }
   }));
-  wrap.querySelectorAll('[data-openresit]').forEach(b=>b.addEventListener('click', async ()=>{
-    const hours=Number(prompt('เปิดสิทธิ์สอบซ่อมกี่ชั่วโมง?', '24')); if(!Number.isFinite(hours)||hours<=0) return;
-    const scoreMax=Number(prompt('คะแนนเต็มหลังแปลง (สูตร: คะแนนซ่อม ÷ 20 × คะแนนเต็มนี้)', '20')); if(!Number.isFinite(scoreMax)||scoreMax<=0) return;
-    const availableFrom=new Date(), availableUntil=new Date(Date.now()+hours*60*60*1000);
-    try{ await apiOpenResit(b.dataset.openresit,{availableFrom:availableFrom.toISOString(),availableUntil:availableUntil.toISOString(),scoreMax}); showToast('อาจารย์อนุมัติเปิดสอบซ่อมแล้ว'); refreshResults(); }catch(e){showToast(e.message);}
-  }));
+  wrap.querySelectorAll('[data-openresit]').forEach(b=>b.addEventListener('click', ()=>openResitDialog(b.dataset.openresit)));
   wrap.querySelectorAll('[data-viewdetail]').forEach(b=>b.addEventListener('click', ()=> toggleDetailRow(b.dataset.viewdetail)));
 }
 function toggleDetailRow(resultId){
