@@ -1269,13 +1269,13 @@ function showToast(msg){
 }
 
 async function continueVerifiedStudent(){
-  if(new URLSearchParams(location.search).get('continue')!=='1' || !app.studentToken) return false;
+  if(!app.studentToken) return false;
   try{
     const result = await apiFetch('/api/student/session');
     app.studentId = result.student.studentId;
     app.studentName = result.student.firstName+' '+result.student.lastName;
     app.classRoom = result.student.classRoom;
-    history.replaceState({},'',location.pathname);
+    if(new URLSearchParams(location.search).get('continue')==='1') history.replaceState({},'',location.pathname);
     await proceedToSelectScreen();
     return true;
   }catch(e){

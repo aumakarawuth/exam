@@ -1922,7 +1922,13 @@ function attemptResumeDfdSession(){
   saveDfdSession();
   return true;
 }
-attemptResumeDfdSession();
+const resumedDfdSession=attemptResumeDfdSession();
+if(!resumedDfdSession && app.studentToken){
+  fetch('/api/student/session',{headers:{'x-student-token':app.studentToken}})
+    .then(response=>response.ok?response.json():Promise.reject())
+    .then(result=>window.startObjectAnalysisExam?.(result.student))
+    .catch(()=>sessionStorage.removeItem('examStudentToken'));
+}
 
 })();
 </script>

@@ -338,8 +338,12 @@ button{font-family:inherit;cursor:pointer;}
 
 /* ============ API CLIENT ============ */
 const API_BASE = '';
-let teacherToken = null;
-let teacherInfo = null; // {teacherId, firstName, lastName}
+const TEACHER_SESSION_STORAGE_KEY = 'examTeacherSession';
+const savedTeacherSession = (()=>{ try{return JSON.parse(sessionStorage.getItem(TEACHER_SESSION_STORAGE_KEY)||'null');}catch(error){return null;} })();
+let teacherToken = savedTeacherSession?.token || null;
+let teacherInfo = savedTeacherSession?.teacherInfo || null; // {teacherId, firstName, lastName}
+function saveTeacherSession(){ if(teacherToken&&teacherInfo) sessionStorage.setItem(TEACHER_SESSION_STORAGE_KEY,JSON.stringify({token:teacherToken,teacherInfo})); }
+function clearTeacherSession(){ sessionStorage.removeItem(TEACHER_SESSION_STORAGE_KEY); }
 async function apiFetch(path, options){
   options = options || {};
   const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
@@ -413,7 +417,7 @@ function scheduleSessionExpiry(){ stopSessionTimer(); if(!teacherToken) return; 
 ['pointerdown','keydown','touchstart'].forEach(type=>document.addEventListener(type,()=>{ if(teacherToken) scheduleSessionExpiry(); },{passive:true}));
 function showSessionExpiredDialog(){
   if(!teacherToken) return;
-  teacherToken=null; teacherInfo=null; stopSessionTimer();
+  teacherToken=null; teacherInfo=null; clearTeacherSession(); stopSessionTimer();
   document.getElementById('setWizardScreen').classList.add('hidden'); adminScreen.classList.add('hidden');
   const dialog=document.getElementById('sessionExpiredDialog'); if(!dialog.open) dialog.showModal();
 }
@@ -430,6 +434,7 @@ async function tryAdminLogin(){
     teacherToken = result.token;
     scheduleSessionExpiry();
     teacherInfo = result;
+    saveTeacherSession();
     errBox.style.display='none';
     document.getElementById('teacherNameLabel').textContent = result.firstName + ' ' + result.lastName;
     adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
@@ -464,17 +469,32 @@ document.getElementById('changePasswordForm').addEventListener('submit', async (
   try{
     const result=await apiChangeTeacherPassword(currentPassword, newPassword);
     teacherToken=result.token;
+    saveTeacherSession();
     changePasswordDialog.close();
     showToast('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
   }catch(e){ error.textContent=e.message; }
   saveBtn.disabled=false; saveBtn.textContent='บันทึกรหัสผ่าน';
 });
 document.getElementById('adminExitBtn').addEventListener('click', ()=>{
-  teacherToken = null; teacherInfo = null; stopSessionTimer();
+  teacherToken = null; teacherInfo = null; clearTeacherSession(); stopSessionTimer();
   adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
   document.getElementById('teacherUsernameInput').value=''; document.getElementById('teacherPasswordInput').value='';
   document.getElementById('adminLoginError').style.display='none';
 });
+
+async function restoreTeacherSession(){
+  if(!teacherToken||!teacherInfo) return;
+  document.getElementById('teacherNameLabel').textContent = `${teacherInfo.firstName||''} ${teacherInfo.lastName||''}`.trim();
+  try{
+    await apiGetAdminSets();
+    scheduleSessionExpiry();
+    adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
+    initAdmin();
+  }catch(error){
+    teacherToken=null; teacherInfo=null; clearTeacherSession();
+  }
+}
+restoreTeacherSession();
 
 function refreshCurrentPageData(){
   const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset.atab;

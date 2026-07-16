@@ -371,7 +371,8 @@ button{font-family:inherit;cursor:pointer;}
 
 /* ============ API CLIENT ============ */
 const API_BASE = '';
-let adminKey = null;
+const ADMIN_SESSION_STORAGE_KEY = 'examAdminSessionKey';
+let adminKey = sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) || null;
 async function apiFetch(path, options){
   options = options || {};
   const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
@@ -458,7 +459,7 @@ function scheduleSessionExpiry(){ stopSessionTimer(); if(!adminKey) return; sess
 ['pointerdown','keydown','touchstart'].forEach(type=>document.addEventListener(type,()=>{ if(adminKey) scheduleSessionExpiry(); },{passive:true}));
 function showSessionExpiredDialog(){
   if(!adminKey) return;
-  adminKey=null; stopSessionTimer();
+  adminKey=null; sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY); stopSessionTimer();
   document.getElementById('setWizardScreen').classList.add('hidden'); adminScreen.classList.add('hidden');
   const dialog=document.getElementById('sessionExpiredDialog'); if(!dialog.open) dialog.showModal();
 }
@@ -474,6 +475,7 @@ async function tryAdminLogin(){
   btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ →';
   if(!ok){ errBox.textContent = loginError?.message || 'รหัสผู้ดูแลระบบไม่ถูกต้อง หรือเชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ'; errBox.style.display='block'; return; }
   adminKey = val;
+  sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, adminKey);
   scheduleSessionExpiry();
   adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
   initAdmin();
@@ -482,7 +484,7 @@ document.getElementById('adminLoginBtn').addEventListener('click', tryAdminLogin
 document.getElementById('adminKeyInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
 document.getElementById('pageRefreshBtn').addEventListener('click', refreshCurrentPageData);
 document.getElementById('adminExitBtn').addEventListener('click', ()=>{
-  adminKey = null; stopSessionTimer(); adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
+  adminKey = null; sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY); stopSessionTimer(); adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
   document.getElementById('adminKeyInput').value=''; document.getElementById('adminLoginError').style.display='none';
 });
 function organizeAdminSettings(){
@@ -490,6 +492,19 @@ function organizeAdminSettings(){
   ['studentPasteImportPanel','studentFileImportPanel'].forEach(id=>{ const panel=document.getElementById(id); if(panel) host.appendChild(panel); });
 }
 organizeAdminSettings();
+
+async function restoreAdminSession(){
+  if(!adminKey) return;
+  try{
+    await apiVerifyAdmin(adminKey);
+    scheduleSessionExpiry();
+    adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
+    initAdmin();
+  }catch(error){
+    adminKey=null; sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+  }
+}
+restoreAdminSession();
 
 function refreshCurrentPageData(){
   const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset.atab;
