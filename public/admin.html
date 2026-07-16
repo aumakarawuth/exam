@@ -418,7 +418,7 @@ async function apiImportStudentsExcel(file){
   const body = await res.json().catch(()=>({})); if(res.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); } if(!res.ok) throw new Error(body.message || 'นำเข้า Excel ไม่สำเร็จ'); return body;
 }
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
-async function apiUpdateStudent(id, body){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'PATCH', body, admin:true }); }
+async function apiUpdateStudent(id, body){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'PUT', body, admin:true }); }
 async function apiResetStudentPin(id){ return apiFetch('/api/students/'+encodeURIComponent(id)+'/reset-pin', { method:'POST', admin:true }); }
 async function apiGetClasses(period){ return apiFetch('/api/classes'+(period?('?period='+encodeURIComponent(period)):''), { admin:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
