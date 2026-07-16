@@ -165,7 +165,9 @@ html.restoring-session #startScreen{visibility:hidden;}html.restoring-session bo
 .match-item .noBadge{width:22px;height:22px;flex:none;border-radius:999px;border:1.5px dashed var(--line);}
 .match-hint{font-size:12.5px;color:var(--sub);margin:2px 0 14px;line-height:1.7;}
 
-.section-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+.section-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
+.mc-submit-row{margin-top:28px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 24px -22px rgba(15,23,42,.55);padding-bottom:max(16px,env(safe-area-inset-bottom));}
+@media(max-width:560px){.mc-submit-row{margin:22px 0 12px;padding:14px;position:relative;}.mc-submit-row .btn{min-height:50px;}}
 
 #levelResultModal,#tabWarningModal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:60;}
 .modal-card{background:var(--surface);border-radius:18px;padding:30px;max-width:420px;width:92%;box-shadow:0 30px 60px -20px rgba(0,0,0,.4);}
