@@ -238,8 +238,9 @@ button{font-family:inherit;cursor:pointer;}
           <div>
             <h2>ชุดข้อสอบทั้งหมด</h2>
             <p class="sub" style="margin:0;">จัดกลุ่มตามชื่อวิชา — 1 วิชาอาจมีทั้งข้อสอบกลางภาคและปลายภาค</p>
+            <input class="filter-select" type="search" id="setSearchInput" placeholder="ค้นหาชื่อวิชา หรือชุดข้อสอบ" aria-label="ค้นหาชุดข้อสอบ" style="min-width:250px;margin-top:12px;">
           </div>
-          <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" id="importGoogleFormsSetBtn">นำเข้าข้อสอบจาก Forms</button><button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button></div>
+          <div class="editor-actions" style="margin:0;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="importGoogleFormsSetBtn">นำเข้าข้อสอบจาก Forms</button><button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button></div>
         </div>
         <div id="setListWrap"><div class="loading-note">กำลังโหลด...</div></div>
       </div>
@@ -580,6 +581,7 @@ document.getElementById('addTeacherBtn').addEventListener('click', async ()=>{
    EXAM SETS
    ====================================================================== */
 let ADMIN_SETS = [];
+let setSearchQuery = '';
 let TEACHERS_LIST = [];
 let editingSet = null;
 let editingIsNew = false;
@@ -592,8 +594,16 @@ function renderSetList(){
     wrap.innerHTML = '<div class="empty-note">ยังไม่มีชุดข้อสอบ กด "เพิ่มชุดข้อสอบใหม่" เพื่อเริ่มสร้างชุดแรก</div>';
     return;
   }
+  const query=setSearchQuery.trim().toLowerCase();
+  const visibleSets=query?ADMIN_SETS.filter(set=>[
+    set.courseName,set.title,set.tagline,set.desc,set.examType,set.subjectTeacherName
+  ].some(value=>String(value||'').toLowerCase().includes(query))):ADMIN_SETS;
+  if(!visibleSets.length){
+    wrap.innerHTML=`<div class="empty-note">ไม่พบชุดข้อสอบที่ตรงกับ “${escapeHtml(setSearchQuery)}”</div>`;
+    return;
+  }
   const groups = {};
-  ADMIN_SETS.forEach(s=>{
+  visibleSets.forEach(s=>{
     const key = s.courseName || s.title;
     if(!groups[key]) groups[key] = [];
     groups[key].push(s);
@@ -650,6 +660,7 @@ async function deleteSet(key){
 }
 document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(null));
 document.getElementById('importGoogleFormsSetBtn').addEventListener('click', ()=> openGoogleFormsSetDialog());
+document.getElementById('setSearchInput').addEventListener('input',event=>{ setSearchQuery=event.target.value; renderSetList(); });
 
 function round2(n){ return Math.round((n+Number.EPSILON)*100)/100; }
 function distributeEvenly(total, count){
