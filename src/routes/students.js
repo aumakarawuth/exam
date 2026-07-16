@@ -30,6 +30,15 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   });
 
   const draftId = (questionKey, resitAccessId) => `${questionKey}::${resitAccessId || 'normal'}`;
+  const lockActive = draft => draft?.deviceId && new Date(draft.lockUntil || 0).getTime() > Date.now();
+  const lockUntil = () => new Date(Date.now() + 90 * 1000).toISOString();
+  app.post('/api/exam-drafts/:questionKey/claim', requireStudent, async (req, res) => {
+    const db = readDB(); const deviceId = String(req.body?.deviceId || ''); const questionKey = String(req.params.questionKey || ''); const resitAccessId=req.body?.resitAccessId || null;
+    if (!/^[a-z0-9_-]{12,80}$/i.test(deviceId) || !db.sets.some(set => set.key === questionKey)) return res.status(400).json({ error:'invalid_payload', message:'ไม่สามารถยืนยันอุปกรณ์สอบได้' });
+    const key=`${req.studentId}::${draftId(questionKey,resitAccessId)}`; const current=db.drafts.find(item=>item.draftKey===key);
+    if(lockActive(current) && current.deviceId!==deviceId) return res.status(409).json({ error:'active_on_other_device', message:'กำลังทำข้อสอบนี้อยู่บนอุปกรณ์อื่น กรุณากลับไปทำต่อที่อุปกรณ์เดิม หรือรอประมาณ 2 นาทีหลังปิดอุปกรณ์เดิม' });
+    db.drafts=db.drafts.filter(item=>item.draftKey!==key); const draft={...(current||{}),draftKey:key,studentId:req.studentId,questionKey,resitAccessId,deviceId,lockUntil:lockUntil(),savedAt:new Date().toISOString()}; db.drafts.push(draft); await writeDB(db); res.json({ok:true,draft});
+  });
   app.get('/api/exam-drafts/:questionKey', requireStudent, (req, res) => {
     const db = readDB();
     const draft = db.drafts.find(item => item.draftKey === `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`);
@@ -41,8 +50,10 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     if (!student || !db.sets.some(set => set.key === questionKey)) return res.status(404).json({ error: 'not_found' });
     if (!payload || typeof payload !== 'object' || JSON.stringify(payload).length > 250000) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลร่างข้อสอบไม่ถูกต้อง' });
     const key = `${student.studentId}::${draftId(questionKey, payload.resitAccessId)}`;
+    const current=db.drafts.find(item=>item.draftKey===key); const deviceId=String(payload.deviceId||'');
+    if(lockActive(current) && current.deviceId!==deviceId) return res.status(409).json({ error:'active_on_other_device', message:'อุปกรณ์นี้ไม่ได้รับสิทธิ์ทำข้อสอบ' });
     db.drafts = db.drafts.filter(item => item.draftKey !== key);
-    const draft = { ...payload, draftKey: key, studentId: student.studentId, questionKey, savedAt: new Date().toISOString() };
+    const draft = { ...payload, draftKey: key, studentId: student.studentId, questionKey, deviceId, lockUntil:lockUntil(), savedAt: new Date().toISOString() };
     db.drafts.push(draft);
     await writeDB(db); res.json({ ok: true, savedAt: draft.savedAt });
   });
