@@ -276,7 +276,7 @@ button{font-family:inherit;cursor:pointer;}
           <button class="btn btn-primary btn-sm" id="addStudentBtn">+ เพิ่มนักเรียน</button>
         </div>
         <div class="toolbar-row">
-          <select class="filter-select" id="classFilterSelect"><option value="">ทุกห้อง</option></select>
+          <input class="filter-select" id="studentSearchInput" placeholder="ค้นหารหัส ชื่อ หรือห้อง" style="min-width:210px;"><select class="filter-select" id="classFilterSelect"><option value="">ทุกห้อง</option></select>
           <button class="btn btn-ghost btn-sm" id="refreshStudentsBtn">↻ รีเฟรช</button>
         </div>
         <div id="studentsWrap"><div class="loading-note">กำลังโหลด...</div></div>
@@ -1554,6 +1554,7 @@ async function saveEditingSet(){
   }
 }
 
+let studentPage=1; const STUDENT_PAGE_SIZE=50;
 async function refreshStudents(){
   const wrap = document.getElementById('studentsWrap');
   wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
@@ -1568,10 +1569,13 @@ async function refreshStudents(){
     const current = sel.value;
     sel.innerHTML = '<option value="">ทุกห้อง</option>' + classes.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
     sel.value = current;
-    const roomSel=document.getElementById('roomPeriodSelect'); if(roomSel){ const previous=roomSel.value; roomSel.innerHTML='<option value="">เลือกห้อง</option>'+classes.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join(''); roomSel.value=previous; }
+    const roomSel=document.getElementById('roomPeriodSelect'); if(roomSel){ const previous=roomSel.value; const unset=await apiGetClasses('unset'); roomSel.innerHTML='<option value="">เลือกห้องที่ยังไม่ตั้งรอบ</option>'+unset.map(c=>`<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join(''); roomSel.value=previous; }
   }catch(e){}
 
-  if(!students.length){
+  const search=String(document.getElementById('studentSearchInput').value||'').trim().toLowerCase();
+  const matched=search?students.filter(student=>[student.studentId,student.firstName,student.lastName,student.classRoom].some(value=>String(value||'').toLowerCase().includes(search))):students;
+  const pageCount=Math.max(1,Math.ceil(matched.length/STUDENT_PAGE_SIZE)); studentPage=Math.min(studentPage,pageCount); students=matched.slice((studentPage-1)*STUDENT_PAGE_SIZE,studentPage*STUDENT_PAGE_SIZE);
+  if(!matched.length){
     wrap.innerHTML = '<div class="empty-note">ยังไม่มีรายชื่อนักเรียนในระบบ ลองนำเข้ารายชื่อด้านบน</div>';
     return;
   }
@@ -1605,6 +1609,8 @@ async function refreshStudents(){
     }
     row.insertBefore(pinCell, actionCell);
   });
+  wrap.insertAdjacentHTML('beforeend',`<div class="editor-actions"><span class="muted-note">แสดง ${matched.length?((studentPage-1)*STUDENT_PAGE_SIZE+1):0}–${Math.min(studentPage*STUDENT_PAGE_SIZE,matched.length)} จาก ${matched.length} คน</span><button class="btn btn-ghost btn-sm" id="studentPrevBtn" ${studentPage===1?'disabled':''}>← ก่อนหน้า</button><button class="btn btn-ghost btn-sm" id="studentNextBtn" ${studentPage===pageCount?'disabled':''}>ถัดไป →</button></div>`);
+  wrap.querySelector('#studentPrevBtn').addEventListener('click',()=>{studentPage--;refreshStudents();}); wrap.querySelector('#studentNextBtn').addEventListener('click',()=>{studentPage++;refreshStudents();});
   wrap.querySelectorAll('[data-delstu]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบนักเรียนรหัส '+b.dataset.delstu+' ออกจากระบบ?')) return;
     try{ await apiDeleteStudent(b.dataset.delstu); refreshStudents(); showToast('ลบนักเรียนแล้ว'); }
@@ -1617,7 +1623,8 @@ async function refreshStudents(){
   }));
 }
 document.getElementById('refreshStudentsBtn').addEventListener('click', refreshStudents);
-document.getElementById('classFilterSelect').addEventListener('change', refreshStudents);
+document.getElementById('classFilterSelect').addEventListener('change', ()=>{studentPage=1;refreshStudents();});
+document.getElementById('studentSearchInput').addEventListener('input',()=>{studentPage=1;refreshStudents();});
 document.querySelectorAll('[data-set-room-period]').forEach(button=>button.addEventListener('click',async()=>{ const room=document.getElementById('roomPeriodSelect').value; if(!room){showToast('กรุณาเลือกห้องก่อน');return;} try{const result=await apiSetClassExamPeriod(room,button.dataset.setRoomPeriod);showToast(`กำหนดรอบ${button.dataset.setRoomPeriod} ให้ห้อง ${room} จำนวน ${result.updated} คนแล้ว`);refreshStudents();}catch(error){showToast(error.message);} }));
 document.getElementById('addStudentBtn').addEventListener('click', async ()=>{
   const studentId = document.getElementById('fsId').value.trim();

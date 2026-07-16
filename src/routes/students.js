@@ -157,7 +157,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     await writeDB(db); res.json({ ok: true });
   });
 
-  app.get('/api/classes', requireAdmin, (req, res) => { const period=String(req.query.period||''); res.json([...new Set(readDB().students.filter(student=>!period||student.examPeriod===period).map(student => student.classRoom))].sort()); });
+  app.get('/api/classes', requireAdmin, (req, res) => { const period=String(req.query.period||''); res.json([...new Set(readDB().students.filter(student=>!period||(period==='unset'?!student.examPeriod:student.examPeriod===period)).map(student => student.classRoom))].sort()); });
 }
 
 module.exports = { registerStudentRoutes };
