@@ -23,6 +23,7 @@ button{font-family:inherit;cursor:pointer;}
 .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);}
 .btn-primary:disabled{background:var(--sub);box-shadow:none;cursor:not-allowed;transform:none;}
 .button-spinner{width:15px;height:15px;display:inline-block;vertical-align:-2px;margin-right:7px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:buttonSpin .7s linear infinite;}@keyframes buttonSpin{to{transform:rotate(360deg)}}
+.session-expired-dialog{border:0;padding:0;border-radius:18px;width:min(430px,calc(100% - 28px));background:var(--surface);color:var(--ink);box-shadow:0 24px 70px -18px rgba(15,23,42,.45);}.session-expired-dialog::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(2px);}.session-expired-card{padding:28px;text-align:center;}.session-expired-icon{font-size:38px;margin-bottom:7px;}.session-expired-card h2{margin:0 0 7px;font-size:20px;}.session-expired-card p{margin:0 0 20px;color:var(--sub);line-height:1.65;font-size:13.5px;}.session-expired-card .btn{width:100%;}
 .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
 .btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
 .btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);}
@@ -200,6 +201,8 @@ button{font-family:inherit;cursor:pointer;}
   </div>
 </div>
 
+<dialog class="session-expired-dialog" id="sessionExpiredDialog"><div class="session-expired-card"><div class="session-expired-icon">🔒</div><h2>หมดเวลาการเข้าสู่ระบบ</h2><p>เพื่อความปลอดภัย กรุณาเข้าสู่ระบบผู้ดูแลใหม่อีกครั้ง</p><button class="btn btn-primary" type="button" id="sessionReloginBtn">เข้าสู่ระบบใหม่</button></div></dialog>
+
 <!-- ================= ADMIN SCREEN ================= -->
 <div id="adminScreen" class="hidden">
   <div class="admin-topbar">
@@ -370,7 +373,7 @@ async function apiFetch(path, options){
   try{
     res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
   }catch(e){ throw new Error('เชื่อมต่อเซิร์ฟเวอร์ backend ไม่สำเร็จ กรุณาตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่'); }
-  if(res.status===401){ throw new Error('รหัสผู้ดูแลไม่ถูกต้อง หรือหมดสิทธิ์การเข้าถึง'); }
+  if(res.status===401){ if(options.admin) showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่อีกครั้ง'); }
   if(!res.ok){
     let msg = 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (HTTP '+res.status+')';
     try{ const j = await res.json(); if(j && j.message) msg = j.message; }catch(e){}
@@ -388,6 +391,7 @@ async function apiVerifyAdmin(key){
 async function apiGetAdminSets(){ return apiFetch('/api/admin/sets', { admin:true }); }
 async function apiUploadQuestionAsset(file){
   const response=await fetch('/api/admin/assets',{method:'POST',headers:{'x-admin-key':adminKey||'','Content-Type':file.type,'x-file-name':encodeURIComponent(file.name)},body:file});
+  if(response.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); }
   const body=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(body.message||'อัปโหลดไฟล์ไม่สำเร็จ');
   return body;
@@ -411,7 +415,7 @@ async function apiAddStudent(s){ return apiFetch('/api/students', { method:'POST
 async function apiBulkImportStudents(text){ return apiFetch('/api/students/bulk', { method:'POST', body:{text}, admin:true }); }
 async function apiImportStudentsExcel(file){
   const res = await fetch('/api/students/import-xlsx', { method:'POST', headers:{'x-admin-key':adminKey || '', 'Content-Type':file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}, body:file });
-  const body = await res.json().catch(()=>({})); if(!res.ok) throw new Error(body.message || 'นำเข้า Excel ไม่สำเร็จ'); return body;
+  const body = await res.json().catch(()=>({})); if(res.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); } if(!res.ok) throw new Error(body.message || 'นำเข้า Excel ไม่สำเร็จ'); return body;
 }
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiResetStudentPin(id){ return apiFetch('/api/students/'+encodeURIComponent(id)+'/reset-pin', { method:'POST', admin:true }); }
@@ -438,6 +442,18 @@ let EXAM_TYPES = ['กลางภาค','ปลายภาค'];
 /* ============ LOGIN ============ */
 const adminLoginScreen = document.getElementById('adminLoginScreen');
 const adminScreen = document.getElementById('adminScreen');
+const SESSION_IDLE_MS = 8 * 60 * 60 * 1000;
+let sessionIdleTimer = null;
+function stopSessionTimer(){ if(sessionIdleTimer) clearTimeout(sessionIdleTimer); sessionIdleTimer=null; }
+function scheduleSessionExpiry(){ stopSessionTimer(); if(!adminKey) return; sessionIdleTimer=setTimeout(showSessionExpiredDialog,SESSION_IDLE_MS); }
+['pointerdown','keydown','touchstart'].forEach(type=>document.addEventListener(type,()=>{ if(adminKey) scheduleSessionExpiry(); },{passive:true}));
+function showSessionExpiredDialog(){
+  if(!adminKey) return;
+  adminKey=null; stopSessionTimer();
+  document.getElementById('setWizardScreen').classList.add('hidden'); adminScreen.classList.add('hidden');
+  const dialog=document.getElementById('sessionExpiredDialog'); if(!dialog.open) dialog.showModal();
+}
+document.getElementById('sessionReloginBtn').addEventListener('click',()=>{ document.getElementById('sessionExpiredDialog').close(); adminLoginScreen.classList.remove('hidden'); document.getElementById('adminKeyInput').focus(); });
 async function tryAdminLogin(){
   const val = document.getElementById('adminKeyInput').value.trim();
   const errBox = document.getElementById('adminLoginError');
@@ -449,6 +465,7 @@ async function tryAdminLogin(){
   btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ →';
   if(!ok){ errBox.textContent = loginError?.message || 'รหัสผู้ดูแลระบบไม่ถูกต้อง หรือเชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ'; errBox.style.display='block'; return; }
   adminKey = val;
+  scheduleSessionExpiry();
   adminLoginScreen.classList.add('hidden'); adminScreen.classList.remove('hidden');
   initAdmin();
 }
@@ -456,7 +473,7 @@ document.getElementById('adminLoginBtn').addEventListener('click', tryAdminLogin
 document.getElementById('adminKeyInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryAdminLogin(); });
 document.getElementById('pageRefreshBtn').addEventListener('click', refreshCurrentPageData);
 document.getElementById('adminExitBtn').addEventListener('click', ()=>{
-  adminKey = null; adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
+  adminKey = null; stopSessionTimer(); adminScreen.classList.add('hidden'); adminLoginScreen.classList.remove('hidden');
   document.getElementById('adminKeyInput').value=''; document.getElementById('adminLoginError').style.display='none';
 });
 function organizeAdminSettings(){
@@ -1614,7 +1631,7 @@ function showImportReport(result){
   document.getElementById('importReport').innerHTML = `<div class="import-report">นำเข้าใหม่ ${result.imported} คน · อัปเดตข้อมูลเดิม ${result.updated} คน${result.errors?.length ? '<br><span class="err">พบปัญหา '+result.errors.length+' แถว:<br>'+result.errors.map(escapeHtml).join('<br>')+'</span>' : ''}</div>`;
 }
 async function downloadAdminFile(url, filename){
-  const res=await fetch(url,{headers:{'x-admin-key':adminKey||''}}); if(!res.ok){ const body=await res.json().catch(()=>({})); throw new Error(body.message||'ดาวน์โหลดไฟล์ไม่สำเร็จ'); }
+  const res=await fetch(url,{headers:{'x-admin-key':adminKey||''}}); if(res.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); } if(!res.ok){ const body=await res.json().catch(()=>({})); throw new Error(body.message||'ดาวน์โหลดไฟล์ไม่สำเร็จ'); }
   const blob=await res.blob(), link=document.createElement('a'), objectUrl=URL.createObjectURL(blob);
   link.href=objectUrl; link.download=filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(objectUrl);
 }
@@ -1777,7 +1794,7 @@ async function showQuestionAnalysis(){
 }
 async function downloadQuestionAnalysis(setKey){
   const button=document.getElementById('exportQuestionAnalysisBtn'); if(button){button.disabled=true;button.textContent='กำลังสร้างไฟล์...';}
-  try{const res=await fetch('/api/export/question-analysis.xlsx?setKey='+encodeURIComponent(setKey),{headers:{'x-admin-key':adminKey||''}});if(!res.ok)throw new Error('ส่งออกตารางวิเคราะห์ไม่สำเร็จ');const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ตารางวิเคราะห์ข้อสอบ.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดตารางวิเคราะห์ข้อสอบแล้ว');}catch(error){showToast(error.message);}finally{if(button){button.disabled=false;button.textContent='⬇ Export ตารางวิเคราะห์';}}
+  try{const res=await fetch('/api/export/question-analysis.xlsx?setKey='+encodeURIComponent(setKey),{headers:{'x-admin-key':adminKey||''}});if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');}if(!res.ok)throw new Error('ส่งออกตารางวิเคราะห์ไม่สำเร็จ');const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ตารางวิเคราะห์ข้อสอบ.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดตารางวิเคราะห์ข้อสอบแล้ว');}catch(error){showToast(error.message);}finally{if(button){button.disabled=false;button.textContent='⬇ Export ตารางวิเคราะห์';}}
 }
 document.getElementById('questionAnalysisBtn').addEventListener('click', showQuestionAnalysis);
 document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
@@ -1791,6 +1808,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
     if(examType) qs.push('examType='+encodeURIComponent(examType));
     const url = '/api/export/results.xlsx' + (qs.length?('?'+qs.join('&')):'');
     const res = await fetch(url, { headers: { 'x-admin-key': adminKey || '' } });
+    if(res.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); }
     if(!res.ok){ throw new Error('ส่งออก Excel ไม่สำเร็จ (HTTP '+res.status+')'); }
     const blob = await res.blob();
     const a = document.createElement('a');
