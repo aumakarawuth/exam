@@ -31,8 +31,8 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
 
   const draftId = (questionKey, resitAccessId) => `${questionKey}::${resitAccessId || 'normal'}`;
   app.get('/api/exam-drafts/:questionKey', requireStudent, (req, res) => {
-    const student = findStudent(readDB().students, req.studentId);
-    const draft = student?.examDrafts?.[draftId(req.params.questionKey, req.query.resitAccessId)];
+    const db = readDB();
+    const draft = db.drafts.find(item => item.draftKey === `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`);
     res.json({ draft: draft || null });
   });
   app.put('/api/exam-drafts/:questionKey', requireStudent, async (req, res) => {
@@ -40,14 +40,15 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     const questionKey = String(req.params.questionKey || ''); const payload = req.body?.draft;
     if (!student || !db.sets.some(set => set.key === questionKey)) return res.status(404).json({ error: 'not_found' });
     if (!payload || typeof payload !== 'object' || JSON.stringify(payload).length > 250000) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลร่างข้อสอบไม่ถูกต้อง' });
-    student.examDrafts = student.examDrafts && typeof student.examDrafts === 'object' ? student.examDrafts : {};
-    const key = draftId(questionKey, payload.resitAccessId);
-    student.examDrafts[key] = { ...payload, questionKey, savedAt: new Date().toISOString() };
-    await writeDB(db); res.json({ ok: true, savedAt: student.examDrafts[key].savedAt });
+    const key = `${student.studentId}::${draftId(questionKey, payload.resitAccessId)}`;
+    db.drafts = db.drafts.filter(item => item.draftKey !== key);
+    const draft = { ...payload, draftKey: key, studentId: student.studentId, questionKey, savedAt: new Date().toISOString() };
+    db.drafts.push(draft);
+    await writeDB(db); res.json({ ok: true, savedAt: draft.savedAt });
   });
   app.delete('/api/exam-drafts/:questionKey', requireStudent, async (req, res) => {
     const db = readDB(); const student = findStudent(db.students, req.studentId);
-    if (student?.examDrafts) delete student.examDrafts[draftId(req.params.questionKey, req.query.resitAccessId)];
+    db.drafts = db.drafts.filter(item => item.draftKey !== `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`);
     await writeDB(db); res.status(204).end();
   });
 

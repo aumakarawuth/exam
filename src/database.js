@@ -6,16 +6,27 @@ const { DATA_DIR, SQLITE_PATH, LEGACY_DB_PATH } = require('./config');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 function emptyDatabase() {
-  return { sets: [], results: [], students: [], teachers: [], questionBank: [] };
+  return { sets: [], results: [], students: [], teachers: [], questionBank: [], drafts: [] };
 }
 
 function normalizeDatabase(db) {
+  const students = Array.isArray(db?.students) ? db.students.map(student => ({ ...student })) : [];
+  const drafts = Array.isArray(db?.drafts) ? db.drafts : [];
+  students.forEach(student => {
+    Object.values(student.examDrafts || {}).forEach(draft => {
+      if (!draft?.questionKey) return;
+      const draftKey = `${student.studentId}::${draft.questionKey}::${draft.resitAccessId || 'normal'}`;
+      if (!drafts.some(item => item.draftKey === draftKey)) drafts.push({ ...draft, draftKey, studentId: student.studentId });
+    });
+    delete student.examDrafts;
+  });
   return {
     sets: Array.isArray(db?.sets) ? db.sets : [],
     results: Array.isArray(db?.results) ? db.results : [],
-    students: Array.isArray(db?.students) ? db.students : [],
+    students,
     teachers: Array.isArray(db?.teachers) ? db.teachers : [],
-    questionBank: Array.isArray(db?.questionBank) ? db.questionBank : []
+    questionBank: Array.isArray(db?.questionBank) ? db.questionBank : [],
+    drafts
   };
 }
 
@@ -31,9 +42,11 @@ sqlite.exec(`
     id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL,
     submitted_at TEXT, published INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS exam_drafts (draft_key TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL, updated_at TEXT, data TEXT NOT NULL);
   CREATE INDEX IF NOT EXISTS idx_students_class_room ON students(class_room);
   CREATE INDEX IF NOT EXISTS idx_results_question_key ON results(question_key);
   CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id);
+  CREATE INDEX IF NOT EXISTS idx_exam_drafts_student ON exam_drafts(student_id);
 `);
 
 function ensureSqliteResultAttemptsSchema() {
@@ -68,7 +81,8 @@ function readSqliteDatabase() {
       results: parseSqliteRows(sqlite.prepare('SELECT data FROM results ORDER BY rowid')),
       students: parseSqliteRows(sqlite.prepare('SELECT data FROM students ORDER BY rowid')),
       teachers: parseSqliteRows(sqlite.prepare('SELECT data FROM teachers ORDER BY rowid')),
-      questionBank: parseSqliteRows(sqlite.prepare('SELECT data FROM question_bank ORDER BY rowid'))
+      questionBank: parseSqliteRows(sqlite.prepare('SELECT data FROM question_bank ORDER BY rowid')),
+      drafts: parseSqliteRows(sqlite.prepare('SELECT data FROM exam_drafts ORDER BY updated_at'))
     };
   } catch (error) {
     console.error('Failed to read SQLite database, returning an empty database.', error);
@@ -82,16 +96,18 @@ function replaceSqliteDatabase(db) {
   const insertTeacher = sqlite.prepare('INSERT INTO teachers (id, username, data) VALUES (?, ?, ?)');
   const insertResult = sqlite.prepare('INSERT INTO results (id, student_id, question_key, submitted_at, published, data) VALUES (?, ?, ?, ?, ?, ?)');
   const insertBankQuestion = sqlite.prepare('INSERT INTO question_bank (id, data) VALUES (?, ?)');
+  const insertDraft = sqlite.prepare('INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES (?, ?, ?, ?, ?)');
   const clean = normalizeDatabase(db);
 
   sqlite.exec('BEGIN IMMEDIATE');
   try {
-    sqlite.exec('DELETE FROM results; DELETE FROM exam_sets; DELETE FROM students; DELETE FROM teachers; DELETE FROM question_bank;');
+    sqlite.exec('DELETE FROM results; DELETE FROM exam_sets; DELETE FROM students; DELETE FROM teachers; DELETE FROM question_bank; DELETE FROM exam_drafts;');
     for (const set of clean.sets) insertSet.run(set.key, JSON.stringify(set));
     for (const student of clean.students) insertStudent.run(student.studentId, student.classRoom || null, JSON.stringify(student));
     for (const teacher of clean.teachers) insertTeacher.run(teacher.id, teacher.username, JSON.stringify(teacher));
     for (const result of clean.results) insertResult.run(result.id, result.studentId, result.questionKey, result.submittedAt || null, result.published ? 1 : 0, JSON.stringify(result));
     for (const question of clean.questionBank) insertBankQuestion.run(question.id, JSON.stringify(question));
+    for (const draft of clean.drafts) insertDraft.run(draft.draftKey, draft.studentId, draft.questionKey, draft.savedAt || null, JSON.stringify(draft));
     sqlite.exec('COMMIT');
   } catch (error) {
     sqlite.exec('ROLLBACK');
@@ -118,21 +134,22 @@ let currentDatabase = DATABASE_URL ? emptyDatabase() : readSqliteDatabase();
 let writeChain = Promise.resolve();
 
 function hasData(db) {
-  return db.sets.length || db.results.length || db.students.length || db.teachers.length || db.questionBank.length;
+  return db.sets.length || db.results.length || db.students.length || db.teachers.length || db.questionBank.length || db.drafts.length;
 }
 
 async function readPostgresDatabase() {
-  const [sets, results, students, teachers, questionBank] = await Promise.all([
+  const [sets, results, students, teachers, questionBank, drafts] = await Promise.all([
     pool.query('SELECT data FROM exam_sets ORDER BY created_at, key'),
     pool.query('SELECT data FROM results ORDER BY submitted_at, id'),
     pool.query('SELECT data FROM students ORDER BY class_room, student_id'),
     pool.query('SELECT data FROM teachers ORDER BY username'),
-    pool.query('SELECT data FROM question_bank ORDER BY created_at, id')
+    pool.query('SELECT data FROM question_bank ORDER BY created_at, id'),
+    pool.query('SELECT data FROM exam_drafts ORDER BY updated_at')
   ]);
   return normalizeDatabase({
     sets: sets.rows.map(row => row.data), results: results.rows.map(row => row.data),
     students: students.rows.map(row => row.data), teachers: teachers.rows.map(row => row.data),
-    questionBank: questionBank.rows.map(row => row.data)
+    questionBank: questionBank.rows.map(row => row.data), drafts: drafts.rows.map(row => row.data)
   });
 }
 
@@ -158,7 +175,8 @@ async function persistPostgresChanges(previous, next) {
     students: changedRows(before.students, clean.students, 'studentId'),
     teachers: changedRows(before.teachers, clean.teachers, 'id'),
     questionBank: changedRows(before.questionBank, clean.questionBank, 'id'),
-    results: changedRows(before.results, clean.results, 'id')
+    results: changedRows(before.results, clean.results, 'id'),
+    drafts: changedRows(before.drafts, clean.drafts, 'draftKey')
   };
   const client = await pool.connect();
   try {
@@ -168,6 +186,7 @@ async function persistPostgresChanges(previous, next) {
     await deleteRows(client, 'exam_sets', 'key', deletedIds(before.sets, clean.sets, 'key'));
     await deleteRows(client, 'students', 'student_id', deletedIds(before.students, clean.students, 'studentId'));
     await deleteRows(client, 'teachers', 'id', deletedIds(before.teachers, clean.teachers, 'id'));
+    await deleteRows(client, 'exam_drafts', 'draft_key', deletedIds(before.drafts, clean.drafts, 'draftKey'));
     for (const set of changes.sets) await client.query(
       'INSERT INTO exam_sets (key, title, teacher_id, delivery, available_from, available_until, created_at, updated_at, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT (key) DO UPDATE SET title=EXCLUDED.title, teacher_id=EXCLUDED.teacher_id, delivery=EXCLUDED.delivery, available_from=EXCLUDED.available_from, available_until=EXCLUDED.available_until, created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
       [set.key, set.title || '', set.teacherId || null, set.delivery || null, set.availableFrom || null, set.availableUntil || null, set.createdAt || null, set.updatedAt || null, JSON.stringify(set)]
@@ -187,6 +206,10 @@ async function persistPostgresChanges(previous, next) {
     for (const result of changes.results) await client.query(
       'INSERT INTO results (id, student_id, question_key, submitted_at, published, overall_score_20, data) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT (id) DO UPDATE SET student_id=EXCLUDED.student_id, question_key=EXCLUDED.question_key, submitted_at=EXCLUDED.submitted_at, published=EXCLUDED.published, overall_score_20=EXCLUDED.overall_score_20, data=EXCLUDED.data',
       [result.id, result.studentId, result.questionKey, result.submittedAt || null, !!result.published, result.overallScore20 ?? null, JSON.stringify(result)]
+    );
+    for (const draft of changes.drafts) await client.query(
+      'INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (draft_key) DO UPDATE SET updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
+      [draft.draftKey, draft.studentId, draft.questionKey, draft.savedAt || new Date().toISOString(), JSON.stringify(draft)]
     );
     await client.query('COMMIT');
   } catch (error) {
@@ -228,12 +251,17 @@ async function initializePostgres() {
       id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL, submitted_at TIMESTAMPTZ,
       published BOOLEAN NOT NULL DEFAULT FALSE, overall_score_20 DOUBLE PRECISION, data JSONB NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS exam_drafts (
+      draft_key TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), data JSONB NOT NULL
+    );
     ALTER TABLE results DROP CONSTRAINT IF EXISTS results_student_id_question_key_key;
     CREATE INDEX IF NOT EXISTS idx_exam_sets_teacher_id ON exam_sets(teacher_id);
     CREATE INDEX IF NOT EXISTS idx_exam_sets_available_from ON exam_sets(available_from);
     CREATE INDEX IF NOT EXISTS idx_students_class_room ON students(class_room);
     CREATE INDEX IF NOT EXISTS idx_results_question_key ON results(question_key);
     CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id);
+    CREATE INDEX IF NOT EXISTS idx_exam_drafts_student ON exam_drafts(student_id);
     CREATE INDEX IF NOT EXISTS idx_question_bank_owner_id ON question_bank(owner_id);
     CREATE TABLE IF NOT EXISTS exam_system_state (
       id SMALLINT PRIMARY KEY CHECK (id = 1),
