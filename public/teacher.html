@@ -592,7 +592,7 @@ function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||''
 
 function blankSet(){
   return {
-    key: uid('set'), title:'', courseName:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', teacherId:null, assignedClasses:[], examSchedules:[], subjectTeacherName:'', subjectTeacherEmail:'',
+    key: uid('set'), title:'', courseName:'', educationLevel:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', teacherId:null, assignedClasses:[], examSchedules:[], subjectTeacherName:'', subjectTeacherEmail:'',
     shuffleQuestions:false, shuffleChoices:false, publishMode:'manual', availableUntil:'', lateAccessCode:'',
     sections:{
       mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[], sectionPointsTotal:0 },
@@ -621,6 +621,7 @@ async function openEditor(key, draftSet=null){
   if(!editingSet.examSchedules.length && (editingSet.availableFrom || editingSet.availableUntil || editingSet.assignedClasses.length)) editingSet.examSchedules=[{name:'รอบเช้า',classes:[...(editingSet.assignedClasses||[])],availableFrom:editingSet.availableFrom||'',availableUntil:editingSet.availableUntil||'',lateAccessCode:editingSet.lateAccessCode||''}];
   if(!editingSet.examType) editingSet.examType = EXAM_TYPES[0]||'กลางภาค';
   if(editingSet.courseName===undefined || editingSet.courseName==='') editingSet.courseName = editingSet.title || '';
+  if(!['ปวช.','ปวส.'].includes(editingSet.educationLevel)) editingSet.educationLevel = '';
   if(editingSet.teacherId===undefined) editingSet.teacherId = null;
   if(editingSet.shuffleQuestions===undefined) editingSet.shuffleQuestions = false;
   if(editingSet.shuffleChoices===undefined) editingSet.shuffleChoices = false;
@@ -686,7 +687,7 @@ function wizardInfoStepHtml(){
     </div>
     <div class="field-row">
       <div class="field"><label>ชื่อชุดข้อสอบ (แสดงให้นักเรียนเห็น)</label><input type="text" id="fTitle" value="${escapeAttr(s.title)}" placeholder="เช่น คณิตศาสตร์ ม.3 - กลางภาค"></div>
-      <div class="field"><label>แท็กไลน์ (ถ้ามี)</label><input type="text" id="fTagline" value="${escapeAttr(s.tagline)}" placeholder="เช่น Unit 1 Quiz"></div>
+      <div class="field"><label>ระดับ <span style="color:#DC2626;">*</span></label><select id="fEducationLevel" required><option value="" ${s.educationLevel?'':'selected'} disabled>เลือกระดับ</option><option value="ปวช." ${s.educationLevel==='ปวช.'?'selected':''}>ปวช.</option><option value="ปวส." ${s.educationLevel==='ปวส.'?'selected':''}>ปวส.</option></select></div>
     </div>
     <div class="field"><label>คำอธิบายชุดข้อสอบ</label><textarea id="fDesc" placeholder="อธิบายเนื้อหาโดยย่อ">${escapeHtml(s.desc)}</textarea></div>
   </div>
@@ -822,13 +823,14 @@ function bindWizardStepEvents(){
     document.getElementById('fCourseName').addEventListener('input', e=>{ s.courseName = e.target.value; });
     document.getElementById('fExamType').addEventListener('change', e=>{ s.examType = e.target.value; });
     document.getElementById('fTitle').addEventListener('input', e=>{ s.title = e.target.value; });
-    document.getElementById('fTagline').addEventListener('input', e=>{ s.tagline = e.target.value; });
+    document.getElementById('fEducationLevel').addEventListener('change', e=>{ s.educationLevel = e.target.value; });
     document.getElementById('fDesc').addEventListener('input', e=>{ s.desc = e.target.value; });
     document.getElementById('wizCancelBtn').addEventListener('click', ()=>{
       if(confirm('ยกเลิกการแก้ไข? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
     });
     document.getElementById('wizNextBtn').addEventListener('click', ()=>{
       if(!s.title || !s.title.trim()){ alert('กรุณากรอกชื่อชุดข้อสอบ'); return; }
+      if(!['ปวช.','ปวส.'].includes(s.educationLevel)){ alert('กรุณาเลือกระดับ ปวช. หรือ ปวส.'); return; }
       if(!s.courseName || !s.courseName.trim()) s.courseName = s.title;
       wizardStep = 'access'; renderWizard();
     });
@@ -1428,6 +1430,7 @@ async function saveEditingSet(){
   if(!editingUiEnabled.written) Object.assign(s.sections.written, {questions:[], sectionPointsTotal:0});
   applyPointDistribution('mc'); applyPointDistribution('matching'); applyPointDistribution('written');
   if(!s.title || !s.title.trim()){ alert('กรุณากรอกชื่อชุดข้อสอบ (ย้อนกลับไปขั้นตอนที่ 1)'); wizardStep='info'; renderWizard(); return; }
+  if(!['ปวช.','ปวส.'].includes(s.educationLevel)){ alert('กรุณาเลือกระดับ ปวช. หรือ ปวส. (ย้อนกลับไปขั้นตอนที่ 1)'); wizardStep='info'; renderWizard(); return; }
   if(s.sections.mc.questions.length===0){ alert('กรุณาเพิ่มข้อปรนัยอย่างน้อย 1 ข้อ'); wizardStep='section:mc'; renderWizard(); return; }
   if(s.examSchedules.length){
     const invalid=s.examSchedules.find(item=>!(item.classes||[]).length||!item.availableFrom||!item.availableUntil||new Date(item.availableFrom)>=new Date(item.availableUntil));
