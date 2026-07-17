@@ -131,7 +131,7 @@ app.get('/api/students', requireAdmin, (req, res) => {
   const db = readDB();
   let list = db.students;
   if (req.query.classRoom) list = list.filter(s => s.classRoom === req.query.classRoom);
-  list = [...list].sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId));
+  list = [...list].sort((a, b) => `${a.classRoom ?? ''}${a.studentId ?? ''}`.localeCompare(`${b.classRoom ?? ''}${b.studentId ?? ''}`, 'th'));
   res.json(list);
 });
 app.post('/api/students', requireAdmin, async (req, res) => {

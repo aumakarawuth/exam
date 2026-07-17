@@ -7,7 +7,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
 
   app.get('/api/students/export.xlsx', requireAdmin, (req, res) => {
     const rows = readDB().students
-      .sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId))
+      .sort((a, b) => `${a.classRoom ?? ''}${a.studentId ?? ''}`.localeCompare(`${b.classRoom ?? ''}${b.studentId ?? ''}`, 'th'))
       .map(student => ({ 'รหัสนักเรียน': student.studentId, 'ชื่อ': student.firstName, 'นามสกุล': student.lastName, 'ห้อง': student.classRoom, 'รอบเรียน': student.examPeriod || '', 'ตั้ง PIN แล้ว': student.pinHash ? 'ใช่' : 'ไม่' }));
     const sheet = XLSX.utils.json_to_sheet(rows, { header: ['รหัสนักเรียน', 'ชื่อ', 'นามสกุล', 'ห้อง', 'รอบเรียน', 'ตั้ง PIN แล้ว'] });
     const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, 'รายชื่อนักเรียน');
@@ -118,7 +118,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   app.get('/api/students', requireAdmin, (req, res) => {
     let students = readDB().students;
     if (req.query.classRoom) students = students.filter(student => student.classRoom === req.query.classRoom);
-    res.json([...students].sort((a, b) => (a.classRoom + a.studentId).localeCompare(b.classRoom + b.studentId)).map(student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '', hasPin: Boolean(student.pinHash) })));
+    res.json([...students].sort((a, b) => `${a.classRoom ?? ''}${a.studentId ?? ''}`.localeCompare(`${b.classRoom ?? ''}${b.studentId ?? ''}`, 'th')).map(student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '', hasPin: Boolean(student.pinHash) })));
   });
 
   app.post('/api/students', requireAdmin, async (req, res) => {

@@ -13,7 +13,7 @@ function registerStudentPromotionRoutes(app, { readDB, writeDB, requireAdmin }) 
     if (!academicYear) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณาระบุปีการศึกษา' });
     const rooms = new Map();
     rowsForYear(readDB(), academicYear).forEach(({ enrollment }) => rooms.set(enrollment.classRoom, (rooms.get(enrollment.classRoom) || 0) + 1));
-    res.json([...rooms.entries()].map(([classRoom, count]) => ({ classRoom, count })).sort((a, b) => a.classRoom.localeCompare(b.classRoom, 'th')));
+    res.json([...rooms.entries()].map(([classRoom, count]) => ({ classRoom, count })).sort((a, b) => String(a.classRoom).localeCompare(String(b.classRoom), 'th')));
   });
 
   const evaluatePromotion = (db, body) => {
