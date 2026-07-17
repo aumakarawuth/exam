@@ -785,9 +785,10 @@ function renderWizard(){
 }
 function renderWizardStepsBar(){
   const bar = document.getElementById('wizardStepsBar');
+  const stepOrder = editingSet?.delivery==='object-analysis-design' ? ['info','access'] : WIZARD_STEP_ORDER;
   const currentTop = wizardStep.startsWith('section:') ? 'hub' : wizardStep;
-  const curIdx = WIZARD_STEP_ORDER.indexOf(currentTop);
-  bar.innerHTML = WIZARD_STEP_ORDER.map((key,idx)=>{
+  const curIdx = stepOrder.indexOf(currentTop);
+  bar.innerHTML = stepOrder.map((key,idx)=>{
     const cls = key===currentTop ? 'active' : (idx<curIdx ? 'done' : '');
     return `<span class="wizard-step-chip ${cls}">${WIZARD_STEP_LABELS[key]}</span>`;
   }).join('<span class="wizard-step-arrow">→</span>');
@@ -838,7 +839,7 @@ function wizardAccessStepHtml(){
   </div>
   <div class="wizard-nav-row">
     <button class="btn btn-ghost" id="wizBackBtn" type="button">← ย้อนกลับ</button>
-    <button class="btn btn-primary" id="wizNextBtn" type="button">ถัดไป →</button>
+    <button class="btn btn-primary" id="wizNextBtn" type="button">${s.delivery==='object-analysis-design'?'💾 บันทึกข้อสอบ DFD':'ถัดไป →'}</button>
   </div>`;
 }
 
@@ -1004,7 +1005,7 @@ function bindWizardStepEvents(){
       if(e.key==='Enter'){ e.preventDefault(); document.getElementById('addClassBtn').click(); }
     });
     document.getElementById('wizBackBtn').addEventListener('click', ()=>{ wizardStep='info'; renderWizard(); });
-    document.getElementById('wizNextBtn').addEventListener('click', ()=>{ wizardStep='sections'; renderWizard(); });
+    document.getElementById('wizNextBtn').addEventListener('click', ()=>{ if(s.delivery==='object-analysis-design') return saveEditingSet(); wizardStep='sections'; renderWizard(); });
   } else if(wizardStep==='sections'){
     renderSectionManager();
     document.getElementById('wizBackBtn').addEventListener('click', ()=>{ wizardStep='access'; renderWizard(); });
