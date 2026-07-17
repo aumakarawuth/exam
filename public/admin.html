@@ -165,16 +165,16 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 .course-group{margin-bottom:22px;}
 .course-group-head{display:flex;justify-content:space-between;align-items:center;background:var(--grid);border:1px solid var(--line);border-radius:12px;padding:12px 16px;cursor:pointer;margin-bottom:12px;}
 .course-group-head:hover{border-color:var(--blue);}
-.settings-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,1fr);gap:18px;align-items:start;max-width:1120px;margin:0 auto;}
-.settings-grid .panel{margin-bottom:0;}
-.settings-data-tools{display:grid;gap:18px;}
-.settings-grid>.panel:first-child{grid-column:1 / -1;}
-.settings-grid>#adminDataToolsHost{grid-column:2;grid-row:2 / span 2;}
-.settings-grid>.panel:last-child{grid-column:1;}
+.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch;max-width:960px;margin:0 auto;}
+.settings-menu-card{margin:0;text-align:left;min-height:168px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:18px;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease;border:1px solid var(--line);}
+.settings-menu-card:hover{transform:translateY(-2px);box-shadow:0 13px 28px rgba(15,23,42,.09);border-color:#BFDBFE;}
+.settings-menu-card h3{margin:0 0 5px;}.settings-menu-card .panel-sub{margin:0;line-height:1.65;}
+.settings-dialog{width:min(780px,calc(100% - 28px));max-height:min(82vh,880px);overflow:auto;}
+.settings-dialog .google-import-dialog-inner{padding:24px;}.settings-dialog .panel{margin:0;border:0;padding:0;background:transparent;box-shadow:none;}
 .academic-calendar-row{display:grid;grid-template-columns:minmax(120px,.75fr) minmax(180px,1fr) minmax(180px,1fr);gap:12px;margin-top:10px;padding:12px;background:var(--grid);border:1px solid var(--line);border-radius:12px;}
 .academic-calendar-row .field{min-width:0;}
 .academic-calendar-row input{width:100%;min-width:0;box-sizing:border-box;height:42px;border:1px solid var(--line);border-radius:10px;padding:0 12px;background:var(--panel);font:inherit;}
-@media(max-width:760px){.settings-grid{grid-template-columns:1fr;}.settings-grid>.panel:first-child,.settings-grid>#adminDataToolsHost,.settings-grid>.panel:last-child{grid-column:auto;grid-row:auto;}.academic-calendar-row{grid-template-columns:1fr;}}
+@media(max-width:760px){.settings-grid{grid-template-columns:1fr;}.academic-calendar-row{grid-template-columns:1fr;}}
 .promotion-mapping-host{display:none;max-height:55vh;overflow:auto;padding:10px;margin-top:12px;background:var(--grid);border:1px solid var(--line);border-radius:12px;}
 .promotion-mapping-host.is-open{display:block;}
 .course-group-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:14.5px;}
@@ -281,7 +281,7 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
           </div>
         </div>
         <div class="panel"><h3>🕒 ตั้งรอบเรียนรายห้อง</h3><p class="panel-sub">เลือกห้องเพื่อกำหนดรอบครั้งแรก หรือเลือกห้องที่มีรอบแล้วเพื่อย้ายรอบให้นักเรียนทั้งห้อง</p><div class="editor-actions" style="justify-content:flex-start;flex-wrap:wrap;"><select class="filter-select" id="roomPeriodSelect"><option value="">เลือกห้อง</option></select><button class="btn btn-primary btn-sm" data-set-room-period="เช้า">เช้า</button><button class="btn btn-ghost btn-sm" data-set-room-period="บ่าย" style="border-color:#F59E0B;color:#92400E;">บ่าย</button><button class="btn btn-ghost btn-sm" data-set-room-period="ทวิภาคี">ทวิภาคี</button></div></div>
-        <div class="panel" id="studentPasteImportPanel">
+        <div class="panel" id="studentPasteImportPanel" style="display:none">
           <h3>นำเข้ารายชื่อแบบรวดเร็ว (วางจาก Excel)</h3>
           <p class="panel-sub">คัดลอกคอลัมน์ รหัสนักเรียน, ชื่อ, นามสกุล, ห้อง จาก Excel แล้ววางที่นี่ (1 บรรทัดต่อ 1 คน) หากมีรหัสซ้ำในระบบอยู่แล้ว ระบบจะอัปเดตข้อมูลแทนการเพิ่มซ้ำ</p>
           <textarea id="bulkImportText" placeholder="10001&#9;สมชาย&#9;ใจดี&#9;ม.3/1&#10;10002&#9;สมหญิง&#9;รักเรียน&#9;ม.3/1" style="width:100%;min-height:120px;padding:12px;border:1.5px solid var(--line);border-radius:10px;font-family:monospace;font-size:12.5px;"></textarea>
@@ -362,19 +362,19 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
       <div id="atab-settings" class="hidden">
         <div class="toolbar-row"><div><h2>ตั้งค่า</h2><p class="sub" style="margin:0;">รวมการนำเข้า ส่งออก และการจัดการระบบไว้ในที่เดียว</p></div></div>
         <div class="settings-grid">
-          <div class="panel">
+          <div class="panel" id="academicCalendarPanel">
             <h3>🗓️ ปฏิทินการศึกษา</h3>
             <p class="panel-sub">กำหนดช่วงวันเพียงครั้งเดียว ระบบจะระบุปีการศึกษาและภาคเรียนจากวันเริ่มสอบให้อัตโนมัติ</p>
             <div id="academicCalendarRows" class="stack-list"></div>
             <div class="editor-actions" style="margin-top:12px;"><button class="btn btn-ghost btn-sm" id="addAcademicYearBtn" type="button">＋ เพิ่มปีการศึกษา</button><button class="btn btn-primary btn-sm" id="saveAcademicCalendarBtn" type="button">💾 บันทึกปฏิทิน</button></div>
           </div>
-          <div class="panel">
+          <div class="panel settings-menu-card">
             <h3>🎓 เลื่อนชั้นนักเรียน</h3>
             <p class="panel-sub">ดูและจับคู่ห้องทั้งหมดก่อนสร้างประวัติห้องของปีใหม่</p>
             <button class="btn btn-primary btn-sm" id="openPromotionDialogBtn" type="button">จัดการเลื่อนชั้น →</button>
           </div>
-          <div id="adminDataToolsHost" class="settings-data-tools"></div>
-          <div class="panel">
+          <button class="panel settings-menu-card" id="openStudentFilesDialogBtn" type="button"><div><h3>📁 นำเข้า / ส่งออกข้อมูล</h3><p class="panel-sub">นำเข้ารายชื่อนักเรียนจาก Excel, ส่งออกรายชื่อ และสำรองข้อมูลระบบ</p></div><span class="btn btn-primary btn-sm">จัดการไฟล์ →</span></button>
+          <div class="panel" id="adminAccountPanel">
             <h3>บัญชีผู้ดูแล</h3>
             <p class="panel-sub">ออกจากระบบเมื่อใช้งานบนเครื่องสาธารณะหรือใช้งานเสร็จแล้ว</p>
             <button class="btn btn-danger btn-sm" id="adminExitBtn">ออกจากระบบ</button>
@@ -385,6 +385,27 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
     </div>
   </div>
 </div>
+
+<dialog class="google-import-dialog settings-dialog" id="academicCalendarDialog">
+  <div class="google-import-dialog-inner">
+    <div class="google-import-dialog-head"><div><h3>🗓️ ปฏิทินการศึกษา</h3><p>กำหนดภาคเรียนเพื่อให้ระบบจัดปีการศึกษาและเทอมจากวันสอบโดยอัตโนมัติ</p></div><button class="btn btn-ghost btn-sm" id="closeAcademicCalendarDialogBtn" type="button">✕</button></div>
+    <div id="academicCalendarDialogBody"></div>
+  </div>
+</dialog>
+
+<dialog class="google-import-dialog settings-dialog" id="studentFilesDialog">
+  <div class="google-import-dialog-inner">
+    <div class="google-import-dialog-head"><div><h3>📁 นำเข้า / ส่งออกข้อมูล</h3><p>นำเข้ารายชื่อนักเรียนจาก Excel ส่งออกรายชื่อ หรือสำรองข้อมูลระบบ</p></div><button class="btn btn-ghost btn-sm" id="closeStudentFilesDialogBtn" type="button">✕</button></div>
+    <div id="studentFilesDialogBody"></div>
+  </div>
+</dialog>
+
+<dialog class="google-import-dialog settings-dialog" id="adminAccountDialog">
+  <div class="google-import-dialog-inner">
+    <div class="google-import-dialog-head"><div><h3>👤 บัญชีผู้ดูแล</h3><p>ออกจากระบบเมื่อต้องใช้งานบนเครื่องสาธารณะ หรือเมื่อใช้งานเสร็จแล้ว</p></div><button class="btn btn-ghost btn-sm" id="closeAdminAccountDialogBtn" type="button">✕</button></div>
+    <div id="adminAccountDialogBody"></div>
+  </div>
+</dialog>
 
 <dialog class="google-import-dialog" id="promotionDialog">
   <div class="google-import-dialog-inner" style="max-width:760px;">
@@ -560,8 +581,21 @@ document.getElementById('adminExitBtn').addEventListener('click', ()=>{
   document.getElementById('adminKeyInput').value=''; document.getElementById('adminLoginError').style.display='none';
 });
 function organizeAdminSettings(){
-  const host=document.getElementById('adminDataToolsHost');
-  ['studentPasteImportPanel','studentFileImportPanel'].forEach(id=>{ const panel=document.getElementById(id); if(panel) host.appendChild(panel); });
+  const openDialog=(dialogId)=>document.getElementById(dialogId)?.showModal();
+  const movePanelToDialog=(panelId,bodyId,dialogId,summaryHtml)=>{
+    const panel=document.getElementById(panelId), body=document.getElementById(bodyId);
+    if(!panel||!body) return;
+    [...panel.children].forEach(child=>body.appendChild(child));
+    panel.className='panel settings-menu-card';
+    panel.innerHTML=summaryHtml;
+    panel.querySelector('button')?.addEventListener('click',()=>openDialog(dialogId));
+  };
+  movePanelToDialog('academicCalendarPanel','academicCalendarDialogBody','academicCalendarDialog',`<div><h3>🗓️ ปฏิทินการศึกษา</h3><p class="panel-sub">กำหนดภาคเรียนและช่วงวันของแต่ละปีการศึกษา</p></div><button class="btn btn-primary btn-sm" type="button">จัดการปฏิทิน →</button>`);
+  movePanelToDialog('adminAccountPanel','adminAccountDialogBody','adminAccountDialog',`<div><h3>👤 บัญชีผู้ดูแล</h3><p class="panel-sub">จัดการการใช้งานบัญชีผู้ดูแลบนเครื่องนี้</p></div><button class="btn btn-ghost btn-sm" type="button">เปิดเมนู →</button>`);
+  const filePanel=document.getElementById('studentFileImportPanel');
+  if(filePanel) document.getElementById('studentFilesDialogBody')?.appendChild(filePanel);
+  document.getElementById('openStudentFilesDialogBtn')?.addEventListener('click',()=>openDialog('studentFilesDialog'));
+  [['closeAcademicCalendarDialogBtn','academicCalendarDialog'],['closeStudentFilesDialogBtn','studentFilesDialog'],['closeAdminAccountDialogBtn','adminAccountDialog']].forEach(([buttonId,dialogId])=>document.getElementById(buttonId)?.addEventListener('click',()=>document.getElementById(dialogId)?.close()));
 }
 organizeAdminSettings();
 
