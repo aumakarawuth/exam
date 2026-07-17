@@ -726,8 +726,9 @@ function startWholeExam(){
   document.getElementById('nameTag').textContent = '👤 ' + app.studentName;
   document.getElementById('hubQTitle').textContent = 'โจทย์: ' + currentQuestion().title;
   document.getElementById('hubQTagline').textContent = currentQuestion().tagline;
-  app.timeLeft = 60*60;
-  app.examEndTime = Date.now() + app.timeLeft*1000;
+  const serverEndTime = Number(app.serverExamEndTime || 0);
+  app.examEndTime = serverEndTime > Date.now() ? serverEndTime : Date.now() + 60*60*1000;
+  app.timeLeft = Math.max(0, Math.round((app.examEndTime - Date.now()) / 1000));
   app.tabSwitches = 0;
   app.tabWarningAcknowledged = 0;
   app.fullscreenExitAttempts = 0;
@@ -747,7 +748,9 @@ function runDfdTimer(){
     app.timeLeft = Math.max(0, Math.round((app.examEndTime-Date.now())/1000));
     updateGlobalTimerDisplay();
     if(app.timeLeft % 15 === 0) saveDfdSession();
-    if(app.timeLeft <= 0){
+    // Submit one second before the authoritative deadline so normal network
+    // latency cannot turn an automatic submission into a rejected late one.
+    if(app.timeLeft <= 1){
       clearInterval(app.globalTimerHandle);
       forceTimeUp();
     }
@@ -1877,18 +1880,20 @@ async function submitObjectAnalysisResult(){
 }
 window.startObjectAnalysisExam = async function(student){
   app.studentToken = sessionStorage.getItem('examStudentToken') || '';
+  let access;
   try {
     const claim=await fetch('/api/exam-drafts/object_analysis_design_dfd/claim',{method:'POST',headers:{'Content-Type':'application/json','x-student-token':app.studentToken},body:JSON.stringify({deviceId:DFD_DEVICE_ID})});
     if(!claim.ok){const body=await claim.json().catch(()=>({}));throw new Error(body.message||'กำลังทำข้อสอบบนอุปกรณ์อื่น');}
     const response = await fetch('/api/object-analysis/access', { headers:{'x-student-token':app.studentToken} });
     const body = await response.json().catch(()=>({}));
+    access = body;
     if(!response.ok) throw new Error(body.message || 'ไม่สามารถตรวจสอบสิทธิ์เข้าสอบได้');
   } catch(error) {
     if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
     alert(error.message || 'ไม่สามารถตรวจสอบสิทธิ์เข้าสอบได้ กรุณาลองใหม่อีกครั้ง');
     return false;
   }
-  app.studentId = student.studentId; app.studentName = student.firstName + ' ' + student.lastName; app.classRoom = student.classRoom;
+  app.studentId = student.studentId; app.studentName = student.firstName + ' ' + student.lastName; app.classRoom = student.classRoom; app.serverExamEndTime = Date.parse(access.examEndTime);
   document.getElementById('startScreen').classList.add('hidden');
   QUESTIONS.coffee.title = 'การวิเคราะห์และออกแบบเชิงวัตถุ: Data Flow Diagram';
   QUESTIONS.coffee.tagline = 'Object Analysis & Design';

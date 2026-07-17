@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const { gradeDfdLevel } = require('../src/dfd-grader');
 
 function loadGrader() {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'object-analysis-design.html'), 'utf8');
@@ -35,5 +36,19 @@ test('DFD grader awards zero for a blank diagram', () => {
   for (const level of [0, 1, 2]) {
     grader.app.level = level;
     assert.equal(grader.gradeDiagram([], []).total, 0, `Level ${level}`);
+  }
+});
+
+test('server recalculates the same DFD scores as the reference diagrams', () => {
+  const grader = loadGrader();
+  for (const level of [0, 1, 2]) {
+    const expected = grader.QUESTIONS.coffee.levels[level];
+    const result = gradeDfdLevel(
+      level,
+      expected.shapes.map(shape => ({ ...shape })),
+      expected.connections.map(connection => ({ fromId: connection.from, toId: connection.to }))
+    );
+    assert.equal(result.total, 100, `Level ${level}: ${JSON.stringify(result.breakdown)}`);
+    assert.equal(gradeDfdLevel(level, [], []).total, 0, `Level ${level}: blank diagram`);
   }
 });
