@@ -278,7 +278,15 @@ html.restoring-session #startScreen{visibility:hidden;}html.restoring-session bo
     <p class="lead">กรอก PIN ที่คุณตั้งไว้</p>
     <input type="password" class="name-input" id="pinVerifyInput" placeholder="PIN" inputmode="numeric" maxlength="6">
     <div class="id-error" id="pinVerifyError"></div>
-    <p style="font-size:12.5px;color:var(--sub);margin:-10px 0 16px;">ลืม PIN? กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ต</p>
+    <button class="btn btn-ghost" id="forgotPinBtn" type="button" style="margin:2px 0 16px;">ลืม PIN? ยืนยันตัวตนเพื่อตั้งใหม่</button>
+    <div id="forgotPinForm" class="hidden" style="border-top:1px solid var(--line);padding-top:16px;margin-top:2px;">
+      <p style="font-size:12.5px;color:var(--sub);margin:0 0 10px;">กรอกชื่อและนามสกุลให้ตรงกับรายชื่อในระบบ แล้วตั้ง PIN ใหม่</p>
+      <input type="text" class="name-input" id="forgotPinFirstName" placeholder="ชื่อ">
+      <input type="text" class="name-input" id="forgotPinLastName" placeholder="นามสกุล">
+      <input type="password" class="name-input" id="forgotPinNew" placeholder="ตั้ง PIN ใหม่ (4-6 หลัก)" inputmode="numeric" maxlength="6">
+      <input type="password" class="name-input" id="forgotPinConfirm" placeholder="ยืนยัน PIN ใหม่" inputmode="numeric" maxlength="6">
+      <button class="btn btn-primary" id="forgotPinConfirmBtn" type="button" style="width:100%;margin-bottom:14px;">ยืนยันและตั้ง PIN ใหม่</button>
+    </div>
     <div class="start-actions">
       <button class="btn btn-ghost" id="pinVerifyBackBtn">← กลับ</button>
       <button class="btn btn-primary" id="pinVerifyConfirmBtn">ยืนยัน →</button>
@@ -444,6 +452,7 @@ async function apiFetch(path, options){
 async function apiLookupStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id)); }
 async function apiSetPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/set-pin', { method:'POST', body:{pin} }); }
 async function apiVerifyPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/verify-pin', { method:'POST', body:{pin} }); }
+async function apiRecoverPin(studentId, firstName, lastName, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/recover-pin', { method:'POST', body:{firstName,lastName,pin} }); }
 async function apiGetEligibleSets(){ return apiFetch('/api/sets'); }
 async function apiSubmitResult(record){ return apiFetch('/api/results', { method:'POST', body:record }); }
 async function apiGetMyResults(studentId){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/results'); }
@@ -719,11 +728,30 @@ document.getElementById('pinVerifyConfirmBtn').addEventListener('click', async (
   try{
     const result = await apiVerifyPin(app.studentId, pin);
     if(result.ok){ setStudentSession(result); error.style.display='none'; await proceedToSelectScreen(); }
-    else { error.textContent=result.locked ? 'PIN ถูกล็อก กรุณาติดต่อผู้ดูแลระบบ' : `PIN ไม่ถูกต้อง (เหลือ ${result.remainingAttempts} ครั้ง)`; error.style.display='block'; }
+    else { error.textContent=result.locked ? 'PIN ถูกล็อก กรุณากด “ลืม PIN” เพื่อตั้งใหม่' : `PIN ไม่ถูกต้อง (เหลือ ${result.remainingAttempts} ครั้ง)`; error.style.display='block'; }
   }catch(e){ error.textContent=e.message; error.style.display='block'; }
   button.disabled=false;
 });
 document.getElementById('pinVerifyInput').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('pinVerifyConfirmBtn').click(); });
+document.getElementById('forgotPinBtn').addEventListener('click', ()=>{
+  const form=document.getElementById('forgotPinForm');
+  form.classList.toggle('hidden');
+  if(!form.classList.contains('hidden')) document.getElementById('forgotPinFirstName').focus();
+});
+document.getElementById('forgotPinConfirmBtn').addEventListener('click', async ()=>{
+  const firstName=document.getElementById('forgotPinFirstName').value.trim();
+  const lastName=document.getElementById('forgotPinLastName').value.trim();
+  const pin=document.getElementById('forgotPinNew').value.trim();
+  const confirmPin=document.getElementById('forgotPinConfirm').value.trim();
+  const error=document.getElementById('pinVerifyError');
+  if(!firstName || !lastName){ error.textContent='กรุณากรอกชื่อและนามสกุล'; error.style.display='block'; return; }
+  if(!/^\d{4,6}$/.test(pin)){ error.textContent='PIN ต้องเป็นตัวเลข 4-6 หลัก'; error.style.display='block'; return; }
+  if(pin!==confirmPin){ error.textContent='PIN ทั้งสองช่องไม่ตรงกัน'; error.style.display='block'; return; }
+  const button=document.getElementById('forgotPinConfirmBtn'); button.disabled=true; button.textContent='กำลังยืนยัน...';
+  try{ setStudentSession(await apiRecoverPin(app.studentId,firstName,lastName,pin)); error.style.display='none'; await proceedToSelectScreen(); }
+  catch(e){ error.textContent=e.message; error.style.display='block'; }
+  finally{ button.disabled=false; button.textContent='ยืนยันและตั้ง PIN ใหม่'; }
+});
 
 let pickedKey = null;
 let COMPLETED_KEYS = new Set();

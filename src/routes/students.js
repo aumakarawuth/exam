@@ -4,6 +4,8 @@ const XLSX = require('xlsx');
 function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
   const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '' });
+  const pinRecoveryFailures = new Map();
+  const recoveryKey = req => req.ip || req.socket?.remoteAddress || 'unknown';
   const educationRank = room => /\.\s*\d+\s*\//.test(String(room || '')) ? 0 : 1;
   const byRoomThenStudentId = (a, b) => educationRank(a.classRoom) - educationRank(b.classRoom) || String(a.classRoom ?? '').localeCompare(String(b.classRoom ?? ''), 'th', { numeric: true }) || String(a.studentId ?? '').localeCompare(String(b.studentId ?? ''), 'th', { numeric: true });
 
@@ -86,7 +88,7 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     const student = findStudent(db.students, req.params.studentId);
     if (!student) return res.status(404).json({ error: 'not_found', message: 'ไม่พบรหัสนักเรียนนี้ในระบบ' });
     if (!student.pinHash) return res.status(409).json({ error: 'pin_not_set', message: 'ยังไม่ได้ตั้ง PIN' });
-    if ((student.pinFailedAttempts || 0) >= 5) return res.status(423).json({ error: 'pin_locked', message: 'PIN ถูกล็อก กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ต' });
+    if ((student.pinFailedAttempts || 0) >= 5) return res.status(423).json({ error: 'pin_locked', message: 'PIN ถูกล็อก กรุณาใช้ “ลืม PIN” เพื่อตั้งใหม่' });
 
     const pin = String(req.body?.pin || '').trim();
     if (verifyPassword(pin, student.pinHash)) {
@@ -98,6 +100,30 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     await writeDB(db);
     const remainingAttempts = Math.max(0, 5 - student.pinFailedAttempts);
     res.json({ ok: false, remainingAttempts, locked: remainingAttempts === 0 });
+  });
+
+  // A student may recover a forgotten PIN using the name kept in the school's
+  // roster.  The student ID has already been entered on the previous screen;
+  // require both name fields and a new PIN in the same request.
+  app.post('/api/students/:studentId/recover-pin', async (req, res) => {
+    const db = readDB();
+    const student = findStudent(db.students, req.params.studentId);
+    const normalizeName = value => String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('th-TH');
+    const key = recoveryKey(req); const prior = pinRecoveryFailures.get(key);
+    if (prior?.lockedUntil > Date.now()) return res.status(429).json({ error: 'recovery_rate_limited', message: 'ลองยืนยันตัวตนหลายครั้งเกินไป กรุณารอ 15 นาที' });
+    if (!student || normalizeName(req.body?.firstName) !== normalizeName(student.firstName) || normalizeName(req.body?.lastName) !== normalizeName(student.lastName)) {
+      const failures = prior?.startedAt + 15 * 60 * 1000 > Date.now() ? prior : { count: 0, startedAt: Date.now() };
+      failures.count += 1; if (failures.count >= 5) failures.lockedUntil = Date.now() + 15 * 60 * 1000;
+      pinRecoveryFailures.set(key, failures);
+      return res.status(401).json({ error: 'identity_mismatch', message: 'ชื่อหรือนามสกุลไม่ตรงกับข้อมูลในระบบ' });
+    }
+    const pin = String(req.body?.pin || '').trim();
+    if (!/^\d{4,6}$/.test(pin)) return res.status(400).json({ error: 'invalid_pin', message: 'PIN ต้องเป็นตัวเลข 4-6 หลัก' });
+    student.pinHash = hashPassword(pin);
+    student.pinFailedAttempts = 0;
+    pinRecoveryFailures.delete(key);
+    await writeDB(db);
+    res.json({ ok: true, token: createStudentSession(student.studentId), student: publicStudent(student) });
   });
 
   app.post('/api/students/:studentId/reset-pin', requireAdmin, async (req, res) => {
