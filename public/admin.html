@@ -566,15 +566,15 @@ let promotionMappings=[];
 function promotionPayload(){ return {sourceYear:document.getElementById('promotionSourceYear').value,targetYear:document.getElementById('promotionTargetYear').value.trim(),mappings:promotionMappings.filter(item=>item.toRoom.trim())}; }
 function suggestedPromotionRoom(room){
   const value=String(room||'').trim();
-  const vocational=value.match(/^(.*\.)(\d+)(\s*\/\s*\d+)$/);
-  if(vocational){ const level=Number(vocational[2]); return level<3?`${vocational[1]}${level+1}${vocational[3]}`:''; }
+  const vocational=value.match(/^(.*\.)(\d+)(\s*\/\s*\d+)(.*)$/);
+  if(vocational){ const level=Number(vocational[2]); return level<3?`${vocational[1]}${level+1}${vocational[3]}${vocational[4]}`:''; }
   const diploma=value.match(/^(.*?)([12])(\d{2})$/);
   if(diploma){ return diploma[2]==='1'?`${diploma[1]}2${diploma[3]}`:''; }
   return '';
 }
 function isGraduatingRoom(room){
   const value=String(room||'').trim();
-  const vocational=value.match(/^(.*\.)(\d+)(\s*\/\s*\d+)$/);
+  const vocational=value.match(/^(.*\.)(\d+)(\s*\/\s*\d+)(.*)$/);
   if(vocational) return Number(vocational[2])>=3;
   const diploma=value.match(/^(.*?)([12])(\d{2})$/);
   return Boolean(diploma&&diploma[2]==='2');
