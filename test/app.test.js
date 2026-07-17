@@ -108,6 +108,7 @@ test('admin can export an exam paper PDF without answer keys', async () => {
   const response = await request('/api/export/exam.pdf?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } });
   assert.equal(response.status, 200);
   assert.match(response.headers['content-type'], /application\/pdf/);
+  assert.match(response.headers['content-disposition'], /filename\*=UTF-8''/);
   assert.ok(response.body.length > 100);
 });
 

@@ -1784,7 +1784,10 @@ async function downloadExamPdf(setKey,button){
     if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');}
     if(!res.ok){const body=await res.json().catch(()=>({}));throw new Error(body.message||'สร้าง PDF ไม่สำเร็จ');}
     const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download='ต้นฉบับข้อสอบ.pdf';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดต้นฉบับข้อสอบ PDF แล้ว');
+    const disposition=res.headers.get('content-disposition')||'';
+    const encodedName=disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    const filename=encodedName ? decodeURIComponent(encodedName) : disposition.match(/filename="?([^";]+)"?/i)?.[1]||'ต้นฉบับข้อสอบ.pdf';
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดต้นฉบับข้อสอบ PDF แล้ว');
   }catch(error){showToast(error.message);}
   finally{if(button){button.disabled=false;button.textContent=original;}}
 }
