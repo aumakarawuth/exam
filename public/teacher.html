@@ -1371,10 +1371,9 @@ function bindMcResourceUpload(){
 function writtenResourceEditorHtml(q,isNew){
   const resources=isNew?(openQEditor.resources||(openQEditor.resources={attachments:[]})):(q.resources||(q.resources={attachments:[]}));
   const attachments=(resources.attachments||[]).map(item=>`<li>${escapeHtml(item.name||'ไฟล์แนบ')}</li>`).join('')||'<li>ยังไม่มีไฟล์แนบ</li>';
-  return `<div class="field"><label>โค้ดประกอบโจทย์ (ถ้ามี)</label><select id="qeWCodeLanguage"><option value="">เลือกภาษา</option>${['C','C++','Java','HTML','SQL','อื่น ๆ'].map(x=>`<option ${resources.language===x?'selected':''}>${x}</option>`).join('')}</select><textarea id="qeWCode" placeholder="วางโค้ดที่ต้องการแสดงในโจทย์">${escapeHtml(resources.code||'')}</textarea></div>
-    <div class="field"><label>ตารางประกอบโจทย์ (วางจาก Excel/CSV ได้)</label><textarea id="qeWTable" placeholder="คอลัมน์ A,คอลัมน์ B\nข้อมูล 1,ข้อมูล 2">${escapeHtml(resources.table||'')}</textarea></div>
-    <div class="field"><label>รูปภาพหรือไฟล์แนบ (ไม่เกิน 5 MB)</label><input id="qeWAsset" type="file" accept="image/*,.pdf,.docx,.pptx,.zip"><ul id="qeWAssetList">${attachments}</ul></div>`;
+  return `<div class="field"><label>รูปภาพหรือไฟล์แนบ (ไม่เกิน 5 MB)</label><input id="qeWAsset" type="file" accept="image/*,.pdf,.docx,.pptx,.zip"><ul id="qeWAssetList">${attachments}</ul></div>`;
 }
+function writtenCodeResourceEditorHtml(q,isNew){ const resources=isNew?(openQEditor.resources||(openQEditor.resources={attachments:[]})):(q.resources||(q.resources={attachments:[]})); return `<div class="field"><label>โค้ดตั้งต้น/โค้ดประกอบโจทย์ (ถ้ามี)</label><select id="qeWCodeLanguage"><option value="">เลือกภาษา</option>${['C','C++','Java','HTML','SQL','อื่น ๆ'].map(x=>`<option ${resources.language===x?'selected':''}>${x}</option>`).join('')}</select><textarea id="qeWCode" placeholder="วางโค้ดที่ต้องการแสดงในโจทย์">${escapeHtml(resources.code||'')}</textarea></div>`; }
 function bindWrittenResourceUpload(){
   const input=document.getElementById('qeWAsset');
   if(!input) return;
@@ -1537,7 +1536,7 @@ function writtenEditorPanelHtml(index){
     <div class="field"><label>โจทย์</label><textarea id="qeWText" placeholder="พิมพ์คำถาม...">${escapeHtml(q.text)}</textarea></div>
     <div class="field"><label>รูปแบบคำตอบ</label><select id="qeWAnswerType"><option value="text" ${!isCode?'selected':''}>อัตนัย (ตรวจคำสำคัญ)</option><option value="code" ${isCode?'selected':''}>💻 แก้ไขโค้ด (เทียบเฉลย)</option></select></div>
     <div class="field" id="qeWKeywordsWrap" ${isCode?'style="display:none"':''}><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" id="qeWKeywords" value="${escapeAttr((q.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์"></div>
-    <div id="qeWCodeAnswerWrap" ${isCode?'':'style="display:none"'}><div class="field"><label>ภาษา</label><select id="qeWLanguage"><option value="c" ${q.language==='c'?'selected':''}>C</option><option value="cpp" ${q.language==='cpp'?'selected':''}>C++</option><option value="java" ${q.language==='java'?'selected':''}>Java</option></select></div><div class="field"><label>ห้องที่ต้องทำ (คั่นด้วย , · เว้นว่าง = ทุกห้อง)</label><input id="qeWEligibleRooms" value="${escapeAttr((q.eligibleClassRooms||[]).join(', '))}" placeholder="เช่น CA.1/1, CA.1/2"></div><div class="field"><label>เฉลยโค้ด (ตัดช่องว่างและขึ้นบรรทัดใหม่ก่อนตรวจ)</label><textarea id="qeWAnswerCode" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;min-height:150px;">${escapeHtml(q.answerCode||'')}</textarea></div></div>${writtenResourceEditorHtml(q,isNew)}
+    <div id="qeWCodeAnswerWrap" ${isCode?'':'style="display:none"'}><div class="field"><label>ภาษา</label><select id="qeWLanguage"><option value="c" ${q.language==='c'?'selected':''}>C</option><option value="cpp" ${q.language==='cpp'?'selected':''}>C++</option><option value="java" ${q.language==='java'?'selected':''}>Java</option></select></div><div class="field"><label>ห้องที่ต้องทำ (คั่นด้วย , · เว้นว่าง = ทุกห้อง)</label><input id="qeWEligibleRooms" value="${escapeAttr((q.eligibleClassRooms||[]).join(', '))}" placeholder="เช่น CA.1/1, CA.1/2"></div><div class="field"><label>เฉลยโค้ด (ตัดช่องว่างและขึ้นบรรทัดใหม่ก่อนตรวจ)</label><textarea id="qeWAnswerCode" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;min-height:150px;">${escapeHtml(q.answerCode||'')}</textarea></div>${writtenCodeResourceEditorHtml(q,isNew)}</div>${writtenResourceEditorHtml(q,isNew)}
     <div class="editor-actions">
       <button class="btn btn-ghost btn-sm" id="qeCancelBtn" type="button">ยกเลิก</button>
       <button class="btn btn-primary btn-sm" id="qeSaveBtn" type="button">${isNew?'เพิ่มข้อนี้':'บันทึกการแก้ไข'}</button>
@@ -1554,9 +1553,9 @@ function saveWrittenQuestionFromEditor(index){
   const s = editingSet.sections.written;
   const old=index===null?{}:s.questions[index];
   const resources=openQEditor.resources||old.resources||{attachments:[]};
-  resources.code=document.getElementById('qeWCode').value.trim();
-  resources.language=document.getElementById('qeWCodeLanguage').value;
-  resources.table=document.getElementById('qeWTable').value.trim();
+  resources.code=answerType==='code'?(document.getElementById('qeWCode')?.value.trim()||''):'';
+  resources.language=answerType==='code'?(document.getElementById('qeWCodeLanguage')?.value||''):'';
+  delete resources.table;
   const language=document.getElementById('qeWLanguage').value;
   const eligibleClassRooms=answerType==='code'?document.getElementById('qeWEligibleRooms').value.split(',').map(room=>room.trim()).filter(Boolean):[];
   if(index===null) s.questions.push({id:uid('w'), text, keywords, answerType, answerCode, language, eligibleClassRooms, maxPoints:0, resources});

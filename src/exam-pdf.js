@@ -29,9 +29,6 @@ function questionResourceLines(question) {
   if (resources.code) {
     lines.push(`โค้ดประกอบโจทย์: ${safeText(resources.code)}`);
   }
-  if (resources.table) {
-    lines.push(`ตารางประกอบโจทย์: ${safeText(resources.table)}`);
-  }
   const attachments = Array.isArray(resources.attachments) ? resources.attachments : [];
   attachments.forEach(item => {
     if (!item?.url) return;

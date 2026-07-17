@@ -1299,13 +1299,6 @@ function renderQuestionResources(question){
   if(!resources || typeof resources!=='object') return '';
   const parts=[];
   if(resources.code) parts.push(`<pre class="question-code"><code>${escapeHtml(resources.code)}</code></pre>`);
-  if(resources.table){
-    const rows=String(resources.table).split(/\r?\n/).map(row=>row.trim()).filter(Boolean).map(row=>row.includes('\t')?row.split('\t'):row.split(','));
-    if(rows.length){
-      const head=rows.shift();
-      parts.push(`<div class="question-table-wrap"><table class="question-table"><thead><tr>${head.map(cell=>`<th>${escapeHtml(cell.trim())}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${head.map((_,i)=>`<td>${escapeHtml((row[i]||'').trim())}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
-    }
-  }
   const assets=(resources.attachments||[]).filter(item=>{
     try { const url=new URL(item?.url); return url.protocol==='https:'; } catch(_) { return false; }
   });
