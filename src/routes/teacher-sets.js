@@ -6,7 +6,7 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
     const now = new Date().toISOString(); const db = readDB(); const key = body.key || newId('set');
     const teacher = db.teachers.find(item => item.id === req.teacherId);
     const subjectTeacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '';
-    const set = { ...body, key, educationLevel: body.educationLevel, teacherId: req.teacherId, subjectTeacherName, subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(body.examType) ? body.examType : examTypes[0], assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [], publishMode: body.publishMode === 'auto' ? 'auto' : 'manual', createdAt: now, updatedAt: now };
+    const set = { ...body, key, educationLevel: body.educationLevel, teacherId: req.teacherId, subjectTeacherName, subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(body.examType) ? body.examType : examTypes[0], assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [], publishMode: body.publishMode === 'auto' ? 'auto' : 'manual', delivery: body.delivery === 'object-analysis-design' ? 'object-analysis-design' : null, createdAt: now, updatedAt: now };
     applyAcademicPeriod(set, db.settings); db.sets.push(set); await writeDB(db); res.status(201).json({ key });
   });
   app.put('/api/teacher/sets/:key', requireTeacher, async (req, res) => {

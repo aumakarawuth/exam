@@ -754,9 +754,9 @@ function renderQGrid(){
         ${isResit ? `<span class="lvbadge" style="background:#F59E0B;color:#fff;border-color:#F59E0B;">🛠️ สิทธิ์สอบซ่อม · คะแนนเต็มหลังแปลง ${q.resitScoreMax}</span>` : ''}
         ${locked ? `<span class="lvbadge" style="background:var(--red);color:#fff;border-color:var(--red);">🔒 หมดเวลาลงทะเบียนสอบ</span>` : ''}
         ${q.examType ? `<span class="lvbadge examtype">${escapeHtml(q.examType)}</span>` : ''}
-        <span class="lvbadge">${SECTION_ICON.mc} ปรนัย ${q.sections.mc.questions.length} ข้อ</span>
-        ${q.sections.matching.left.length>0 ? `<span class="lvbadge">${SECTION_ICON.matching} จับคู่ ${q.sections.matching.left.length} คู่</span>` : ''}
-        ${q.sections.written.questions.length>0 ? `<span class="lvbadge">${SECTION_ICON.written} อัตนัย ${q.sections.written.questions.length} ข้อ</span>` : ''}
+        ${q.delivery==='object-analysis-design' ? `<span class="lvbadge" style="background:#EEF2FF;color:#4338CA;border-color:#C7D2FE;">🧩 วาด Data Flow Diagram · Level 0–2</span>` : `<span class="lvbadge">${SECTION_ICON.mc} ปรนัย ${q.sections.mc.questions.length} ข้อ</span>`}
+        ${!q.delivery && q.sections.matching.left.length>0 ? `<span class="lvbadge">${SECTION_ICON.matching} จับคู่ ${q.sections.matching.left.length} คู่</span>` : ''}
+        ${!q.delivery && q.sections.written.questions.length>0 ? `<span class="lvbadge">${SECTION_ICON.written} อัตนัย ${q.sections.written.questions.length} ข้อ</span>` : ''}
         ${q.subjectTeacherName ? `<span class="lvbadge">👤 ${escapeHtml(q.subjectTeacherName)}</span>` : ''}
       </div>
       ${locked ? `
@@ -811,6 +811,8 @@ function applyServerDraft(draft){
 document.getElementById('confirmQBtn').addEventListener('click', async ()=>{
   if(!pickedKey) return;
   if(COMPLETED_KEYS.has(pickedKey) && ELIGIBLE_SETS_BY_KEY[pickedKey].accessMode!=='resit'){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
+  const pickedSet = ELIGIBLE_SETS_BY_KEY[pickedKey];
+  if(pickedSet.delivery==='object-analysis-design'){ location.href='/object-analysis-design'; return; }
   app.questionKey = pickedKey;
   app.resitAccessId = ELIGIBLE_SETS_BY_KEY[pickedKey].resitAccessId || null;
   app.lateCode = lateCodeVerified[pickedKey] || null;

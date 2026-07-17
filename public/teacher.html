@@ -255,7 +255,7 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
             <p class="sub" style="margin:0;">จัดกลุ่มตามชื่อวิชา — 1 วิชาอาจมีทั้งข้อสอบกลางภาคและปลายภาค คุณเห็นเฉพาะข้อสอบที่คุณสร้างเองเท่านั้น</p>
             <input class="filter-select" type="search" id="setSearchInput" placeholder="ค้นหาชื่อวิชา หรือชุดข้อสอบ" aria-label="ค้นหาชุดข้อสอบ" style="min-width:250px;margin-top:12px;">
           </div>
-          <div class="editor-actions" style="margin:0;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="importGoogleFormsSetBtn">นำเข้าข้อสอบจาก Forms</button><button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button></div>
+          <div class="editor-actions" style="margin:0;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="importGoogleFormsSetBtn">นำเข้าข้อสอบจาก Forms</button><button class="btn btn-ghost btn-sm" id="newDfdSetBtn">🧩 สร้างข้อสอบ DFD</button><button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button></div>
         </div>
         <div id="setListWrap"><div class="loading-note">กำลังโหลด...</div></div>
       </div>
@@ -661,6 +661,8 @@ async function deleteSet(key){
   catch(e){ showToast(e.message); }
 }
 document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(null));
+function dfdSetDraft(){ return { ...blankSet(), key:'object_analysis_design_dfd', title:'การวิเคราะห์และออกแบบเชิงวัตถุ: Data Flow Diagram', courseName:'การวิเคราะห์และออกแบบเชิงวัตถุ', tagline:'DFD Drawing Examination', desc:'ข้อสอบวาด Data Flow Diagram (Level 0, 1 และ 2)', delivery:'object-analysis-design', examType:'ปลายภาค', shuffleQuestions:false, shuffleChoices:false }; }
+document.getElementById('newDfdSetBtn').addEventListener('click', ()=>{ const existing=ADMIN_SETS.find(set=>set.key==='object_analysis_design_dfd'); openEditor(existing?.key||null, existing?null:dfdSetDraft()); });
 document.getElementById('importGoogleFormsSetBtn').addEventListener('click', ()=> openGoogleFormsSetDialog());
 document.getElementById('setSearchInput').addEventListener('input',event=>{ setSearchQuery=event.target.value; renderSetList(); });
 
@@ -1581,7 +1583,7 @@ async function saveEditingSet(){
   applyPointDistribution('mc'); applyPointDistribution('matching'); applyPointDistribution('written');
   if(!s.title || !s.title.trim()){ alert('กรุณากรอกชื่อชุดข้อสอบ (ย้อนกลับไปขั้นตอนที่ 1)'); wizardStep='info'; renderWizard(); return; }
   if(!['ปวช.','ปวส.'].includes(s.educationLevel)){ alert('กรุณาเลือกระดับ ปวช. หรือ ปวส. (ย้อนกลับไปขั้นตอนที่ 1)'); wizardStep='info'; renderWizard(); return; }
-  if(s.sections.mc.questions.length===0){ alert('กรุณาเพิ่มข้อปรนัยอย่างน้อย 1 ข้อ'); wizardStep='section:mc'; renderWizard(); return; }
+  if(s.delivery!=='object-analysis-design' && s.sections.mc.questions.length===0){ alert('กรุณาเพิ่มข้อปรนัยอย่างน้อย 1 ข้อ'); wizardStep='section:mc'; renderWizard(); return; }
   if(s.examSchedules.length){
     const invalid=s.examSchedules.find(item=>!(item.classes||[]).length||((item.availableFrom||item.availableUntil)&&(!item.availableFrom||!item.availableUntil||new Date(item.availableFrom)>=new Date(item.availableUntil))));
     if(invalid){ alert('กรุณาเลือกห้องให้ครบทุกรอบ และหากกำหนดเวลาให้กรอกวัน–เวลาเริ่มและสิ้นสุดให้ครบถ้วน'); wizardStep='access'; renderWizard(); return; }

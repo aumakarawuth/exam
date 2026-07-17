@@ -8,8 +8,8 @@ function registerPublicExamRoutes(app, { readDB, examTypes, sanitizeSetForStuden
     if (!student) return res.status(401).json({ error: 'unauthorized' });
     const sets = db.sets
       .map(set => ({ set, resit: activeResitAccess(set, student.studentId) }))
-      .filter(({ set, resit }) => !set.archived && !set.delivery && (resit || (hasExamAccess(set, student.classRoom) && !isBeforeStart(set, student.classRoom) && !isPastDeadline(set, student.classRoom))))
-      .map(({ set, resit }) => Object.assign(sanitizeSetForStudent(set, student.classRoom), resit ? { accessMode: 'resit', resitAccessId: resit.id, availableFrom: resit.availableFrom, availableUntil: resit.availableUntil, lateAccessRequired: false, resitScoreMax: resit.scoreMax } : {}));
+      .filter(({ set, resit }) => !set.archived && (!set.delivery || set.delivery === 'object-analysis-design') && (resit || (hasExamAccess(set, student.classRoom) && !isBeforeStart(set, student.classRoom) && !isPastDeadline(set, student.classRoom))))
+      .map(({ set, resit }) => Object.assign(sanitizeSetForStudent(set, student.classRoom), { delivery: set.delivery || null }, resit ? { accessMode: 'resit', resitAccessId: resit.id, availableFrom: resit.availableFrom, availableUntil: resit.availableUntil, lateAccessRequired: false, resitScoreMax: resit.scoreMax } : {}));
     res.json(sets);
   });
 
