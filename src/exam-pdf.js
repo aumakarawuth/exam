@@ -12,7 +12,7 @@ function safeText(value) {
 function writeMixed(doc, value, options = {}) {
   const text = safeText(value);
   if (!text) return;
-  doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 10.5).fillColor(options.color || '#1e293b').text(text, { ...options, bold: undefined, size: undefined, color: undefined });
+  doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 12).fillColor(options.color || '#1e293b').text(text, { ...options, bold: undefined, size: undefined, color: undefined });
 }
 
 function scoreTotal(set) {
@@ -55,29 +55,29 @@ function buildExamPdf(set) {
   const columnX = () => margin + (column * (columnWidth + gap));
   const rule = (y, x = margin, width = pageWidth - (margin * 2)) => doc.moveTo(x, y).lineTo(x + width, y).strokeColor('#cbd5e1').lineWidth(.55).stroke();
   const textHeight = (text, options = {}) => {
-    doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 16);
+    doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 12);
     return doc.heightOfString(safeText(text), { width: columnWidth, lineGap: options.lineGap ?? 1 });
   };
   const drawPageHeader = first => {
     doc.x = margin; doc.y = margin;
     if (first) {
-      writeMixed(doc, 'ต้นฉบับข้อสอบ', { bold: true, size: 26, color: '#1d4ed8', width: pageWidth - (margin * 2), align: 'center' });
-      writeMixed(doc, safeText(set.courseName) || safeText(set.title), { bold: true, size: 22, color: '#0f172a', width: pageWidth - (margin * 2), align: 'center' });
-      if (safeText(set.title) !== safeText(set.courseName)) writeMixed(doc, safeText(set.title), { size: 16, color: '#475569', width: pageWidth - (margin * 2), align: 'center' });
+      writeMixed(doc, 'ต้นฉบับข้อสอบ', { bold: true, size: 20, color: '#1d4ed8', width: pageWidth - (margin * 2), align: 'center' });
+      writeMixed(doc, safeText(set.courseName) || safeText(set.title), { bold: true, size: 17, color: '#0f172a', width: pageWidth - (margin * 2), align: 'center' });
+      if (safeText(set.title) !== safeText(set.courseName)) writeMixed(doc, safeText(set.title), { size: 12, color: '#475569', width: pageWidth - (margin * 2), align: 'center' });
       doc.moveDown(.45);
       rule(doc.y);
       doc.moveDown(.35);
-      writeMixed(doc, `ประเภทข้อสอบ: ${safeText(set.examType) || '-'}     ระดับ: ${safeText(set.educationLevel) || '-'}`, { size: 16, color: '#334155', width: pageWidth - (margin * 2) });
-      writeMixed(doc, `ผู้สอน: ${safeText(set.subjectTeacherName) || '-'}     คะแนนเต็ม: ${scoreTotal(set)} คะแนน`, { size: 16, color: '#334155', width: pageWidth - (margin * 2) });
-      if (set.desc) writeMixed(doc, `คำอธิบาย: ${safeText(set.desc)}`, { size: 16, color: '#475569', width: pageWidth - (margin * 2) });
+      writeMixed(doc, `ประเภทข้อสอบ: ${safeText(set.examType) || '-'}     ระดับ: ${safeText(set.educationLevel) || '-'}`, { size: 12, color: '#334155', width: pageWidth - (margin * 2) });
+      writeMixed(doc, `ผู้สอน: ${safeText(set.subjectTeacherName) || '-'}     คะแนนเต็ม: ${scoreTotal(set)} คะแนน`, { size: 12, color: '#334155', width: pageWidth - (margin * 2) });
+      if (set.desc) writeMixed(doc, `คำอธิบาย: ${safeText(set.desc)}`, { size: 12, color: '#475569', width: pageWidth - (margin * 2) });
       doc.moveDown(.25);
       rule(doc.y);
       doc.moveDown(.28);
-      writeMixed(doc, 'ชื่อ-สกุล ........................................................................ ชั้น/ห้อง .............. เลขที่ ..............', { size: 16, color: '#334155', width: pageWidth - (margin * 2) });
+      writeMixed(doc, 'ชื่อ-สกุล ........................................................................ ชั้น/ห้อง .............. เลขที่ ..............', { size: 12, color: '#334155', width: pageWidth - (margin * 2) });
       doc.moveDown(.35);
       rule(doc.y);
     } else {
-      writeMixed(doc, safeText(set.courseName) || safeText(set.title), { bold: true, size: 16, color: '#334155', width: pageWidth - (margin * 2) });
+      writeMixed(doc, safeText(set.courseName) || safeText(set.title), { bold: true, size: 12, color: '#334155', width: pageWidth - (margin * 2) });
       rule(doc.y + 4);
       doc.moveDown(.55);
     }
@@ -99,7 +99,7 @@ function buildExamPdf(set) {
     const height = textHeight(text, options);
     if (!skipEnsure) ensureColumnSpace(height + (options.after ?? 4));
     doc.x = columnX(); doc.y = columnY;
-    writeMixed(doc, text, { size: 16, color: '#1e293b', lineGap: 1, width: columnWidth, ...renderOptions });
+    writeMixed(doc, text, { size: 12, color: '#1e293b', lineGap: 1, width: columnWidth, ...renderOptions });
     columnY = doc.y + (options.after ?? 4);
   };
 
@@ -108,18 +108,18 @@ function buildExamPdf(set) {
 
   const mc = set.sections?.mc || {};
   if ((mc.questions || []).length) {
-    writeColumn(mc.title || 'ส่วนที่ 1 - ปรนัย', { bold: true, size: 19, color: '#0f172a', after: 2 });
+    writeColumn(mc.title || 'ส่วนที่ 1 - ปรนัย', { bold: true, size: 14, color: '#0f172a', after: 2 });
     if (mc.desc) writeColumn(safeText(mc.desc), { color: '#475569', after: 5 });
     mc.questions.forEach((question, index) => {
       const resources = questionResourceLines(question);
       const questionText = `${index + 1}. ${safeText(question.text)}`;
       const groupHeight = textHeight(questionText, { bold: true }) + 2
-        + resources.reduce((sum, resource) => sum + textHeight(resource, { size: 14, indent: 10 }) + 2, 0)
+        + resources.reduce((sum, resource) => sum + textHeight(resource, { size: 11, indent: 10 }) + 2, 0)
         + (question.choices || []).reduce((sum, choice, choiceIndex) => sum + textHeight(`${String.fromCharCode(65 + choiceIndex)}. ${safeText(choice)}`, { indent: 14 }) + 1, 0)
         + 5;
       ensureColumnSpace(groupHeight);
       writeColumn(questionText, { bold: true, color: '#0f172a', after: 2, skipEnsure: true });
-      resources.forEach(resource => writeColumn(resource, { color: '#475569', size: 14, indent: 10, after: 2, skipEnsure: true }));
+      resources.forEach(resource => writeColumn(resource, { color: '#475569', size: 11, indent: 10, after: 2, skipEnsure: true }));
       (question.choices || []).forEach((choice, choiceIndex) => writeColumn(`${String.fromCharCode(65 + choiceIndex)}. ${safeText(choice)}`, { indent: 14, after: 1, skipEnsure: true }));
       columnY += 5;
     });
@@ -127,7 +127,7 @@ function buildExamPdf(set) {
 
   const matching = set.sections?.matching || {};
   if ((matching.left || []).length) {
-    writeColumn(matching.title || 'ส่วนที่ 2 - จับคู่', { bold: true, size: 19, color: '#0f172a', after: 2 });
+    writeColumn(matching.title || 'ส่วนที่ 2 - จับคู่', { bold: true, size: 14, color: '#0f172a', after: 2 });
     if (matching.desc) writeColumn(safeText(matching.desc), { color: '#475569', after: 5 });
     (matching.left || []).forEach((item, index) => {
       writeColumn(`${index + 1}. ............ ${safeText(item.text)}`, { after: 1 });
@@ -142,11 +142,11 @@ function buildExamPdf(set) {
 
   const written = set.sections?.written || {};
   if ((written.questions || []).length) {
-    writeColumn(written.title || 'ส่วนที่ 3 - อัตนัย', { bold: true, size: 19, color: '#0f172a', after: 2 });
+    writeColumn(written.title || 'ส่วนที่ 3 - อัตนัย', { bold: true, size: 14, color: '#0f172a', after: 2 });
     if (written.desc) writeColumn(safeText(written.desc), { color: '#475569', after: 5 });
     written.questions.forEach((question, index) => {
       writeColumn(`${index + 1}. ${safeText(question.text)}`, { bold: true, color: '#0f172a', after: 2 });
-      questionResourceLines(question).forEach(resource => writeColumn(resource, { color: '#475569', size: 14, indent: 10, after: 2 }));
+      questionResourceLines(question).forEach(resource => writeColumn(resource, { color: '#475569', size: 11, indent: 10, after: 2 }));
       ensureColumnSpace(62);
       for (let lineNumber = 0; lineNumber < 4; lineNumber += 1) {
         columnY += 13;
