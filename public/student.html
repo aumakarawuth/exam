@@ -275,7 +275,7 @@ html.restoring-session #startScreen{visibility:hidden;}html.restoring-session bo
   <div class="card">
     <span class="eyebrow">ยืนยันตัวตน</span>
     <h1>กรอก PIN เพื่อเข้าสอบ</h1>
-    <p class="lead">กรอก PIN ที่คุณตั้งไว้</p>
+    <p class="lead" id="pinVerifyLead">กรอก PIN ที่คุณตั้งไว้</p>
     <input type="password" class="name-input" id="pinVerifyInput" placeholder="PIN" inputmode="numeric" maxlength="6">
     <div class="id-error" id="pinVerifyError"></div>
     <button class="btn btn-ghost" id="forgotPinBtn" type="button" style="margin:2px 0 16px;">ลืม PIN? ยืนยันตัวตนเพื่อตั้งใหม่</button>
@@ -736,7 +736,12 @@ document.getElementById('pinVerifyInput').addEventListener('keydown', e=>{ if(e.
 document.getElementById('forgotPinBtn').addEventListener('click', ()=>{
   const form=document.getElementById('forgotPinForm');
   form.classList.toggle('hidden');
-  if(!form.classList.contains('hidden')) document.getElementById('forgotPinFirstName').focus();
+  const recovering=!form.classList.contains('hidden');
+  document.getElementById('pinVerifyLead').classList.toggle('hidden', recovering);
+  document.getElementById('pinVerifyInput').classList.toggle('hidden', recovering);
+  document.getElementById('pinVerifyConfirmBtn').classList.toggle('hidden', recovering);
+  document.getElementById('forgotPinBtn').textContent=recovering?'← กลับไปกรอก PIN':'ลืม PIN? ยืนยันตัวตนเพื่อตั้งใหม่';
+  if(recovering) document.getElementById('forgotPinFirstName').focus();
 });
 document.getElementById('forgotPinConfirmBtn').addEventListener('click', async ()=>{
   const firstName=document.getElementById('forgotPinFirstName').value.trim();
