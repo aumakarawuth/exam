@@ -14,6 +14,7 @@ const { registerAssetRoutes } = require('./assets');
 const { registerGoogleFormsRoutes } = require('./google-forms');
 const { registerQuestionAnalysisRoutes } = require('./question-analysis');
 const { registerResitRoutes } = require('./resit');
+const { registerAcademicCalendarRoutes } = require('./academic-calendar');
 
 function registerRoutes(app, dependencies) {
   registerAccountRoutes(app, dependencies);
@@ -32,6 +33,7 @@ function registerRoutes(app, dependencies) {
   registerGoogleFormsRoutes(app, dependencies);
   registerQuestionAnalysisRoutes(app, dependencies);
   registerResitRoutes(app, dependencies);
+  registerAcademicCalendarRoutes(app, dependencies);
 }
 
 module.exports = { registerRoutes };

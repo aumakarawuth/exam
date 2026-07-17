@@ -345,6 +345,12 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
       <div id="atab-settings" class="hidden">
         <div class="toolbar-row"><div><h2>ตั้งค่า</h2><p class="sub" style="margin:0;">รวมการนำเข้า ส่งออก และการจัดการระบบไว้ในที่เดียว</p></div></div>
         <div class="settings-grid">
+          <div class="panel">
+            <h3>🗓️ ปฏิทินการศึกษา</h3>
+            <p class="panel-sub">กำหนดช่วงวันเพียงครั้งเดียว ระบบจะระบุปีการศึกษาและภาคเรียนจากวันเริ่มสอบให้อัตโนมัติ</p>
+            <div id="academicCalendarRows" class="stack-list"></div>
+            <div class="editor-actions" style="margin-top:12px;"><button class="btn btn-ghost btn-sm" id="addAcademicYearBtn" type="button">＋ เพิ่มปีการศึกษา</button><button class="btn btn-primary btn-sm" id="saveAcademicCalendarBtn" type="button">💾 บันทึกปฏิทิน</button></div>
+          </div>
           <div id="adminDataToolsHost" class="settings-data-tools"></div>
           <div class="panel">
             <h3>บัญชีผู้ดูแล</h3>
@@ -421,6 +427,8 @@ async function apiVerifyAdmin(key){
   throw new Error(body.message || 'รหัสผู้ดูแลระบบไม่ถูกต้อง');
 }
 async function apiGetAdminSets(){ return apiFetch('/api/admin/sets', { admin:true }); }
+async function apiGetAcademicCalendar(){ return apiFetch('/api/admin/academic-calendar', { admin:true }); }
+async function apiSaveAcademicCalendar(academicCalendar){ return apiFetch('/api/admin/academic-calendar', { method:'PUT', body:{academicCalendar}, admin:true }); }
 async function apiUploadQuestionAsset(file){
   const response=await fetch('/api/admin/assets',{method:'POST',headers:{'x-admin-key':adminKey||'','Content-Type':file.type,'x-file-name':encodeURIComponent(file.name)},body:file});
   if(response.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); }
@@ -517,6 +525,22 @@ function organizeAdminSettings(){
 }
 organizeAdminSettings();
 
+let academicCalendar=[];
+function calendarDateDisplay(value){ const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${m[3]}/${m[2]}/${m[1]}`:''; }
+function calendarDateValue(value){ const text=String(value||'').trim(); const thai=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(thai) return `${thai[3]}-${thai[2].padStart(2,'0')}-${thai[1].padStart(2,'0')}`; return /^\d{4}-\d{2}-\d{2}$/.test(text)?text:''; }
+function newAcademicYear(){ const year=String(new Date().getFullYear()+543); return {academicYear:year,terms:[{id:'1',label:'เทอม 1',startsOn:'',endsOn:''},{id:'2',label:'เทอม 2',startsOn:'',endsOn:''}]}; }
+function renderAcademicCalendar(){
+  const host=document.getElementById('academicCalendarRows'); if(!host) return;
+  host.innerHTML=academicCalendar.length?academicCalendar.map((year,index)=>`<div class="mini-card" style="margin:0 0 10px;"><div class="toolbar-row"><div class="field" style="margin:0;min-width:120px;"><label>ปีการศึกษา</label><input data-academic-year="${index}" value="${escapeAttr(year.academicYear||'')}" inputmode="numeric"></div><button class="btn btn-danger btn-sm" type="button" data-remove-academic-year="${index}">ลบปี</button></div>${(year.terms||[]).map((term,termIndex)=>`<div class="schedule-time-grid" style="margin-top:8px;"><div class="field"><label>${escapeHtml(term.label||`เทอม ${termIndex+1}`)}</label><input value="${escapeAttr(term.label||'')}" data-term-label="${index}:${termIndex}"></div><div class="field"><label>วันเริ่ม</label><input placeholder="dd/mm/yyyy" value="${calendarDateDisplay(term.startsOn)}" data-term-start="${index}:${termIndex}"></div><div class="field"><label>วันสิ้นสุด</label><input placeholder="dd/mm/yyyy" value="${calendarDateDisplay(term.endsOn)}" data-term-end="${index}:${termIndex}"></div></div>`).join('')}</div>`).join(''):'<div class="empty-note">ยังไม่ได้กำหนดปฏิทินการศึกษา</div>';
+  host.querySelectorAll('[data-academic-year]').forEach(input=>input.addEventListener('input',event=>{academicCalendar[Number(event.target.dataset.academicYear)].academicYear=event.target.value;}));
+  host.querySelectorAll('[data-term-label]').forEach(input=>input.addEventListener('input',event=>{const [year,term]=event.target.dataset.termLabel.split(':').map(Number);academicCalendar[year].terms[term].label=event.target.value;}));
+  host.querySelectorAll('[data-term-start],[data-term-end]').forEach(input=>input.addEventListener('change',event=>{const [year,term]=(event.target.dataset.termStart||event.target.dataset.termEnd).split(':').map(Number);academicCalendar[year].terms[term][event.target.dataset.termStart?'startsOn':'endsOn']=calendarDateValue(event.target.value);}));
+  host.querySelectorAll('[data-remove-academic-year]').forEach(button=>button.addEventListener('click',()=>{academicCalendar.splice(Number(button.dataset.removeAcademicYear),1);renderAcademicCalendar();}));
+}
+async function loadAcademicCalendar(){ try{const data=await apiGetAcademicCalendar();academicCalendar=data.academicCalendar||[];renderAcademicCalendar();}catch(error){showToast(error.message);} }
+document.getElementById('addAcademicYearBtn').addEventListener('click',()=>{academicCalendar.push(newAcademicYear());renderAcademicCalendar();});
+document.getElementById('saveAcademicCalendarBtn').addEventListener('click',async event=>{const button=event.currentTarget;button.disabled=true;try{await apiSaveAcademicCalendar(academicCalendar);showToast('บันทึกปฏิทินการศึกษาแล้ว');await loadAcademicCalendar();}catch(error){showToast(error.message);}finally{button.disabled=false;}});
+
 async function restoreAdminSession(){
   if(!adminKey) return;
   try{
@@ -558,6 +582,7 @@ async function initAdmin(){
   document.getElementById('teacherLoginUrlText').textContent = window.location.origin + '/teacher';
   document.getElementById('setListWrap').innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
   try{ EXAM_TYPES = await apiGetExamTypes(); }catch(e){}
+  await loadAcademicCalendar();
   const etSel = document.getElementById('examTypeFilterSelect');
   etSel.innerHTML = '<option value="">ทุกประเภทข้อสอบ</option>' + EXAM_TYPES.map(t=>`<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
   ADMIN_SETS = await apiGetAdminSets().catch(e=>{ showToast(e.message); return []; });
