@@ -4,7 +4,8 @@ const XLSX = require('xlsx');
 function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
   const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '' });
-  const byRoomThenStudentId = (a, b) => String(a.classRoom ?? '').localeCompare(String(b.classRoom ?? ''), 'th', { numeric: true }) || String(a.studentId ?? '').localeCompare(String(b.studentId ?? ''), 'th', { numeric: true });
+  const educationRank = room => /\.\s*\d+\s*\//.test(String(room || '')) ? 0 : 1;
+  const byRoomThenStudentId = (a, b) => educationRank(a.classRoom) - educationRank(b.classRoom) || String(a.classRoom ?? '').localeCompare(String(b.classRoom ?? ''), 'th', { numeric: true }) || String(a.studentId ?? '').localeCompare(String(b.studentId ?? ''), 'th', { numeric: true });
 
   app.get('/api/students/export.xlsx', requireAdmin, (req, res) => {
     const rows = readDB().students
