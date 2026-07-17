@@ -345,7 +345,7 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 <div id="setWizardScreen" class="hidden" style="min-height:100vh;display:flex;flex-direction:column;background:var(--bg);">
   <div class="admin-topbar">
     <div class="brand" id="wizardTitleBar">🧩 สร้างชุดข้อสอบใหม่</div>
-    <button class="btn btn-ghost btn-sm" id="wizardExitBtn">✕ ออกโดยไม่บันทึก</button>
+    <div class="editor-actions" style="margin:0;gap:8px;"><button class="btn btn-primary btn-sm" id="wizSaveBtn" type="button">💾 บันทึกชุดข้อสอบ</button><button class="btn btn-ghost btn-sm" id="wizardExitBtn">✕ ออกโดยไม่บันทึก</button></div>
   </div>
   <div class="wizard-steps-bar" id="wizardStepsBar"></div>
   <div class="admin-body">
@@ -768,6 +768,7 @@ function closeEditor(){
 document.getElementById('wizardExitBtn').addEventListener('click', ()=>{
   if(confirm('ออกจากการแก้ไขโดยไม่บันทึก? การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป')) closeEditor();
 });
+document.getElementById('wizSaveBtn').addEventListener('click', saveEditingSet);
 
 function renderWizard(){
   renderWizardStepsBar();
@@ -929,7 +930,6 @@ function wizardHubStepHtml(){
   </div>
   <div class="wizard-nav-row">
     <button class="btn btn-ghost" id="wizBackBtn" type="button">← ย้อนกลับไปเลือกส่วน</button>
-    <button class="btn btn-primary" id="wizSaveBtn" type="button">💾 บันทึกชุดข้อสอบ</button>
   </div>`;
 }
 
@@ -1012,7 +1012,6 @@ function bindWizardStepEvents(){
       wizardStep = 'section:'+b.dataset.entersec; openQEditor=null; renderWizard();
     }));
     document.getElementById('wizBackBtn').addEventListener('click', ()=>{ wizardStep='sections'; renderWizard(); });
-    document.getElementById('wizSaveBtn').addEventListener('click', saveEditingSet);
   } else if(wizardStep.startsWith('section:')){
     const sec = wizardStep.split(':')[1];
     if(sec==='mc'){
@@ -1575,6 +1574,7 @@ function setSetSaveButtonsLoading(loading){
 }
 async function saveEditingSet(){
   if(isSavingSet) return;
+  if(openQEditor){ showToast('กรุณาบันทึกหรือยกเลิกการแก้ไขข้อคำถามก่อน'); return; }
   const s = editingSet;
   if(!editingUiEnabled.matching) Object.assign(s.sections.matching, {left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0});
   if(!editingUiEnabled.written) Object.assign(s.sections.written, {questions:[], sectionPointsTotal:0});
