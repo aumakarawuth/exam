@@ -27,8 +27,7 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
   });
   app.post('/api/teacher/sets/:key/restore', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' });
-    if (set.deletedAt) return res.status(403).json({ error: 'admin_recovery_required', message: 'ชุดข้อสอบนี้อยู่ในถังขยะ ผู้ดูแลระบบเท่านั้นที่กู้คืนได้' });
-    set.archived = false; delete set.archivedAt; set.updatedAt = new Date().toISOString(); await writeDB(db); res.json({ ok: true });
+    set.archived = false; delete set.archivedAt; delete set.deletedAt; delete set.deletedBy; set.updatedAt = new Date().toISOString(); await writeDB(db); res.json({ ok: true });
   });
   app.delete('/api/teacher/sets/:key', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId);
