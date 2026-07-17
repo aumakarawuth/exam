@@ -381,9 +381,14 @@ async function apiFetch(path, options){
   const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
   if(options.auth) headers['x-teacher-token'] = teacherToken || '';
   let res;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(()=>controller.abort(), 30000);
   try{
-    res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
-  }catch(e){ throw new Error('เชื่อมต่อเซิร์ฟเวอร์ backend ไม่สำเร็จ กรุณาตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่'); }
+    res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined, signal: controller.signal });
+  }catch(e){
+    if(e.name === 'AbortError') throw new Error('เซิร์ฟเวอร์ตอบกลับช้าเกิน 30 วินาที กรุณาลองบันทึกอีกครั้ง');
+    throw new Error('เชื่อมต่อเซิร์ฟเวอร์ backend ไม่สำเร็จ กรุณาตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่');
+  }finally{ clearTimeout(timeoutId); }
   if(res.status===401){ if(options.auth) showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่อีกครั้ง'); }
   if(!res.ok){
     let msg = 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (HTTP '+res.status+')';
@@ -1606,13 +1611,18 @@ async function saveEditingSet(){
   isSavingSet = true;
   setSetSaveButtonsLoading(true);
   try{
-    if(editingIsNew) await apiCreateSet(s); else await apiUpdateSet(s.key, s);
-    ADMIN_SETS = await apiGetAdminSets();
-    isSavingSet = false;
+    const response = editingIsNew ? await apiCreateSet(s) : await apiUpdateSet(s.key, s);
+    if(editingIsNew && response?.key) s.key = response.key;
+    const savedSet = JSON.parse(JSON.stringify(s));
+    const existingIndex = ADMIN_SETS.findIndex(item=>item.key===savedSet.key);
+    if(existingIndex >= 0) ADMIN_SETS.splice(existingIndex, 1, savedSet); else ADMIN_SETS.unshift(savedSet);
     closeEditor(); renderSetList(); populateSetFilterOptions();
     showToast('บันทึกชุดข้อสอบเรียบร้อยแล้ว นักเรียนในห้องที่กำหนดจะเห็นวิชานี้ทันที');
+    // รีเฟรชข้อมูลเต็มในเบื้องหลัง เพื่อไม่ให้ปุ่มค้างเมื่อเครือข่ายตอบช้า
+    apiGetAdminSets().then(sets=>{ ADMIN_SETS=sets; renderSetList(); populateSetFilterOptions(); }).catch(()=>{});
   }catch(e){
     showToast(e.message);
+  }finally{
     isSavingSet = false;
     setSetSaveButtonsLoading(false);
   }
