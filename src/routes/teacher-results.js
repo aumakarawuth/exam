@@ -8,6 +8,8 @@ function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher }) {
     let rows = db.results.filter(row => keys.has(row.questionKey));
     if (req.query.setKey) rows = rows.filter(row => row.questionKey === req.query.setKey);
     if (req.query.examType) rows = rows.filter(row => row.examType === req.query.examType);
+    if (req.query.academicYear) rows = rows.filter(row => row.academicYear === req.query.academicYear);
+    if (req.query.semester) rows = rows.filter(row => row.semester === req.query.semester);
     res.json(rows.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)));
   });
   app.patch('/api/teacher/results/:id', requireTeacher, async (req, res) => {

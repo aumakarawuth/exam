@@ -268,6 +268,8 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <select class="filter-select" id="examTypeFilterSelect"><option value="">ทุกประเภทข้อสอบ</option></select>
+            <select class="filter-select" id="academicYearFilterSelect"><option value="">ทุกปีการศึกษา</option></select>
+            <select class="filter-select" id="semesterFilterSelect"><option value="">ทุกภาคเรียน</option></select>
             <select class="filter-select" id="setFilterSelect"><option value="">ทุกรายวิชา</option></select>
             <button class="btn btn-ghost btn-sm" id="refreshResultsBtn">↻ รีเฟรช</button>
             <button class="btn btn-ghost btn-sm" id="questionAnalysisBtn">📊 วิเคราะห์ข้อสอบ</button>
@@ -406,10 +408,12 @@ async function apiCreateSet(set){ return apiFetch('/api/teacher/sets', { method:
 async function apiUpdateSet(key, set){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key), { method:'PUT', body:set, auth:true }); }
 async function apiDuplicateSetCall(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', auth:true }); }
 async function apiDeleteSetCall(key){ return apiFetch('/api/teacher/sets/'+encodeURIComponent(key), { method:'DELETE', auth:true }); }
-async function apiGetResults(setKey, examType){
+async function apiGetResults(setKey, examType, academicYear, semester){
   const qs = [];
   if(setKey) qs.push('setKey='+encodeURIComponent(setKey));
   if(examType) qs.push('examType='+encodeURIComponent(examType));
+  if(academicYear) qs.push('academicYear='+encodeURIComponent(academicYear));
+  if(semester) qs.push('semester='+encodeURIComponent(semester));
   return apiFetch('/api/teacher/results'+(qs.length?('?'+qs.join('&')):''), { auth:true });
 }
 async function apiGetQuestionAnalysis(setKey){ return apiFetch('/api/teacher/question-analysis?setKey='+encodeURIComponent(setKey), { auth:true }); }
@@ -1586,6 +1590,12 @@ function populateSetFilterOptions(){
   const current = sel.value;
   sel.innerHTML = '<option value="">ทุกรายวิชา</option>' + ADMIN_SETS.map(s=>`<option value="${escapeAttr(s.key)}">${escapeHtml(s.title)}</option>`).join('');
   sel.value = current;
+  const years=[...new Set(ADMIN_SETS.map(set=>set.academicYear).filter(Boolean))].sort().reverse();
+  const yearSelect=document.getElementById('academicYearFilterSelect'); const currentYear=yearSelect.value;
+  yearSelect.innerHTML='<option value="">ทุกปีการศึกษา</option>'+years.map(year=>`<option value="${escapeAttr(year)}">${escapeHtml(year)}</option>`).join(''); yearSelect.value=years.includes(currentYear)?currentYear:'';
+  const terms=[...new Map(ADMIN_SETS.filter(set=>set.semester).map(set=>[set.semester,set.semesterLabel||`เทอม ${set.semester}`])).entries()];
+  const termSelect=document.getElementById('semesterFilterSelect'); const currentTerm=termSelect.value;
+  termSelect.innerHTML='<option value="">ทุกภาคเรียน</option>'+terms.map(([id,label])=>`<option value="${escapeAttr(id)}">${escapeHtml(label)}</option>`).join(''); termSelect.value=terms.some(([id])=>id===currentTerm)?currentTerm:'';
 }
 let LAST_RESULTS = [];
 let activeResitResult = null;
@@ -1654,8 +1664,10 @@ async function refreshResults(){
   wrap.innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
   const setKey = document.getElementById('setFilterSelect').value;
   const examType = document.getElementById('examTypeFilterSelect').value;
+  const academicYear = document.getElementById('academicYearFilterSelect').value;
+  const semester = document.getElementById('semesterFilterSelect').value;
   let records;
-  try{ records = await apiGetResults(setKey || undefined, examType || undefined); }
+  try{ records = await apiGetResults(setKey || undefined, examType || undefined, academicYear || undefined, semester || undefined); }
   catch(e){ wrap.innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
   LAST_RESULTS = records;
   if(!records || !records.length){
@@ -1753,6 +1765,8 @@ function renderIntegrityReview(rec){
 document.getElementById('refreshResultsBtn').addEventListener('click', refreshResults);
 document.getElementById('setFilterSelect').addEventListener('change', refreshResults);
 document.getElementById('examTypeFilterSelect').addEventListener('change', refreshResults);
+document.getElementById('academicYearFilterSelect').addEventListener('change', refreshResults);
+document.getElementById('semesterFilterSelect').addEventListener('change', refreshResults);
 async function showQuestionAnalysis(){
   const setKey=document.getElementById('setFilterSelect').value;
   if(!setKey){ showToast('กรุณาเลือกรายวิชาที่ต้องการวิเคราะห์ก่อน'); return; }
