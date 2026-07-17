@@ -7,7 +7,7 @@ function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeM
     const student = db.students.find(item => item.studentId === req.studentId);
     if (!student) return res.status(401).json({ error: 'unauthorized' });
     const set = db.sets.find(item => item.key === payload.questionKey);
-    if (!set) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
+    if (!set || set.archived) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
     applyAcademicPeriod(set, db.settings);
     const resit = payload.resitAccessId ? activeResitAccess(set, student.studentId, payload.resitAccessId) : null;
     if (!resit && isBeforeStart(set, student.classRoom)) return res.status(403).json({ error: 'not_started', message: 'ยังไม่ถึงเวลาเริ่มสอบ' });
