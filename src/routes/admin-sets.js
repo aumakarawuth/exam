@@ -22,7 +22,7 @@ function registerAdminSetRoutes(app, { readDB, writeDB, requireAdmin, examTypes,
   app.post('/api/sets/:key/duplicate', requireAdmin, async (req, res) => {
     const db = readDB(); const original = db.sets.find(set => set.key === req.params.key);
     if (!original) return res.status(404).json({ error: 'not_found' });
-    const copy = JSON.parse(JSON.stringify(original)); copy.key = newId('set'); copy.title = `${original.title} (สำเนา)`; copy.academicYear = null; copy.semester = null; copy.semesterLabel = null; copy.createdAt = new Date().toISOString(); copy.updatedAt = copy.createdAt;
+    const copy = JSON.parse(JSON.stringify(original)); copy.key = newId('set'); copy.title = `${original.title} (สำเนา)`; copy.academicYear = null; copy.semester = null; copy.semesterLabel = null; copy.assignedClasses = []; copy.examSchedules = []; copy.availableFrom = null; copy.availableUntil = null; copy.lateAccessCode = ''; copy.resitAccesses = []; copy.createdAt = new Date().toISOString(); copy.updatedAt = copy.createdAt;
     db.sets.push(copy); await writeDB(db); res.status(201).json({ key: copy.key });
   });
 
