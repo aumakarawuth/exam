@@ -12,7 +12,7 @@ function safeText(value) {
 function writeMixed(doc, value, options = {}) {
   const text = safeText(value);
   if (!text) return;
-  doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 10.5).fillColor(options.color || '#1e293b').text(text, { ...options, bold: undefined, size: undefined, color: undefined });
+  doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 9).fillColor(options.color || '#1e293b').text(text, { ...options, bold: undefined, size: undefined, color: undefined });
 }
 
 function scoreTotal(set) {
@@ -55,7 +55,7 @@ function buildExamPdf(set) {
   const columnX = () => margin + (column * (columnWidth + gap));
   const rule = (y, x = margin, width = pageWidth - (margin * 2)) => doc.moveTo(x, y).lineTo(x + width, y).strokeColor('#cbd5e1').lineWidth(.55).stroke();
   const textHeight = (text, options = {}) => {
-    doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 10.5);
+    doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 9);
     return doc.heightOfString(safeText(text), { width: columnWidth, lineGap: options.lineGap ?? 1 });
   };
   const drawPageHeader = first => {
@@ -99,7 +99,7 @@ function buildExamPdf(set) {
     const height = textHeight(text, options);
     if (!skipEnsure) ensureColumnSpace(height + (options.after ?? 4));
     doc.x = columnX(); doc.y = columnY;
-    writeMixed(doc, text, { size: 10.5, color: '#1e293b', lineGap: 1, width: columnWidth, ...renderOptions });
+    writeMixed(doc, text, { size: 9, color: '#1e293b', lineGap: 1, width: columnWidth, ...renderOptions });
     columnY = doc.y + (options.after ?? 4);
   };
 
