@@ -1,4 +1,5 @@
 const { activeResitAccess, resitScore } = require('../resit');
+const { filterWrittenQuestionsForClass } = require('../grading');
 function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, round2, requireStudent, applyAcademicPeriod }) {
   app.post('/api/results', requireStudent, async (req, res) => {
     const payload = req.body;
@@ -17,21 +18,26 @@ function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeM
     const schedule=getExamSchedule(set, student.classRoom);
     if (!resit && isPastDeadline(set, student.classRoom) && (!schedule?.lateAccessCode || payload.lateCode !== schedule.lateAccessCode)) return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาสอบแล้ว' });
     const answers = payload.answers || {};
+    const visibleWrittenQuestions = filterWrittenQuestionsForClass(set.sections.written, student.classRoom);
     if (!payload.autoSubmit) {
-      const incomplete = (set.sections.mc.questions || []).some(q => answers.mc?.[q.id] == null) || (set.sections.matching.left || []).some(q => !answers.matching?.[q.id]) || (set.sections.written.questions || []).some(q => !String(answers.written?.[q.id] || '').trim());
+      const incomplete = (set.sections.mc.questions || []).some(q => answers.mc?.[q.id] == null) || (set.sections.matching.left || []).some(q => !answers.matching?.[q.id]) || visibleWrittenQuestions.some(q => !String(answers.written?.[q.id] || '').trim());
       if (incomplete) return res.status(400).json({ error: 'incomplete', message: 'ตอบคำถามยังไม่ครบทุกข้อ' });
     }
     const mc = gradeMC(set.sections.mc, answers.mc);
     const matching = gradeMatching(set.sections.matching, answers.matching);
-    const written = gradeWritten(set.sections.written, answers.written);
+    const written = gradeWritten({ ...set.sections.written, questions: visibleWrittenQuestions }, answers.written);
+    const rawScore = round2(mc + matching + written.total);
+    const hasRoomRestrictedCode = (set.sections.written.questions || []).some(question => question.answerType === 'code' && Array.isArray(question.eligibleClassRooms) && question.eligibleClassRooms.length);
+    const visibleScoreMax = (set.sections.mc.questions || []).reduce((sum, question) => sum + Number(question.points || 0), 0) + (set.sections.matching.left || []).length * Number(set.sections.matching.pointsEach || 0) + visibleWrittenQuestions.reduce((sum, question) => sum + Number(question.maxPoints || 0), 0);
+    const overallScore20 = hasRoomRestrictedCode && visibleScoreMax > 0 ? round2(rawScore / visibleScoreMax * 20) : rawScore;
     const integrityEvents = Array.isArray(payload.integrityEvents) ? payload.integrityEvents.filter(event => ['tab_switch','fullscreen_exit','right_click','copy','reload'].includes(event?.type) && !Number.isNaN(Date.parse(event.at))).slice(-50) : [];
     const record = {
       id: newId('result'), studentId: student.studentId, studentName: `${student.firstName} ${student.lastName}`, classRoom: student.classRoom || '',
       questionKey: payload.questionKey, questionTitle: set.title, examType: set.examType || '', subjectTeacherName: set.subjectTeacherName || '', subjectTeacherEmail: set.subjectTeacherEmail || '',
       academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null,
-      overallScore20: round2(mc + matching + written.total), sectionScores: { mc, matching, written: written.total }, attemptType: resit ? 'resit' : 'normal', resitAccessId: resit?.id || null, sourceResultId: resit?.sourceResultId || null, resitScoreMax: resit?.scoreMax || null,
+      overallScore20, sectionScores: { mc, matching, written: written.total }, attemptType: resit ? 'resit' : 'normal', resitAccessId: resit?.id || null, sourceResultId: resit?.sourceResultId || null, resitScoreMax: resit?.scoreMax || null,
       tabSwitches: payload.tabSwitches || 0, fullscreenExitAttempts: payload.fullscreenExitAttempts || 0, reloadCount: payload.reloadCount || 0, rightClickAttempts: payload.rightClickAttempts || 0, copyAttempts: payload.copyAttempts || 0,
-      integrityEvents, published: set.publishMode === 'auto', detail: { answers, writtenPerQuestion: written.perQuestion }, submittedAt: new Date().toISOString()
+      integrityEvents, published: set.publishMode === 'auto', detail: { answers, writtenPerQuestion: written.perQuestion, rawScore, visibleScoreMax: hasRoomRestrictedCode ? visibleScoreMax : null }, submittedAt: new Date().toISOString()
     };
     db.results.push(record);
     // A completed attempt makes every in-progress copy of this attempt obsolete.

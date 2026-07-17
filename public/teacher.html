@@ -1128,7 +1128,7 @@ function bindEditorPanelEvents(section, index){
     else if(section==='written') saveWrittenQuestionFromEditor(index);
   });
   if(section==='mc') bindMcResourceUpload();
-  if(section==='written') bindWrittenResourceUpload();
+  if(section==='written') { bindWrittenResourceUpload(); document.getElementById('qeWAnswerType')?.addEventListener('change',event=>{const isCode=event.target.value==='code';document.getElementById('qeWKeywordsWrap').style.display=isCode?'none':'';document.getElementById('qeWCodeAnswerWrap').style.display=isCode?'':'none';}); }
 }
 
 /* ---------- MC section ---------- */
@@ -1530,11 +1530,14 @@ function renderWrittenCompactList(){
 function writtenEditorPanelHtml(index){
   const s = editingSet.sections.written;
   const isNew = index===null;
-  const q = isNew ? {text:'', keywords:[]} : s.questions[index];
+  const q = isNew ? {text:'', keywords:[], answerType:'text', answerCode:'', language:'c', eligibleClassRooms:[]} : s.questions[index];
+  const isCode = q.answerType === 'code';
   return `<div class="q-editor-panel">
     <div class="q-editor-title">${isNew?'เพิ่มข้ออัตนัยใหม่':'แก้ไขข้อที่ '+(index+1)}</div>
     <div class="field"><label>โจทย์</label><textarea id="qeWText" placeholder="พิมพ์คำถาม...">${escapeHtml(q.text)}</textarea></div>
-    <div class="field"><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" id="qeWKeywords" value="${escapeAttr((q.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์"></div>${writtenResourceEditorHtml(q,isNew)}
+    <div class="field"><label>รูปแบบคำตอบ</label><select id="qeWAnswerType"><option value="text" ${!isCode?'selected':''}>อัตนัย (ตรวจคำสำคัญ)</option><option value="code" ${isCode?'selected':''}>💻 แก้ไขโค้ด (เทียบเฉลย)</option></select></div>
+    <div class="field" id="qeWKeywordsWrap" ${isCode?'style="display:none"':''}><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" id="qeWKeywords" value="${escapeAttr((q.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์"></div>
+    <div id="qeWCodeAnswerWrap" ${isCode?'':'style="display:none"'}><div class="field"><label>ภาษา</label><select id="qeWLanguage"><option value="c" ${q.language==='c'?'selected':''}>C</option><option value="cpp" ${q.language==='cpp'?'selected':''}>C++</option><option value="java" ${q.language==='java'?'selected':''}>Java</option></select></div><div class="field"><label>ห้องที่ต้องทำ (คั่นด้วย , · เว้นว่าง = ทุกห้อง)</label><input id="qeWEligibleRooms" value="${escapeAttr((q.eligibleClassRooms||[]).join(', '))}" placeholder="เช่น CA.1/1, CA.1/2"></div><div class="field"><label>เฉลยโค้ด (ตัดช่องว่างและขึ้นบรรทัดใหม่ก่อนตรวจ)</label><textarea id="qeWAnswerCode" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;min-height:150px;">${escapeHtml(q.answerCode||'')}</textarea></div></div>${writtenResourceEditorHtml(q,isNew)}
     <div class="editor-actions">
       <button class="btn btn-ghost btn-sm" id="qeCancelBtn" type="button">ยกเลิก</button>
       <button class="btn btn-primary btn-sm" id="qeSaveBtn" type="button">${isNew?'เพิ่มข้อนี้':'บันทึกการแก้ไข'}</button>
@@ -1544,15 +1547,20 @@ function writtenEditorPanelHtml(index){
 function saveWrittenQuestionFromEditor(index){
   const text = document.getElementById('qeWText').value.trim();
   if(!text){ alert('กรุณากรอกคำถาม'); return; }
-  const keywords = document.getElementById('qeWKeywords').value.split(',').map(k=>k.trim()).filter(Boolean);
+  const answerType = document.getElementById('qeWAnswerType').value;
+  const answerCode = document.getElementById('qeWAnswerCode').value.trim();
+  if(answerType==='code' && !answerCode){ alert('กรุณากรอกเฉลยโค้ด'); return; }
+  const keywords = answerType==='code' ? [] : document.getElementById('qeWKeywords').value.split(',').map(k=>k.trim()).filter(Boolean);
   const s = editingSet.sections.written;
   const old=index===null?{}:s.questions[index];
   const resources=openQEditor.resources||old.resources||{attachments:[]};
   resources.code=document.getElementById('qeWCode').value.trim();
   resources.language=document.getElementById('qeWCodeLanguage').value;
   resources.table=document.getElementById('qeWTable').value.trim();
-  if(index===null) s.questions.push({id:uid('w'), text, keywords, maxPoints:0, resources});
-  else Object.assign(s.questions[index], {text, keywords, resources});
+  const language=document.getElementById('qeWLanguage').value;
+  const eligibleClassRooms=answerType==='code'?document.getElementById('qeWEligibleRooms').value.split(',').map(room=>room.trim()).filter(Boolean):[];
+  if(index===null) s.questions.push({id:uid('w'), text, keywords, answerType, answerCode, language, eligibleClassRooms, maxPoints:0, resources});
+  else Object.assign(s.questions[index], {text, keywords, answerType, answerCode, language, eligibleClassRooms, resources});
   applyPointDistribution('written');
   closeQuestionEditor();
 }
@@ -1584,7 +1592,8 @@ async function saveEditingSet(){
   applyPointDistribution('mc'); applyPointDistribution('matching'); applyPointDistribution('written');
   if(!s.title || !s.title.trim()){ alert('กรุณากรอกชื่อชุดข้อสอบ (ย้อนกลับไปขั้นตอนที่ 1)'); wizardStep='info'; renderWizard(); return; }
   if(!['ปวช.','ปวส.'].includes(s.educationLevel)){ alert('กรุณาเลือกระดับ ปวช. หรือ ปวส. (ย้อนกลับไปขั้นตอนที่ 1)'); wizardStep='info'; renderWizard(); return; }
-  if(s.delivery!=='object-analysis-design' && s.sections.mc.questions.length===0){ alert('กรุณาเพิ่มข้อปรนัยอย่างน้อย 1 ข้อ'); wizardStep='section:mc'; renderWizard(); return; }
+  const hasExamQuestions=s.sections.mc.questions.length||s.sections.matching.left.length||s.sections.written.questions.length;
+  if(s.delivery!=='object-analysis-design' && !hasExamQuestions){ alert('กรุณาเพิ่มข้อสอบอย่างน้อย 1 ข้อ'); wizardStep='sections'; renderWizard(); return; }
   if(s.examSchedules.length){
     const invalid=s.examSchedules.find(item=>!(item.classes||[]).length||((item.availableFrom||item.availableUntil)&&(!item.availableFrom||!item.availableUntil||new Date(item.availableFrom)>=new Date(item.availableUntil))));
     if(invalid){ alert('กรุณาเลือกห้องให้ครบทุกรอบ และหากกำหนดเวลาให้กรอกวัน–เวลาเริ่มและสิ้นสุดให้ครบถ้วน'); wizardStep='access'; renderWizard(); return; }

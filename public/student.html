@@ -133,6 +133,12 @@ html.restoring-session #startScreen{visibility:hidden;}html.restoring-session bo
 .written-textarea{width:100%;min-height:130px;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;font-size:14.5px;resize:vertical;line-height:1.7;background:var(--surface);color:var(--ink);}
 .written-textarea:focus{outline:none;border-color:var(--blue);}
 .written-textarea.flag-missing{border-color:var(--red);}
+.code-editor{overflow:hidden;border:1.5px solid #334155;border-radius:14px;background:#101827;box-shadow:0 12px 26px -22px rgba(15,23,42,.8);}
+.code-editor-head{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:#1E293B;color:#CBD5E1;font:600 12px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.02em;}
+.code-editor-head span:last-child{color:#86EFAC;font-size:11px;}.code-editor-body{display:grid;grid-template-columns:44px 1fr;min-height:210px;}
+.code-line-numbers{margin:0;padding:14px 8px;background:#172033;color:#64748B;text-align:right;font:13px/1.62 ui-monospace,SFMono-Regular,Consolas,monospace;user-select:none;overflow:hidden;}
+.code-answer{width:100%;min-height:210px;box-sizing:border-box;border:0;outline:0;resize:vertical;padding:14px 16px;background:#101827;color:#E2E8F0;font:14px/1.62 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2;white-space:pre;}
+.code-answer:focus{box-shadow:inset 3px 0 0 #60A5FA;}.code-answer.flag-missing{box-shadow:inset 3px 0 0 var(--red);}
 
 /* MC one-at-a-time */
 .mc-map-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:18px;}
@@ -888,7 +894,8 @@ function showHub(){
 }
 function getActiveSections(){
   const q = currentQuestion();
-  const active = ['mc'];
+  const active = [];
+  if(q.sections.mc.questions.length>0) active.push('mc');
   if(q.sections.matching.left.length>0) active.push('matching');
   if(q.sections.written.questions.length>0) active.push('written');
   return active;
@@ -954,7 +961,7 @@ function jumpToIncomplete(inc){
   } else if(inc.section==='written'){
     renderSection();
     setTimeout(()=>{
-      const ta = document.querySelector(`.written-textarea[data-qid="${inc.qid}"]`);
+      const ta = document.querySelector(`.written-textarea[data-qid="${inc.qid}"],.code-answer[data-qid="${inc.qid}"]`);
       if(ta){ ta.scrollIntoView({behavior:'smooth', block:'center'}); ta.focus(); ta.classList.add('flag-missing'); }
     }, 60);
   } else if(inc.section==='matching'){
@@ -1019,8 +1026,10 @@ function renderSection(){
     html += `<div class="progress-badge ${answeredCount===s.questions.length?'complete':''}">ตอบแล้ว ${answeredCount}/${s.questions.length} ข้อ</div>`;
     html += s.questions.map((qq,i)=>{
       const val = draftAnswers.written[qq.id] || '';
-      return `<div class="qblock"><div class="qnum">ข้อ ${i+1}</div><div class="qtext">${escapeHtml(qq.text)}</div>${renderQuestionResources(qq)}
-        <textarea class="written-textarea" data-qid="${qq.id}" placeholder="พิมพ์คำตอบที่นี่...">${escapeHtml(val)}</textarea></div>`;
+      const isCode = qq.answerType === 'code';
+      const language = ({c:'C',cpp:'C++',java:'Java'})[qq.language] || 'Code';
+      const editor = isCode ? `<div class="code-editor"><div class="code-editor-head"><span>main.${qq.language==='java'?'java':qq.language==='cpp'?'cpp':'c'}</span><span>${language} · แก้ไขโค้ด</span></div><div class="code-editor-body"><pre class="code-line-numbers" data-lines-for="${qq.id}">1</pre><textarea class="code-answer" spellcheck="false" autocapitalize="off" autocomplete="off" data-qid="${qq.id}" placeholder="พิมพ์โค้ดที่แก้ไขแล้ว...">${escapeHtml(val)}</textarea></div></div>` : `<textarea class="written-textarea" data-qid="${qq.id}" placeholder="พิมพ์คำตอบที่นี่...">${escapeHtml(val)}</textarea>`;
+      return `<div class="qblock"><div class="qnum">ข้อ ${i+1}${isCode?' · เขียนโค้ด':''}</div><div class="qtext">${escapeHtml(qq.text)}</div>${renderQuestionResources(qq)}${editor}</div>`;
     }).join('');
   }
 
@@ -1132,8 +1141,11 @@ function bindSectionEvents(){
     const clearBtn = document.getElementById('clearMatchBtn');
     if(clearBtn) clearBtn.addEventListener('click', ()=>{ draftAnswers.matching = {}; matchPendingLeft = null; scheduleSave(); renderSection(); });
   } else if(sec==='written'){
-    document.querySelectorAll('.written-textarea').forEach(ta=>{
-      ta.addEventListener('input', ()=>{ draftAnswers.written[ta.dataset.qid] = ta.value; ta.classList.remove('flag-missing'); scheduleSave(); });
+    document.querySelectorAll('.written-textarea,.code-answer').forEach(ta=>{
+      const updateLines=()=>{ const lines=document.querySelector(`[data-lines-for="${ta.dataset.qid}"]`); if(lines) lines.textContent=Array.from({length:Math.max(1,ta.value.split('\n').length)},(_,i)=>i+1).join('\n'); };
+      updateLines();
+      ta.addEventListener('input', ()=>{ draftAnswers.written[ta.dataset.qid] = ta.value; ta.classList.remove('flag-missing'); updateLines(); scheduleSave(); });
+      if(ta.classList.contains('code-answer')) ta.addEventListener('keydown',event=>{ if(event.key==='Tab'){ event.preventDefault(); const start=ta.selectionStart,end=ta.selectionEnd; ta.value=ta.value.slice(0,start)+'  '+ta.value.slice(end); ta.selectionStart=ta.selectionEnd=start+2; ta.dispatchEvent(new Event('input')); } });
     });
   }
   const submitBtn = document.getElementById('submitSectionBtn');
