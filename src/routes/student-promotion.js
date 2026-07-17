@@ -2,6 +2,8 @@ const { enrollmentFor, setEnrollment } = require('../student-enrollments');
 
 function registerStudentPromotionRoutes(app, { readDB, writeDB, requireAdmin }) {
   const rowsForYear = (db, academicYear) => db.students.map(student => ({ student, enrollment: enrollmentFor(student, academicYear) })).filter(item => item.enrollment);
+  const roomRank = room => /\.\s*\d+\s*\//.test(String(room || '')) ? 0 : 1;
+  const byRoom = (a, b) => roomRank(a.classRoom) - roomRank(b.classRoom) || String(a.classRoom).localeCompare(String(b.classRoom), 'th', { numeric: true });
 
   app.get('/api/admin/enrollment-years', requireAdmin, (req, res) => {
     const years = [...new Set(readDB().students.flatMap(student => (student.enrollments || []).map(item => item.academicYear)))].sort();
@@ -13,7 +15,7 @@ function registerStudentPromotionRoutes(app, { readDB, writeDB, requireAdmin }) 
     if (!academicYear) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณาระบุปีการศึกษา' });
     const rooms = new Map();
     rowsForYear(readDB(), academicYear).forEach(({ enrollment }) => rooms.set(enrollment.classRoom, (rooms.get(enrollment.classRoom) || 0) + 1));
-    res.json([...rooms.entries()].map(([classRoom, count]) => ({ classRoom, count })).sort((a, b) => String(a.classRoom).localeCompare(String(b.classRoom), 'th')));
+    res.json([...rooms.entries()].map(([classRoom, count]) => ({ classRoom, count })).sort(byRoom));
   });
 
   const evaluatePromotion = (db, body) => {
