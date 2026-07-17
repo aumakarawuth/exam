@@ -168,10 +168,8 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start;}
 .settings-grid .panel{margin-bottom:0;}
 .settings-data-tools{display:grid;gap:18px;}
-.promotion-panel{grid-column:1 / -1;}
-.promotion-mapping-host{display:none;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;max-height:430px;overflow:auto;padding:10px;margin-top:12px;background:var(--grid);border:1px solid var(--line);border-radius:12px;}
-.promotion-mapping-host.is-open{display:grid;}
-.promotion-mapping-host .compact-meta{grid-column:1 / -1;}
+.promotion-mapping-host{display:none;max-height:55vh;overflow:auto;padding:10px;margin-top:12px;background:var(--grid);border:1px solid var(--line);border-radius:12px;}
+.promotion-mapping-host.is-open{display:block;}
 .course-group-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:14.5px;}
 .course-group-count{font-size:12px;color:var(--sub);}
 .course-group-body.collapsed{display:none;}
@@ -355,13 +353,10 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
             <div id="academicCalendarRows" class="stack-list"></div>
             <div class="editor-actions" style="margin-top:12px;"><button class="btn btn-ghost btn-sm" id="addAcademicYearBtn" type="button">＋ เพิ่มปีการศึกษา</button><button class="btn btn-primary btn-sm" id="saveAcademicCalendarBtn" type="button">💾 บันทึกปฏิทิน</button></div>
           </div>
-          <div class="panel promotion-panel">
+          <div class="panel">
             <h3>🎓 เลื่อนชั้นนักเรียน</h3>
-            <p class="panel-sub">สร้างประวัติห้องของปีใหม่โดยไม่แก้ทับข้อมูลปีเดิม ตรวจสอบก่อนยืนยันได้</p>
-            <div class="schedule-time-grid"><div class="field"><label>ปีเดิม</label><select id="promotionSourceYear"></select></div><div class="field"><label>ปีใหม่</label><input id="promotionTargetYear" inputmode="numeric" placeholder="เช่น 2570"></div></div>
-            <div class="editor-actions" style="margin-top:8px;"><button class="btn btn-ghost btn-sm" id="loadPromotionRoomsBtn" type="button">เลือกห้องเพื่อจับคู่</button><button class="btn btn-primary btn-sm" id="previewPromotionBtn" type="button">ตรวจสอบก่อนเลื่อนชั้น</button></div>
-            <div id="promotionMappingHost" class="promotion-mapping-host"></div>
-            <div class="editor-actions" id="promotionConfirmActions" style="margin-top:12px;display:none;"><button class="btn btn-primary btn-sm" id="confirmPromotionBtn" type="button" disabled>✓ ยืนยันเลื่อนชั้น</button></div>
+            <p class="panel-sub">ดูและจับคู่ห้องทั้งหมดก่อนสร้างประวัติห้องของปีใหม่</p>
+            <button class="btn btn-primary btn-sm" id="openPromotionDialogBtn" type="button">จัดการเลื่อนชั้น →</button>
           </div>
           <div id="adminDataToolsHost" class="settings-data-tools"></div>
           <div class="panel">
@@ -375,6 +370,16 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
     </div>
   </div>
 </div>
+
+<dialog class="google-import-dialog" id="promotionDialog">
+  <div class="google-import-dialog-inner" style="max-width:760px;">
+    <div class="google-import-dialog-head"><div><h3>🎓 จัดการเลื่อนชั้นนักเรียน</h3><p>ห้องปีจบจะไม่แสดง ระบบเติมตัวอย่างห้องปีถัดไปให้และแก้ไขได้ก่อนยืนยัน</p></div><button class="btn btn-ghost btn-sm" id="closePromotionDialogBtn" type="button">✕</button></div>
+    <div class="schedule-time-grid"><div class="field"><label>ปีเดิม</label><select id="promotionSourceYear"></select></div><div class="field"><label>ปีใหม่</label><input id="promotionTargetYear" inputmode="numeric" placeholder="เช่น 2570"></div></div>
+    <div class="editor-actions" style="margin-top:10px;"><button class="btn btn-ghost btn-sm" id="loadPromotionRoomsBtn" type="button">แสดงห้องทั้งหมด</button><button class="btn btn-primary btn-sm" id="previewPromotionBtn" type="button">ตรวจสอบก่อนเลื่อนชั้น</button></div>
+    <div id="promotionMappingHost" class="promotion-mapping-host"></div>
+    <div class="editor-actions" id="promotionConfirmActions" style="margin-top:12px;display:none;"><button class="btn btn-primary btn-sm" id="confirmPromotionBtn" type="button" disabled>✓ ยืนยันเลื่อนชั้น</button></div>
+  </div>
+</dialog>
 
 <!-- ================= EXAM SET WIZARD (full-page, mirrors the student exam-taking flow) ================= -->
 <dialog class="google-import-dialog" id="googleFormsSetDialog">
@@ -584,6 +589,8 @@ function renderPromotionMappings(message=''){
 async function loadPromotionYears(){
   try{const years=await apiGetEnrollmentYears();const select=document.getElementById('promotionSourceYear');const previous=select.value;select.innerHTML=years.length?years.map(year=>`<option value="${escapeAttr(year)}">${escapeHtml(year)}</option>`).join(''):'<option value="">ยังไม่มีข้อมูลนักเรียน</option>';select.value=years.includes(previous)?previous:(years[years.length-1]||'');if(!document.getElementById('promotionTargetYear').value&&select.value)document.getElementById('promotionTargetYear').value=String(Number(select.value)+1);}catch(error){showToast(error.message);}
 }
+document.getElementById('openPromotionDialogBtn').addEventListener('click',()=>{document.getElementById('promotionDialog').showModal();loadPromotionYears();});
+document.getElementById('closePromotionDialogBtn').addEventListener('click',()=>document.getElementById('promotionDialog').close());
 document.getElementById('loadPromotionRoomsBtn').addEventListener('click',async()=>{const sourceYear=document.getElementById('promotionSourceYear').value;if(!sourceYear)return showToast('กรุณาเลือกปีเดิม');try{const rooms=await apiGetEnrollmentRooms(sourceYear);promotionMappings=rooms.filter(item=>!isGraduatingRoom(item.classRoom)).map(item=>({fromRoom:item.classRoom,toRoom:suggestedPromotionRoom(item.classRoom),examPeriod:'',count:item.count}));if(!promotionMappings.length){showToast('ไม่มีห้องที่ต้องเลื่อนชั้นในปีนี้');renderPromotionMappings();return;}renderPromotionMappings();document.getElementById('confirmPromotionBtn').disabled=true;}catch(error){showToast(error.message);}});
 document.getElementById('previewPromotionBtn').addEventListener('click',async()=>{try{const data=await apiPreviewPromotion(promotionPayload());renderPromotionMappings(`<div class="empty-note" style="text-align:left;">พร้อมเลื่อนชั้น <b>${data.promoted}</b> คน${data.skipped.length?`<br>ข้าม ${data.skipped.length} คน เพราะมีข้อมูลในปีใหม่แล้ว`:''}<br><button class="btn btn-ghost btn-sm" id="editPromotionMappingsBtn" type="button">← กลับไปแก้ไขการจับคู่</button></div>`);document.getElementById('editPromotionMappingsBtn').addEventListener('click',()=>renderPromotionMappings());document.getElementById('confirmPromotionBtn').disabled=data.promoted===0;}catch(error){showToast(error.message);}});
 document.getElementById('confirmPromotionBtn').addEventListener('click',async()=>{const body=promotionPayload();if(!confirm(`ยืนยันเลื่อนชั้นนักเรียนจากปี ${body.sourceYear} ไปปี ${body.targetYear}? ข้อมูลปีเดิมจะยังอยู่ครบ`))return;const button=document.getElementById('confirmPromotionBtn');button.disabled=true;try{const data=await apiPromoteStudents(body);showToast(`เลื่อนชั้นสำเร็จ ${data.promoted} คน`);promotionMappings=[];renderPromotionMappings();await loadPromotionYears();}catch(error){showToast(error.message);}finally{button.disabled=false;}});
