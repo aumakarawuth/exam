@@ -2,6 +2,7 @@ const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const { Pool } = require('pg');
 const { DATA_DIR, SQLITE_PATH, LEGACY_DB_PATH } = require('./config');
+const { normalizeStudentEnrollments } = require('./student-enrollments');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -10,7 +11,7 @@ function emptyDatabase() {
 }
 
 function normalizeDatabase(db) {
-  const students = Array.isArray(db?.students) ? db.students.map(student => ({ ...student })) : [];
+  const students = Array.isArray(db?.students) ? db.students.map(student => normalizeStudentEnrollments({ ...student })) : [];
   const drafts = Array.isArray(db?.drafts) ? db.drafts : [];
   students.forEach(student => {
     Object.values(student.examDrafts || {}).forEach(draft => {

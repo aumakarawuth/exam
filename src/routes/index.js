@@ -15,6 +15,7 @@ const { registerGoogleFormsRoutes } = require('./google-forms');
 const { registerQuestionAnalysisRoutes } = require('./question-analysis');
 const { registerResitRoutes } = require('./resit');
 const { registerAcademicCalendarRoutes } = require('./academic-calendar');
+const { registerStudentPromotionRoutes } = require('./student-promotion');
 
 function registerRoutes(app, dependencies) {
   registerAccountRoutes(app, dependencies);
@@ -34,6 +35,7 @@ function registerRoutes(app, dependencies) {
   registerQuestionAnalysisRoutes(app, dependencies);
   registerResitRoutes(app, dependencies);
   registerAcademicCalendarRoutes(app, dependencies);
+  registerStudentPromotionRoutes(app, dependencies);
 }
 
 module.exports = { registerRoutes };

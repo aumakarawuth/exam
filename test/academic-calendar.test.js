@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { applyAcademicPeriod, resolveAcademicPeriod } = require('../src/academic-calendar');
+const { enrollmentFor, setEnrollment } = require('../src/student-enrollments');
 
 const settings = {
   academicCalendar: [{
@@ -22,4 +23,12 @@ test('exam uses the earliest room schedule to receive an academic period', () =>
   const set = { examSchedules: [{ availableFrom: '2026-11-15T02:00:00.000Z' }, { availableFrom: '2026-11-16T02:00:00.000Z' }] };
   assert.deepEqual(applyAcademicPeriod(set, settings), { academicYear: '2569', semester: '2', semesterLabel: 'เทอม 2' });
   assert.equal(set.academicYear, '2569');
+});
+
+test('student enrollment keeps the previous room when promoted', () => {
+  const student = { studentId: '10001', classRoom: 'CC.1/4', examPeriod: 'เช้า', createdAt: '2026-07-17T00:00:00.000Z' };
+  assert.equal(enrollmentFor(student, '2569').classRoom, 'CC.1/4');
+  setEnrollment(student, { academicYear: '2570', classRoom: 'CC.2/4', examPeriod: 'เช้า' });
+  assert.equal(enrollmentFor(student, '2569').classRoom, 'CC.1/4');
+  assert.equal(enrollmentFor(student, '2570').classRoom, 'CC.2/4');
 });
