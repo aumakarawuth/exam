@@ -585,7 +585,9 @@ function organizeAdminSettings(){
   const movePanelToDialog=(panelId,bodyId,dialogId,summaryHtml)=>{
     const panel=document.getElementById(panelId), body=document.getElementById(bodyId);
     if(!panel||!body) return;
-    [...panel.children].forEach(child=>body.appendChild(child));
+    // The dialog already has its own heading and description. Move only the
+    // controls below the original panel heading to avoid duplicate text.
+    [...panel.children].slice(2).forEach(child=>body.appendChild(child));
     panel.className='panel settings-menu-card';
     panel.innerHTML=summaryHtml;
     panel.querySelector('button')?.addEventListener('click',()=>openDialog(dialogId));
