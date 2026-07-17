@@ -100,6 +100,17 @@ test('admin result export returns an Excel workbook', async () => {
   assert.ok(response.body.length > 0);
 });
 
+test('admin can export an exam paper PDF without answer keys', async () => {
+  await Promise.all([databaseReady, app.ready]);
+  const setKey = readDB().sets[0].key;
+  const denied = await request('/api/export/exam.pdf?setKey=' + encodeURIComponent(setKey));
+  assert.equal(denied.status, 401);
+  const response = await request('/api/export/exam.pdf?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } });
+  assert.equal(response.status, 200);
+  assert.match(response.headers['content-type'], /application\/pdf/);
+  assert.ok(response.body.length > 100);
+});
+
 test('question analysis requires admin access and exports an Excel workbook', async () => {
   await Promise.all([databaseReady, app.ready]);
   const setKey = readDB().sets[0].key;

@@ -663,6 +663,7 @@ function renderSetList(){
         <p style="color:var(--sub);font-size:11.5px;">${s.publishMode==='auto'?'⚡ ประกาศคะแนนอัตโนมัติ':'🔒 ต้องตรวจก่อนประกาศ'}${s.shuffleQuestions?' · 🔀 สุ่มโจทย์':''}${s.shuffleChoices?' · 🔀 สุ่มตัวเลือก':''}</p>
         <div class="set-actions">
           <button class="btn btn-ghost btn-sm" data-edit="${s.key}">แก้ไข</button>
+          <button class="btn btn-ghost btn-sm" data-exam-pdf="${s.key}">📄 PDF ต้นฉบับ</button>
           <button class="btn btn-ghost btn-sm" data-dup="${s.key}">ทำสำเนา</button>
           <button class="btn btn-danger btn-sm" data-del="${s.key}">ลบ</button>
         </div>
@@ -677,6 +678,7 @@ function renderSetList(){
     </div>`;
   }).join('');
   wrap.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openEditor(b.dataset.edit)));
+  wrap.querySelectorAll('[data-exam-pdf]').forEach(b=>b.addEventListener('click', ()=>downloadExamPdf(b.dataset.examPdf,b)));
   wrap.querySelectorAll('[data-dup]').forEach(b=>b.addEventListener('click', ()=>duplicateSet(b.dataset.dup)));
   wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>deleteSet(b.dataset.del)));
   wrap.querySelectorAll('[data-togglegroup]').forEach(head=>head.addEventListener('click', ()=>{
@@ -1776,6 +1778,13 @@ async function downloadAdminFile(url, filename){
   const res=await fetch(url,{headers:{'x-admin-key':adminKey||''}}); if(res.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); } if(!res.ok){ const body=await res.json().catch(()=>({})); throw new Error(body.message||'ดาวน์โหลดไฟล์ไม่สำเร็จ'); }
   const blob=await res.blob(), link=document.createElement('a'), objectUrl=URL.createObjectURL(blob);
   link.href=objectUrl; link.download=filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(objectUrl);
+}
+async function downloadExamPdf(setKey,button){
+  const original=button?.textContent||'📄 PDF ต้นฉบับ';
+  if(button){button.disabled=true;button.textContent='กำลังสร้าง PDF...';}
+  try{ await downloadAdminFile('/api/export/exam.pdf?setKey='+encodeURIComponent(setKey),'ต้นฉบับข้อสอบ.pdf'); showToast('ดาวน์โหลดต้นฉบับข้อสอบ PDF แล้ว'); }
+  catch(error){ showToast(error.message); }
+  finally{if(button){button.disabled=false;button.textContent=original;}}
 }
 document.getElementById('importStudentsExcelBtn').addEventListener('click', async ()=>{
   const file=document.getElementById('studentExcelFile').files[0]; if(!file){ showToast('กรุณาเลือกไฟล์ Excel ก่อน'); return; }
