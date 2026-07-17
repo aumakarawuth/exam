@@ -735,6 +735,7 @@ function renderSetList(){
       const total = computeSetTotal(s);
       return `<div class="set-card">
         <span class="badge-pill">${escapeHtml(s.examType||'-')}</span>
+        <span class="badge-pill" style="margin-left:5px;background:${s.academicYear?'#e0f2fe':'#f1f5f9'};color:${s.academicYear?'#0369a1':'#64748b'};">${escapeHtml(s.academicYear&&s.semesterLabel?`${s.academicYear} / ${s.semesterLabel}`:'ยังไม่กำหนดเทอม')}</span>
         <h3>${escapeHtml(s.title)}</h3>
         <p>${escapeHtml(s.desc||'')}</p>
         <p style="color:var(--blue);">🏫 ${escapeHtml(classesText)}</p>
