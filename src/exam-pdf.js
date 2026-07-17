@@ -1,47 +1,18 @@
 const PDFDocument = require('pdfkit');
 const path = require('path');
 
-const fontRoot = path.dirname(require.resolve('@fontsource/noto-sans-thai/package.json'));
-const regularFont = path.join(fontRoot, 'files', 'noto-sans-thai-thai-400-normal.woff');
-const boldFont = path.join(fontRoot, 'files', 'noto-sans-thai-thai-700-normal.woff');
+const fontRoot = path.dirname(require.resolve('font-th-sarabun-new/package.json'));
+const regularFont = path.join(fontRoot, 'fonts', 'THSarabunNew-webfont.ttf');
+const boldFont = path.join(fontRoot, 'fonts', 'THSarabunNew_bold-webfont.ttf');
 
 function safeText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
-function isThai(char) {
-  const code = char.codePointAt(0);
-  return (code >= 0x0e00 && code <= 0x0e7f) || code === 0x200c || code === 0x200d;
-}
-
-// The web font is intentionally split into Thai and Latin files. PDFKit has no
-// automatic fallback, so write each script with the matching embedded font.
 function writeMixed(doc, value, options = {}) {
   const text = safeText(value);
   if (!text) return;
-  const chunks = [];
-  for (const char of text) {
-    const family = isThai(char) ? (options.bold ? 'bold' : 'regular') : (options.bold ? 'Helvetica-Bold' : 'Helvetica');
-    const last = chunks[chunks.length - 1];
-    if (last && last.family === family) last.text += char;
-    else chunks.push({ family, text: char });
-  }
-  const textOptions = { ...options, bold: undefined, size: undefined, color: undefined };
-  const originalX = doc.x;
-  // PDFKit centers every continued chunk independently. Position a mixed-script
-  // line ourselves so Thai and English stay together in headings and footers.
-  if (chunks.length > 1 && textOptions.align) {
-    const availableWidth = textOptions.width || (doc.page.width - doc.x - doc.page.margins.right);
-    const textWidth = chunks.reduce((total, chunk) => total + doc.font(chunk.family).fontSize(options.size || 10.5).widthOfString(chunk.text), 0);
-    if (textOptions.align === 'center') doc.x += Math.max(0, (availableWidth - textWidth) / 2);
-    if (textOptions.align === 'right') doc.x += Math.max(0, availableWidth - textWidth);
-    delete textOptions.align;
-    delete textOptions.width;
-  }
-  chunks.forEach((chunk, index) => {
-    doc.font(chunk.family).fontSize(options.size || 10.5).fillColor(options.color || '#1e293b').text(chunk.text, { ...textOptions, continued: index < chunks.length - 1 });
-  });
-  if (options.align && chunks.length > 1) doc.x = originalX;
+  doc.font(options.bold ? 'bold' : 'regular').fontSize(options.size || 10.5).fillColor(options.color || '#1e293b').text(text, { ...options, bold: undefined, size: undefined, color: undefined });
 }
 
 function scoreTotal(set) {
@@ -102,7 +73,7 @@ function buildExamPdf(set) {
     doc.moveDown(.45);
     mc.questions.forEach((question, index) => {
       ensureSpace(94);
-      writeMixed(doc, `${index + 1}. ${safeText(question.text)} (${Number(question.points) || 0} คะแนน)`, { bold: true, size: 10.5, color: '#0f172a', lineGap: 3 });
+      writeMixed(doc, `${index + 1}. ${safeText(question.text)}`, { bold: true, size: 10.5, color: '#0f172a', lineGap: 3 });
       questionResources(doc, question, ensureSpace);
       (question.choices || []).forEach((choice, choiceIndex) => body(`${String.fromCharCode(65 + choiceIndex)}. ${safeText(choice)}`, { indent: 18, size: 10 }));
       doc.moveDown(.6);
@@ -114,7 +85,6 @@ function buildExamPdf(set) {
     ensureSpace(100);
     heading(matching.title || 'ส่วนที่ 2 - จับคู่');
     if (matching.desc) body(safeText(matching.desc), { color: '#475569', size: 9.5 });
-    body(`ข้อละ ${Number(matching.pointsEach) || 0} คะแนน`, { color: '#475569', size: 9.5 });
     doc.moveDown(.45);
     (matching.left || []).forEach((item, index) => {
       ensureSpace(24);
@@ -137,7 +107,7 @@ function buildExamPdf(set) {
     doc.moveDown(.45);
     written.questions.forEach((question, index) => {
       ensureSpace(115);
-      writeMixed(doc, `${index + 1}. ${safeText(question.text)} (${Number(question.maxPoints) || 0} คะแนน)`, { bold: true, size: 10.5, color: '#0f172a', lineGap: 3 });
+      writeMixed(doc, `${index + 1}. ${safeText(question.text)}`, { bold: true, size: 10.5, color: '#0f172a', lineGap: 3 });
       questionResources(doc, question, ensureSpace);
       for (let lineNumber = 0; lineNumber < 5; lineNumber += 1) {
         ensureSpace(16);
