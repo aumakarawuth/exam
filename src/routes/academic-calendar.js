@@ -1,8 +1,9 @@
 const { normalizeAcademicCalendar } = require('../academic-calendar');
 
-function registerAcademicCalendarRoutes(app, { readDB, writeDB, requireAdmin }) {
+function registerAcademicCalendarRoutes(app, { readDB, writeDB, requireAdmin, ADMIN_KEY }) {
   app.get('/api/admin/academic-calendar', requireAdmin, (req, res) => {
-    res.json({ academicCalendar: readDB().settings?.academicCalendar || [] });
+    const settings = readDB().settings || {};
+    res.json({ academicCalendar: settings.academicCalendar || [], locked: !!settings.academicCalendarLocked });
   });
 
   app.put('/api/admin/academic-calendar', requireAdmin, async (req, res) => {
@@ -13,7 +14,8 @@ function registerAcademicCalendarRoutes(app, { readDB, writeDB, requireAdmin }) 
     const invalidOverlap = academicCalendar.some(year => year.terms.some((term, index) => year.terms.slice(index + 1).some(other => term.startsOn <= other.endsOn && other.startsOn <= term.endsOn)));
     if (invalidOverlap) return res.status(400).json({ error: 'invalid_payload', message: 'ช่วงวันของภาคเรียนซ้อนกัน' });
     const db = readDB();
-    db.settings = { ...(db.settings || {}), academicCalendar };
+    if (db.settings?.academicCalendarLocked && req.body?.adminPassword !== ADMIN_KEY) return res.status(403).json({ error: 'reauth_required', message: 'กรุณายืนยันรหัสแอดมินก่อนแก้ไขปฏิทิน' });
+    db.settings = { ...(db.settings || {}), academicCalendar, academicCalendarLocked: true };
     await writeDB(db);
     res.json({ ok: true, academicCalendar });
   });
