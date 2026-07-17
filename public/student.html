@@ -277,8 +277,8 @@ html.restoring-session #startScreen{visibility:hidden;}html.restoring-session bo
     <h1>กรอก PIN เพื่อเข้าสอบ</h1>
     <p class="lead" id="pinVerifyLead">กรอก PIN ที่คุณตั้งไว้</p>
     <input type="password" class="name-input" id="pinVerifyInput" placeholder="PIN" inputmode="numeric" maxlength="6">
+    <p id="forgotPinBtn" role="button" tabindex="0" style="text-align:right;text-decoration:underline;cursor:pointer;font-size:12.5px;color:var(--blue);margin:6px 0 10px;">ลืม PIN? ยืนยันตัวตนเพื่อตั้งใหม่</p>
     <div class="id-error" id="pinVerifyError"></div>
-    <button class="btn btn-ghost" id="forgotPinBtn" type="button" style="margin:2px 0 16px;">ลืม PIN? ยืนยันตัวตนเพื่อตั้งใหม่</button>
     <div id="forgotPinForm" class="hidden" style="border-top:1px solid var(--line);padding-top:16px;margin-top:2px;">
       <p style="font-size:12.5px;color:var(--sub);margin:0 0 10px;">กรอกชื่อและนามสกุลให้ตรงกับรายชื่อในระบบ แล้วตั้ง PIN ใหม่</p>
       <input type="text" class="name-input" id="forgotPinFirstName" placeholder="ชื่อ">
@@ -743,6 +743,7 @@ document.getElementById('forgotPinBtn').addEventListener('click', ()=>{
   document.getElementById('forgotPinBtn').textContent=recovering?'← กลับไปกรอก PIN':'ลืม PIN? ยืนยันตัวตนเพื่อตั้งใหม่';
   if(recovering) document.getElementById('forgotPinFirstName').focus();
 });
+document.getElementById('forgotPinBtn').addEventListener('keydown', event=>{ if(event.key==='Enter' || event.key===' '){ event.preventDefault(); event.currentTarget.click(); } });
 document.getElementById('forgotPinConfirmBtn').addEventListener('click', async ()=>{
   const firstName=document.getElementById('forgotPinFirstName').value.trim();
   const lastName=document.getElementById('forgotPinLastName').value.trim();
