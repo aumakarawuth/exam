@@ -707,9 +707,9 @@ function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||''
 function blankSet(){
   return {
     key: uid('set'), title:'', courseName:'', educationLevel:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', teacherId:null, assignedClasses:[], examSchedules:[], subjectTeacherName:'', subjectTeacherEmail:'',
-    shuffleQuestions:false, shuffleChoices:false, publishMode:'manual', availableUntil:'', lateAccessCode:'',
+    shuffleQuestions:true, shuffleChoices:true, publishMode:'manual', availableUntil:'', lateAccessCode:'',
     sections:{
-      mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[], sectionPointsTotal:0 },
+      mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[], sectionPointsTotal:20 },
       matching:{ title:'ส่วนที่ 2 — จับคู่', desc:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0 },
       written:{ title:'ส่วนที่ 3 — อัตนัย (เขียนตอบ)', desc:'ตอบคำถามด้วยคำพูดของตนเอง', questions:[], sectionPointsTotal:0 }
     }
@@ -1141,7 +1141,6 @@ function renderMcPanel(){
     </div>
     <div class="compact-list" id="mcCompactList"></div>
     <button class="add-row-btn" id="addMcBtn" type="button">+ เพิ่มข้อปรนัย</button>
-    <div class="editor-actions" style="justify-content:flex-start;"><button class="btn btn-ghost btn-sm" id="saveMcToBankBtn" type="button">💾 เก็บข้อในชุดลงคลัง</button><button class="btn btn-ghost btn-sm" id="loadMcFromBankBtn" type="button">📚 เลือกข้อจากคลัง</button></div>
     <button class="add-row-btn" id="toggleMcImportBtn" type="button" style="margin-top:8px;border-color:#A78BFA;color:var(--indigo);">✨ นำเข้าข้อปรนัยจาก ChatGPT</button>
     <div class="mc-import-box hidden" id="mcImportBox">
       <h4>1. สร้างข้อสอบด้วย ChatGPT</h4><p>คัดลอก Prompt นี้ไปวางใน ChatGPT แล้วแก้ไขหัวข้อหรือจำนวนข้อได้ตามต้องการ</p>
@@ -1161,7 +1160,6 @@ function renderMcPanel(){
     applyPointDistribution('mc'); renderMcCompactList();
   });
   document.getElementById('addMcBtn').addEventListener('click', ()=> openQuestionEditor('mc', null));
-  bindQuestionBankEvents();
   bindMcImportEvents();
   document.getElementById('saveSetFromMcBtn').addEventListener('click', saveEditingSet);
   renderOpenEditorIfNeeded('mc');
