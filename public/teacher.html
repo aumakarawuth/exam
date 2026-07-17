@@ -722,7 +722,7 @@ function blankSet(){
     }
   };
 }
-let editingUiEnabled = {mc:true, matching:false, written:false};
+let editingUiEnabled = {mc:false, matching:false, written:false};
 let openQEditor = null; // {section:'mc'|'matching'|'written', index:number|null} — null index = adding new
 let activeExamScheduleIndex = 0;
 let wizardStep = 'info'; // 'info'|'access'|'sections'|'hub'|'section:mc'|'section:matching'|'section:written'
@@ -752,7 +752,7 @@ async function openEditor(key, draftSet=null){
   if(editingSet.sections.mc.sectionPointsTotal===undefined) editingSet.sections.mc.sectionPointsTotal = round2(editingSet.sections.mc.questions.reduce((a,q)=>a+(Number(q.points)||0),0));
   if(editingSet.sections.matching.sectionPointsTotal===undefined) editingSet.sections.matching.sectionPointsTotal = round2((Number(editingSet.sections.matching.pointsEach)||0) * editingSet.sections.matching.left.length);
   if(editingSet.sections.written.sectionPointsTotal===undefined) editingSet.sections.written.sectionPointsTotal = round2(editingSet.sections.written.questions.reduce((a,q)=>a+(Number(q.maxPoints)||0),0));
-  editingUiEnabled = { mc:true, matching: editingSet.sections.matching.left.length>0, written: editingSet.sections.written.questions.length>0 };
+  editingUiEnabled = { mc: editingSet.sections.mc.questions.length>0, matching: editingSet.sections.matching.left.length>0, written: editingSet.sections.written.questions.length>0 };
   openQEditor = null;
   wizardStep = 'info';
   try{ knownClasses = await apiGetClasses(); }catch(e){ knownClasses = []; }
@@ -906,7 +906,7 @@ function buildGroupedClassOptions(classes){
 function wizardSectionsStepHtml(){
   return `<div class="panel">
     <h3>เลือกส่วนของข้อสอบ</h3>
-    <p class="panel-sub">ปรนัยเป็นส่วนพื้นฐานที่มีเสมอ เพิ่มส่วนจับคู่หรืออัตนัยได้ตามต้องการด้วยตัวเอง — ถ้าไม่เพิ่ม นักเรียนจะไม่เห็นส่วนนั้นเลยตอนสอบ</p>
+    <p class="panel-sub">เลือกเฉพาะส่วนที่ต้องการใช้ได้อย่างอิสระ — หากไม่เพิ่มส่วนนั้น นักเรียนจะไม่เห็นส่วนนั้นตอนสอบ</p>
     <div class="section-manager-row" id="sectionManagerRow"></div>
   </div>
   <div class="wizard-nav-row">
@@ -1071,19 +1071,18 @@ function renderClassChips(){
 /* ---------- section manager (add/remove matching & written sections) ---------- */
 function renderSectionManager(){
   const row = document.getElementById('sectionManagerRow');
-  const labels = {mc:'📝 ปรนัย (พื้นฐาน)', matching:'🔗 จับคู่', written:'✍️ อัตนัย'};
+  const labels = {mc:'📝 ปรนัย', matching:'🔗 จับคู่', written:'✍️ อัตนัย'};
   let html = '';
   ['mc','matching','written'].forEach(sec=>{
     if(!editingUiEnabled[sec]) return;
-    const removable = sec!=='mc';
-    html += `<span class="section-tag">${labels[sec]}${removable?`<button type="button" data-rmsection="${sec}" title="ลบส่วนนี้">✕</button>`:''}</span>`;
+    html += `<span class="section-tag">${labels[sec]}<button type="button" data-rmsection="${sec}" title="ลบส่วนนี้">✕</button></span>`;
   });
-  const missing = ['matching','written'].filter(sec=>!editingUiEnabled[sec]);
+  const missing = ['mc','matching','written'].filter(sec=>!editingUiEnabled[sec]);
   if(missing.length){
     html += `<div class="add-section-dropdown">
       <button class="btn btn-ghost btn-sm" id="addSectionBtn" type="button">+ เพิ่มส่วน</button>
       <div class="add-section-menu hidden" id="addSectionMenu">
-        ${missing.map(sec=>`<button type="button" data-addsection="${sec}">${sec==='matching'?'🔗 เพิ่มส่วนจับคู่':'✍️ เพิ่มส่วนอัตนัย'}</button>`).join('')}
+        ${missing.map(sec=>`<button type="button" data-addsection="${sec}">${sec==='mc'?'📝 เพิ่มส่วนปรนัย':sec==='matching'?'🔗 เพิ่มส่วนจับคู่':'✍️ เพิ่มส่วนอัตนัย'}</button>`).join('')}
       </div>
     </div>`;
   }
@@ -1092,6 +1091,7 @@ function renderSectionManager(){
     const sec = b.dataset.rmsection;
     if(!confirm('ลบส่วนนี้? ข้อสอบทั้งหมดในส่วนนี้จะถูกลบไปด้วย')) return;
     editingUiEnabled[sec] = false;
+    if(sec==='mc'){ Object.assign(editingSet.sections.mc, {questions:[], sectionPointsTotal:0}); }
     if(sec==='matching'){ Object.assign(editingSet.sections.matching, {left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0}); }
     if(sec==='written'){ Object.assign(editingSet.sections.written, {questions:[], sectionPointsTotal:0}); }
     if(openQEditor && openQEditor.section===sec) openQEditor = null;
@@ -1133,7 +1133,7 @@ function bindEditorPanelEvents(section, index){
     else if(section==='written') saveWrittenQuestionFromEditor(index);
   });
   if(section==='mc') bindMcResourceUpload();
-  if(section==='written') { bindWrittenResourceUpload(); document.getElementById('qeWAnswerType')?.addEventListener('change',event=>{const isCode=event.target.value==='code';document.getElementById('qeWKeywordsWrap').style.display=isCode?'none':'';document.getElementById('qeWCodeAnswerWrap').style.display=isCode?'':'none';}); }
+  if(section==='written') { bindWrittenResourceUpload(); document.getElementById('qeWAnswerType')?.addEventListener('change',event=>{const isCode=event.target.value==='code';document.getElementById('qeWKeywordsWrap').style.display=isCode?'none':'';document.getElementById('qeWCodeAnswerWrap').style.display=isCode?'':'none';document.getElementById('qeWAttachmentWrap').style.display=isCode?'none':'';}); }
 }
 
 /* ---------- MC section ---------- */
@@ -1534,14 +1534,14 @@ function renderWrittenCompactList(){
 function writtenEditorPanelHtml(index){
   const s = editingSet.sections.written;
   const isNew = index===null;
-  const q = isNew ? {text:'', keywords:[], answerType:'text', answerCode:'', language:'c', eligibleClassRooms:[]} : s.questions[index];
+  const q = isNew ? {text:'', keywords:[], answerType:'text', answerCode:'', language:'c'} : s.questions[index];
   const isCode = q.answerType === 'code';
   return `<div class="q-editor-panel">
     <div class="q-editor-title">${isNew?'เพิ่มข้ออัตนัยใหม่':'แก้ไขข้อที่ '+(index+1)}</div>
     <div class="field"><label>โจทย์</label><textarea id="qeWText" placeholder="พิมพ์คำถาม...">${escapeHtml(q.text)}</textarea></div>
     <div class="field"><label>รูปแบบคำตอบ</label><select id="qeWAnswerType"><option value="text" ${!isCode?'selected':''}>อัตนัย (ตรวจคำสำคัญ)</option><option value="code" ${isCode?'selected':''}>💻 แก้ไขโค้ด (เทียบเฉลย)</option></select></div>
     <div class="field" id="qeWKeywordsWrap" ${isCode?'style="display:none"':''}><label>คำสำคัญสำหรับตรวจเบื้องต้น (คั่นด้วยจุลภาค , )</label><input type="text" id="qeWKeywords" value="${escapeAttr((q.keywords||[]).join(', '))}" placeholder="เช่น ฮาร์ดแวร์, ซอฟต์แวร์"></div>
-    <div id="qeWCodeAnswerWrap" ${isCode?'':'style="display:none"'}><div class="field"><label>ภาษา</label><select id="qeWLanguage"><option value="c" ${q.language==='c'?'selected':''}>C</option><option value="cpp" ${q.language==='cpp'?'selected':''}>C++</option><option value="java" ${q.language==='java'?'selected':''}>Java</option></select></div><div class="field"><label>ห้องที่ต้องทำ (คั่นด้วย , · เว้นว่าง = ทุกห้อง)</label><input id="qeWEligibleRooms" value="${escapeAttr((q.eligibleClassRooms||[]).join(', '))}" placeholder="เช่น CA.1/1, CA.1/2"></div><div class="field"><label>เฉลยโค้ด (ตัดช่องว่างและขึ้นบรรทัดใหม่ก่อนตรวจ)</label><textarea id="qeWAnswerCode" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;min-height:150px;">${escapeHtml(q.answerCode||'')}</textarea></div>${writtenCodeResourceEditorHtml(q,isNew)}</div>${writtenResourceEditorHtml(q,isNew)}
+    <div id="qeWCodeAnswerWrap" ${isCode?'':'style="display:none"'}><div class="field"><label>ภาษา</label><select id="qeWLanguage"><option value="c" ${q.language==='c'?'selected':''}>C</option><option value="cpp" ${q.language==='cpp'?'selected':''}>C++</option><option value="java" ${q.language==='java'?'selected':''}>Java</option></select></div><div class="field"><label>เฉลยโค้ด (ตัดช่องว่างและขึ้นบรรทัดใหม่ก่อนตรวจ)</label><textarea id="qeWAnswerCode" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;min-height:150px;">${escapeHtml(q.answerCode||'')}</textarea></div>${writtenCodeResourceEditorHtml(q,isNew)}</div><div id="qeWAttachmentWrap" ${isCode?'style="display:none"':''}>${writtenResourceEditorHtml(q,isNew)}</div>
     <div class="editor-actions">
       <button class="btn btn-ghost btn-sm" id="qeCancelBtn" type="button">ยกเลิก</button>
       <button class="btn btn-primary btn-sm" id="qeSaveBtn" type="button">${isNew?'เพิ่มข้อนี้':'บันทึกการแก้ไข'}</button>
@@ -1562,9 +1562,9 @@ function saveWrittenQuestionFromEditor(index){
   resources.language=answerType==='code'?(document.getElementById('qeWCodeLanguage')?.value||''):'';
   delete resources.table;
   const language=document.getElementById('qeWLanguage').value;
-  const eligibleClassRooms=answerType==='code'?document.getElementById('qeWEligibleRooms').value.split(',').map(room=>room.trim()).filter(Boolean):[];
-  if(index===null) s.questions.push({id:uid('w'), text, keywords, answerType, answerCode, language, eligibleClassRooms, maxPoints:0, resources});
-  else Object.assign(s.questions[index], {text, keywords, answerType, answerCode, language, eligibleClassRooms, resources});
+  if(answerType==='code') resources.attachments=[];
+  if(index===null) s.questions.push({id:uid('w'), text, keywords, answerType, answerCode, language, maxPoints:0, resources});
+  else { Object.assign(s.questions[index], {text, keywords, answerType, answerCode, language, resources}); delete s.questions[index].eligibleClassRooms; }
   applyPointDistribution('written');
   closeQuestionEditor();
 }
@@ -1591,6 +1591,7 @@ async function saveEditingSet(){
   if(isSavingSet) return;
   if(openQEditor){ showToast('กรุณาบันทึกหรือยกเลิกการแก้ไขข้อคำถามก่อน'); return; }
   const s = editingSet;
+  if(!editingUiEnabled.mc) Object.assign(s.sections.mc, {questions:[], sectionPointsTotal:0});
   if(!editingUiEnabled.matching) Object.assign(s.sections.matching, {left:[], right:[], correctMap:{}, pointsEach:0, sectionPointsTotal:0});
   if(!editingUiEnabled.written) Object.assign(s.sections.written, {questions:[], sectionPointsTotal:0});
   applyPointDistribution('mc'); applyPointDistribution('matching'); applyPointDistribution('written');

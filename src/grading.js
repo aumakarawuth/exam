@@ -33,10 +33,9 @@ function normalizeCodeAnswer(value) {
 }
 
 function filterWrittenQuestionsForClass(section, classRoom) {
-  return (section?.questions || []).filter(question => {
-    const rooms = Array.isArray(question.eligibleClassRooms) ? question.eligibleClassRooms : [];
-    return !rooms.length || rooms.includes(classRoom);
-  });
+  // Written code questions apply to every student who can access the exam set.
+  // classRoom remains an argument for compatibility with existing callers.
+  return section?.questions || [];
 }
 
 function gradeWritten(section, answers) {
@@ -83,7 +82,11 @@ function sanitizeSetForStudent(set, classRoom) {
     sections: {
       mc: { title: set.sections.mc.title, desc: set.sections.mc.desc, questions: set.sections.mc.questions.map(q => ({ id: q.id, text: q.text, choices: q.choices, points: q.points, resources: q.resources || null })) },
       matching: { title: set.sections.matching.title, desc: set.sections.matching.desc, left: set.sections.matching.left, right: set.sections.matching.right, pointsEach: set.sections.matching.pointsEach },
-      written: { title: set.sections.written.title, desc: set.sections.written.desc, questions: filterWrittenQuestionsForClass(set.sections.written, classRoom).map(q => ({ id: q.id, text: q.text, maxPoints: q.maxPoints, answerType: q.answerType || 'text', language: q.language || 'c', resources: q.resources || null })) }
+      written: { title: set.sections.written.title, desc: set.sections.written.desc, questions: filterWrittenQuestionsForClass(set.sections.written, classRoom).map(q => {
+        const isCode = q.answerType === 'code';
+        const resources = isCode ? { code: q.resources?.code || '', language: q.resources?.language || '' } : (q.resources || null);
+        return { id: q.id, text: q.text, maxPoints: q.maxPoints, answerType: q.answerType || 'text', language: q.language || 'c', resources };
+      }) }
     }
   };
 }

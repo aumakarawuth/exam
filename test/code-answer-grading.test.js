@@ -10,11 +10,12 @@ test('code-fix answers ignore whitespace but require the teacher answer', () => 
   assert.deepEqual(gradeWritten({ questions: [codeQuestion] }, { code1: 'print("asd");' }), { total: 0, perQuestion: { code1: 0 } });
 });
 
-test('student exam data does not expose a code answer key', () => {
-  const restricted = { ...codeQuestion, id: 'code2', eligibleClassRooms: ['CA.1/2'] };
-  const set = { key: 'set1', title: 'Code', courseName: 'Code', sections: { mc: { title: '', desc: '', questions: [] }, matching: { title: '', desc: '', left: [], right: [], pointsEach: 0 }, written: { title: '', desc: '', questions: [codeQuestion, restricted] } } };
+test('student exam data does not expose code answer keys and shows every code question', () => {
+  const secondCodeQuestion = { ...codeQuestion, id: 'code2' };
+  const set = { key: 'set1', title: 'Code', courseName: 'Code', sections: { mc: { title: '', desc: '', questions: [] }, matching: { title: '', desc: '', left: [], right: [], pointsEach: 0 }, written: { title: '', desc: '', questions: [codeQuestion, secondCodeQuestion] } } };
   const sanitized = sanitizeSetForStudent(set, 'CA.1/1');
   assert.equal(sanitized.sections.written.questions[0].answerCode, undefined);
   assert.equal(sanitized.sections.written.questions[0].answerType, 'code');
-  assert.equal(sanitized.sections.written.questions.length, 1);
+  assert.equal(sanitized.sections.written.questions.length, 2);
+  assert.equal(sanitized.sections.written.questions[1].answerCode, undefined);
 });
