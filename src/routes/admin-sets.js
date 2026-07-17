@@ -36,12 +36,16 @@ function registerAdminSetRoutes(app, { readDB, writeDB, requireAdmin, examTypes,
   app.post('/api/sets/:key/restore', requireAdmin, async (req, res) => {
     const db = readDB(); const set = db.sets.find(item => item.key === req.params.key);
     if (!set) return res.status(404).json({ error: 'not_found' });
-    set.archived = false; delete set.archivedAt; set.updatedAt = new Date().toISOString();
+    set.archived = false; delete set.archivedAt; delete set.deletedAt; delete set.deletedBy; set.updatedAt = new Date().toISOString();
     await writeDB(db); res.json({ ok: true });
   });
 
   app.delete('/api/sets/:key', requireAdmin, async (req, res) => {
-    const db = readDB(); db.sets = db.sets.filter(set => set.key !== req.params.key); await writeDB(db); res.json({ ok: true });
+    const db = readDB(); const set = db.sets.find(item => item.key === req.params.key);
+    if (!set) return res.status(404).json({ error: 'not_found' });
+    const now = new Date().toISOString();
+    set.archived = true; set.archivedAt = now; set.deletedAt = now; set.deletedBy = 'admin'; set.updatedAt = now;
+    await writeDB(db); res.json({ ok: true, recoverable: true });
   });
 }
 module.exports = { registerAdminSetRoutes };

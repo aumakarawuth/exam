@@ -262,7 +262,7 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
             <p class="sub" style="margin:0;">จัดกลุ่มตามชื่อวิชา — 1 วิชาอาจมีทั้งข้อสอบกลางภาคและปลายภาค</p>
             <input class="filter-select" type="search" id="setSearchInput" placeholder="ค้นหาชื่อวิชา หรือชุดข้อสอบ" aria-label="ค้นหาชุดข้อสอบ" style="min-width:250px;margin-top:12px;">
           </div>
-          <div class="editor-actions" style="margin:0;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="importGoogleFormsSetBtn">นำเข้าข้อสอบจาก Forms</button><button class="btn btn-ghost btn-sm" id="newDfdSetBtn">🧩 สร้างข้อสอบ DFD</button><button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button></div>
+          <div class="editor-actions" style="margin:0;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="downloadBackupAllBtn">🛡️ สำรองข้อมูลทั้งหมด</button><button class="btn btn-ghost btn-sm" id="importGoogleFormsSetBtn">นำเข้าข้อสอบจาก Forms</button><button class="btn btn-ghost btn-sm" id="newDfdSetBtn">🧩 สร้างข้อสอบ DFD</button><button class="btn btn-primary btn-sm" id="newSetBtn">+ เพิ่มชุดข้อสอบใหม่</button></div>
         </div>
         <div id="setListWrap"><div class="loading-note">กำลังโหลด...</div></div>
       </div>
@@ -775,7 +775,7 @@ let classPeriods = {};
 
 function renderSetList(){
   const wrap = document.getElementById('setListWrap');
-  const activeSets = ADMIN_SETS.filter(set=>!set.archived);
+  const activeSets = ADMIN_SETS.filter(set=>!set.archived && !set.deletedAt);
   if(!activeSets.length){
     wrap.innerHTML = '<div class="empty-note">ยังไม่มีชุดข้อสอบ กด "เพิ่มชุดข้อสอบใหม่" เพื่อเริ่มสร้างชุดแรก</div>';
     return;
@@ -812,7 +812,7 @@ function renderSetList(){
           <button class="btn btn-ghost btn-sm" data-exam-pdf="${s.key}">📄 PDF ต้นฉบับ</button>
           <button class="btn btn-ghost btn-sm" data-dup="${s.key}">ทำสำเนา</button>
           <button class="btn btn-ghost btn-sm" data-archive="${s.key}">เก็บเข้าคลัง</button>
-          <button class="btn btn-danger btn-sm" data-del="${s.key}">ลบ</button>
+          <button class="btn btn-danger btn-sm" data-del="${s.key}">🗑️ ย้ายไปถังขยะ</button>
         </div>
       </div>`;
     }).join('');
@@ -835,9 +835,12 @@ function renderSetList(){
 }
 function renderLibrarySetList(){
   const wrap=document.getElementById('librarySetListWrap');
-  const archived=ADMIN_SETS.filter(set=>set.archived);
-  if(!archived.length){ wrap.innerHTML='<div class="empty-note">ยังไม่มีข้อสอบในคลัง กด “เก็บเข้าคลัง” จากชุดข้อสอบที่ใช้งานอยู่ได้ทุกเมื่อ</div>'; return; }
-  wrap.innerHTML=`<div class="set-list">${archived.map(s=>`<div class="set-card"><span class="badge-pill">${escapeHtml(s.examType||'-')}</span><span class="badge-pill" style="margin-left:5px;">${escapeHtml(s.academicYear&&s.semesterLabel?`${s.academicYear} / ${s.semesterLabel}`:'ข้อสอบเก่า')}</span><h3>${escapeHtml(s.title)}</h3><p>${escapeHtml(s.courseName||'')}</p><p style="color:var(--sub);">เก็บเข้าคลังเมื่อ ${s.archivedAt?new Date(s.archivedAt).toLocaleDateString('th-TH'): '-'}</p><div class="set-actions"><button class="btn btn-primary btn-sm" data-library-dup="${s.key}">ทำสำเนาใช้ใหม่</button><button class="btn btn-ghost btn-sm" data-restore="${s.key}">นำกลับรายการหลัก</button></div></div>`).join('')}</div>`;
+  const archived=ADMIN_SETS.filter(set=>set.archived && !set.deletedAt);
+  const trashed=ADMIN_SETS.filter(set=>set.deletedAt);
+  if(!archived.length && !trashed.length){ wrap.innerHTML='<div class="empty-note">ยังไม่มีข้อสอบในคลังหรือถังขยะ</div>'; return; }
+  const archiveHtml=archived.length?`<div class="set-list">${archived.map(s=>`<div class="set-card"><span class="badge-pill">${escapeHtml(s.examType||'-')}</span><span class="badge-pill" style="margin-left:5px;">${escapeHtml(s.academicYear&&s.semesterLabel?`${s.academicYear} / ${s.semesterLabel}`:'ข้อสอบเก่า')}</span><h3>${escapeHtml(s.title)}</h3><p>${escapeHtml(s.courseName||'')}</p><p style="color:var(--sub);">เก็บเข้าคลังเมื่อ ${s.archivedAt?new Date(s.archivedAt).toLocaleDateString('th-TH'): '-'}</p><div class="set-actions"><button class="btn btn-primary btn-sm" data-library-dup="${s.key}">ทำสำเนาใช้ใหม่</button><button class="btn btn-ghost btn-sm" data-restore="${s.key}">นำกลับรายการหลัก</button></div></div>`).join('')}</div>`:'<div class="empty-note">ยังไม่มีข้อสอบในคลัง</div>';
+  const trashHtml=trashed.length?`<div style="margin-top:28px;"><h3>🗑️ ถังขยะชุดข้อสอบ</h3><p class="panel-sub">กู้คืนได้โดยผู้ดูแลระบบ ข้อสอบในถังขยะจะไม่แสดงให้นักเรียนเห็น</p><div class="set-list">${trashed.map(s=>`<div class="set-card"><span class="badge-pill" style="background:#fee2e2;color:#b91c1c;">ถังขยะ</span><h3>${escapeHtml(s.title)}</h3><p>${escapeHtml(s.courseName||'')}</p><p style="color:var(--sub);">ลบเมื่อ ${new Date(s.deletedAt).toLocaleString('th-TH')}</p><div class="set-actions"><button class="btn btn-primary btn-sm" data-restore="${s.key}">↩ กู้คืนชุดข้อสอบ</button></div></div>`).join('')}</div></div>`:'';
+  wrap.innerHTML=archiveHtml+trashHtml;
   wrap.querySelectorAll('[data-library-dup]').forEach(b=>b.addEventListener('click',()=>duplicateSet(b.dataset.libraryDup)));
   wrap.querySelectorAll('[data-restore]').forEach(b=>b.addEventListener('click',()=>restoreSet(b.dataset.restore)));
 }
@@ -860,8 +863,8 @@ async function restoreSet(key){
   try{ await apiRestoreSetCall(key); ADMIN_SETS=await apiGetAdminSets(); renderSetList(); renderLibrarySetList(); populateSetFilterOptions(); showToast('นำชุดข้อสอบกลับรายการหลักแล้ว'); }catch(e){showToast(e.message);}
 }
 async function deleteSet(key){
-  if(!confirm('ยืนยันลบชุดข้อสอบนี้? การลบไม่สามารถย้อนกลับได้')) return;
-  try{ await apiDeleteSetCall(key); ADMIN_SETS = await apiGetAdminSets(); renderSetList(); populateSetFilterOptions(); showToast('ลบชุดข้อสอบแล้ว'); }
+  if(!confirm('ย้ายชุดข้อสอบนี้ไปถังขยะ? ผู้ดูแลระบบกู้คืนได้ภายหลัง')) return;
+  try{ await apiDeleteSetCall(key); ADMIN_SETS = await apiGetAdminSets(); renderSetList(); renderLibrarySetList(); populateSetFilterOptions(); showToast('ย้ายชุดข้อสอบไปถังขยะแล้ว'); }
   catch(e){ showToast(e.message); }
 }
 document.getElementById('newSetBtn').addEventListener('click', ()=> openEditor(null));
@@ -1975,7 +1978,12 @@ document.getElementById('importStudentsExcelBtn').addEventListener('click', asyn
   btn.disabled=false; btn.textContent='นำเข้า Excel';
 });
 document.getElementById('exportStudentsBtn').addEventListener('click', async ()=>{ try{ await downloadAdminFile('/api/students/export.xlsx','students.xlsx'); showToast('ดาวน์โหลดรายชื่อนักเรียนแล้ว'); }catch(error){ showToast(error.message); } });
-document.getElementById('downloadBackupBtn').addEventListener('click', async ()=>{ try{ await downloadAdminFile('/api/admin/backup.json','exam-system-backup.json'); showToast('ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว'); }catch(error){ showToast(error.message); } });
+async function downloadFullSystemBackup(){
+  try{ await downloadAdminFile('/api/admin/backup.json','exam-system-backup.json'); showToast('ดาวน์โหลดไฟล์สำรองข้อมูลทั้งหมดแล้ว'); }
+  catch(error){ showToast(error.message); }
+}
+document.getElementById('downloadBackupBtn').addEventListener('click', downloadFullSystemBackup);
+document.getElementById('downloadBackupAllBtn').addEventListener('click', downloadFullSystemBackup);
 
 /* ======================================================================
    RESULTS + EXCEL EXPORT + PUBLISH
