@@ -778,7 +778,7 @@ function computeSetTotal(s){
   return Math.round(t*100)/100;
 }
 async function duplicateSet(key){
-  try{ await apiDuplicateSetCall(key); ADMIN_SETS = await apiGetAdminSets(); renderSetList(); populateSetFilterOptions(); showToast('ทำสำเนาชุดข้อสอบแล้ว'); }
+  try{ const copy=await apiDuplicateSetCall(key); ADMIN_SETS = await apiGetAdminSets(); renderSetList(); populateSetFilterOptions(); showToast('ทำสำเนาชุดข้อสอบแล้ว กรุณาตั้งห้องและวันสอบใหม่'); openEditor(copy.key); }
   catch(e){ showToast(e.message); }
 }
 async function deleteSet(key){
