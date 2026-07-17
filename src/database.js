@@ -11,7 +11,11 @@ function emptyDatabase() {
 }
 
 function normalizeDatabase(db) {
-  const students = Array.isArray(db?.students) ? db.students.map(student => normalizeStudentEnrollments({ ...student })) : [];
+  const students = Array.isArray(db?.students) ? db.students.map(student => {
+    const normalized = { ...student };
+    normalizeStudentEnrollments(normalized);
+    return normalized;
+  }) : [];
   const drafts = Array.isArray(db?.drafts) ? db.drafts : [];
   students.forEach(student => {
     Object.values(student.examDrafts || {}).forEach(draft => {
