@@ -168,6 +168,10 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start;}
 .settings-grid .panel{margin-bottom:0;}
 .settings-data-tools{display:grid;gap:18px;}
+.promotion-panel{grid-column:1 / -1;}
+.promotion-mapping-host{display:none;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;max-height:430px;overflow:auto;padding:10px;margin-top:12px;background:var(--grid);border:1px solid var(--line);border-radius:12px;}
+.promotion-mapping-host.is-open{display:grid;}
+.promotion-mapping-host .compact-meta{grid-column:1 / -1;}
 .course-group-title{font-family:'Prompt',sans-serif;font-weight:600;font-size:14.5px;}
 .course-group-count{font-size:12px;color:var(--sub);}
 .course-group-body.collapsed{display:none;}
@@ -351,13 +355,13 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
             <div id="academicCalendarRows" class="stack-list"></div>
             <div class="editor-actions" style="margin-top:12px;"><button class="btn btn-ghost btn-sm" id="addAcademicYearBtn" type="button">＋ เพิ่มปีการศึกษา</button><button class="btn btn-primary btn-sm" id="saveAcademicCalendarBtn" type="button">💾 บันทึกปฏิทิน</button></div>
           </div>
-          <div class="panel">
+          <div class="panel promotion-panel">
             <h3>🎓 เลื่อนชั้นนักเรียน</h3>
             <p class="panel-sub">สร้างประวัติห้องของปีใหม่โดยไม่แก้ทับข้อมูลปีเดิม ตรวจสอบก่อนยืนยันได้</p>
             <div class="schedule-time-grid"><div class="field"><label>ปีเดิม</label><select id="promotionSourceYear"></select></div><div class="field"><label>ปีใหม่</label><input id="promotionTargetYear" inputmode="numeric" placeholder="เช่น 2570"></div></div>
             <div class="editor-actions" style="margin-top:8px;"><button class="btn btn-ghost btn-sm" id="loadPromotionRoomsBtn" type="button">เลือกห้องเพื่อจับคู่</button><button class="btn btn-primary btn-sm" id="previewPromotionBtn" type="button">ตรวจสอบก่อนเลื่อนชั้น</button></div>
-            <div id="promotionMappingHost" class="stack-list" style="margin-top:10px;"></div>
-            <div class="editor-actions" style="margin-top:12px;"><button class="btn btn-primary btn-sm" id="confirmPromotionBtn" type="button" disabled>✓ ยืนยันเลื่อนชั้น</button></div>
+            <div id="promotionMappingHost" class="promotion-mapping-host"></div>
+            <div class="editor-actions" id="promotionConfirmActions" style="margin-top:12px;display:none;"><button class="btn btn-primary btn-sm" id="confirmPromotionBtn" type="button" disabled>✓ ยืนยันเลื่อนชั้น</button></div>
           </div>
           <div id="adminDataToolsHost" class="settings-data-tools"></div>
           <div class="panel">
@@ -565,7 +569,8 @@ function suggestedPromotionRoom(room){
 }
 function renderPromotionMappings(message=''){
   const host=document.getElementById('promotionMappingHost'); if(!host) return;
-  host.innerHTML=message||(!promotionMappings.length?'<div class="empty-note">เลือกปีเดิมแล้วกด “เลือกห้องเพื่อจับคู่”</div>':`<p class="compact-meta" style="margin:0 0 8px;">ระบบเติมตัวอย่างห้องปีถัดไปให้แล้ว กรุณาตรวจสอบและแก้ไขก่อนยืนยัน</p>${promotionMappings.map((item,index)=>`<div class="mini-card" style="margin:0 0 7px;"><div class="schedule-time-grid"><div class="field"><label>ห้องเดิม</label><input value="${escapeAttr(item.fromRoom)}" disabled></div><div class="field"><label>ห้องใหม่</label><input data-promotion-room="${index}" value="${escapeAttr(item.toRoom||'')}" placeholder="เช่น CC.2/4"></div><div class="field"><label>รอบเรียน</label><select data-promotion-period="${index}"><option value="">คงเดิม</option>${['เช้า','บ่าย','ทวิภาคี'].map(period=>`<option value="${period}" ${item.examPeriod===period?'selected':''}>${period}</option>`).join('')}</select></div></div><small class="compact-meta">${item.count} คน</small></div>`).join('')}`);
+  const visible=Boolean(message||promotionMappings.length); host.classList.toggle('is-open',visible); document.getElementById('promotionConfirmActions').style.display=visible?'flex':'none';
+  host.innerHTML=message||`<p class="compact-meta" style="margin:0 0 2px;">ระบบเติมตัวอย่างห้องปีถัดไปให้แล้ว กรุณาตรวจสอบและแก้ไขก่อนยืนยัน</p>${promotionMappings.map((item,index)=>`<div class="mini-card" style="margin:0;"><div class="schedule-time-grid"><div class="field"><label>ห้องเดิม</label><input value="${escapeAttr(item.fromRoom)}" disabled></div><div class="field"><label>ห้องใหม่</label><input data-promotion-room="${index}" value="${escapeAttr(item.toRoom||'')}" placeholder="เช่น CC.2/4"></div><div class="field"><label>รอบเรียน</label><select data-promotion-period="${index}"><option value="">คงเดิม</option>${['เช้า','บ่าย','ทวิภาคี'].map(period=>`<option value="${period}" ${item.examPeriod===period?'selected':''}>${period}</option>`).join('')}</select></div></div><small class="compact-meta">${item.count} คน</small></div>`).join('')}`;
   host.querySelectorAll('[data-promotion-room]').forEach(input=>input.addEventListener('input',event=>promotionMappings[Number(event.target.dataset.promotionRoom)].toRoom=event.target.value));
   host.querySelectorAll('[data-promotion-period]').forEach(input=>input.addEventListener('change',event=>promotionMappings[Number(event.target.dataset.promotionPeriod)].examPeriod=event.target.value));
 }
