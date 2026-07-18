@@ -1699,7 +1699,7 @@ function renderResultGroups(records){
     groups.get(key).records.push(record);
   });
   return [...groups.values()].map(group=>`<div class="course-group result-subject-group">
-    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · กดเพื่อดูผลสอบ</span>${GRADEBOOK_SET_KEYS.has(group.key)?`<button class="btn btn-primary btn-sm" type="button" data-export-gradebook="${escapeAttr(group.key)}">📊 Excel รวมคะแนน</button>`:''}<button class="btn btn-ghost btn-sm" type="button" data-export-result-set="${escapeAttr(group.key)}">⬇ Excel วิชานี้</button></div>
+    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · กดเพื่อดูผลสอบ</span>${GRADEBOOK_SET_KEYS.has(group.key)?`<button class="btn btn-primary btn-sm" type="button" data-export-gradebook="${escapeAttr(group.key)}">📊 Excel รวมคะแนน</button>`:''}<button class="btn btn-ghost btn-sm" type="button" data-question-analysis="${escapeAttr(group.key)}">📊 วิเคราะห์ข้อสอบ</button></div>
     <div class="course-group-body collapsed" style="overflow-x:auto;"><table class="result-table"><thead><tr>
       <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>ประเภท</th><th>รายวิชา</th><th>อาจารย์</th><th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม/20</th><th>คลิกขวา</th><th>คัดลอก</th><th>สลับแท็บ</th><th>ประกาศผล</th><th></th>
     </tr></thead><tbody>${group.records.map(r=>`<tr data-row-id="${r.id}">
@@ -1737,7 +1737,7 @@ async function refreshResults(){
   wrap.querySelectorAll('[data-openresit]').forEach(b=>b.addEventListener('click', ()=>openResitDialog(b.dataset.openresit)));
   wrap.querySelectorAll('[data-viewdetail]').forEach(b=>b.addEventListener('click', ()=> toggleDetailRow(b.dataset.viewdetail)));
   wrap.querySelectorAll('[data-toggleresultgroup]').forEach(head=>head.addEventListener('click',()=>head.nextElementSibling.classList.toggle('collapsed')));
-  wrap.querySelectorAll('[data-export-result-set]').forEach(button=>button.addEventListener('click',event=>{ event.stopPropagation(); downloadResultsExcel(button.dataset.exportResultSet,button); }));
+  wrap.querySelectorAll('[data-question-analysis]').forEach(button=>button.addEventListener('click',event=>{ event.stopPropagation(); showQuestionAnalysis(button.dataset.questionAnalysis); }));
   wrap.querySelectorAll('[data-export-gradebook]').forEach(button=>button.addEventListener('click',event=>{ event.stopPropagation(); downloadGradebook(button.dataset.exportGradebook,button); }));
 }
 function toggleDetailRow(resultId){
@@ -1817,8 +1817,10 @@ document.getElementById('setFilterSelect').addEventListener('change', refreshRes
 document.getElementById('examTypeFilterSelect').addEventListener('change', refreshResults);
 document.getElementById('academicYearFilterSelect').addEventListener('change', refreshResults);
 document.getElementById('semesterFilterSelect').addEventListener('change', refreshResults);
-async function showQuestionAnalysis(){
-  const setKey=document.getElementById('setFilterSelect').value;
+async function showQuestionAnalysis(requestedSetKey){
+  const directSetKey=typeof requestedSetKey==='string'?requestedSetKey:'';
+  const setKey=directSetKey||document.getElementById('setFilterSelect').value;
+  if(directSetKey) document.getElementById('setFilterSelect').value=directSetKey;
   if(!setKey){ showToast('กรุณาเลือกรายวิชาที่ต้องการวิเคราะห์ก่อน'); return; }
   const wrap=document.getElementById('resultsWrap'); wrap.innerHTML='<div class="loading-note">กำลังวิเคราะห์คำตอบรายข้อ...</div>';
   try{
@@ -1828,18 +1830,6 @@ async function showQuestionAnalysis(){
     document.getElementById('backToResultsBtn').addEventListener('click',refreshResults);
     document.getElementById('exportQuestionAnalysisBtn').addEventListener('click',()=>downloadQuestionAnalysis(setKey));
   }catch(error){ wrap.innerHTML='<div class="empty-note">'+escapeHtml(error.message)+'</div>'; }
-}
-async function downloadResultsExcel(setKey,button){
-  const original=button?.textContent||'⬇ Excel วิชานี้';
-  if(button){button.disabled=true;button.textContent='กำลังสร้างไฟล์...';}
-  try{
-    const res=await fetch('/api/teacher/export/results.xlsx?setKey='+encodeURIComponent(setKey),{headers:{'x-teacher-token':teacherToken||''}});
-    if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');}
-    if(!res.ok) throw new Error('ส่งออก Excel ไม่สำเร็จ (HTTP '+res.status+')');
-    const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download='ผลสอบรายวิชา.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดผลสอบรายวิชาแล้ว');
-  }catch(error){showToast(error.message);}
-  finally{if(button){button.disabled=false;button.textContent=original;}}
 }
 async function downloadGradebook(setKey,button){
   const original=button.textContent; button.disabled=true; button.textContent='กำลังสร้างไฟล์...';
