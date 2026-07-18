@@ -72,6 +72,20 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.doesNotMatch(script.body, /onclick="openScoreVerificationIssues/);
 });
 
+test('student exam selection shows a preparing state before countdown', async () => {
+  const [page, script, styles] = await Promise.all([
+    request('/'),
+    request('/assets/student-main.js'),
+    request('/assets/student.css')
+  ]);
+  assert.equal(page.status, 200);
+  assert.match(page.body, /id="examPreparingOverlay"/);
+  assert.match(page.body, /กำลังเตรียมข้อสอบ/);
+  assert.match(script.body, /setExamPreparing\(true\)/);
+  assert.match(script.body, /if\(examPreparing\) return/);
+  assert.match(styles.body, /\.exam-preparing-spinner/);
+});
+
 test('unknown API endpoints return a JSON 404 response', async () => {
   const response = await request('/api/endpoint-that-does-not-exist');
   assert.equal(response.status, 404);

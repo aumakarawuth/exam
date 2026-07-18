@@ -454,18 +454,30 @@ function applyServerDraft(draft){
   app.reloadCount=(Number(draft.reloadCount)||0)+1; state={tabSwitches:Number(draft.tabSwitches)||0,tabWarningAcknowledged:Number(draft.tabWarningAcknowledged)||0,fullscreenExitAttempts:Number(draft.fullscreenExitAttempts)||0,rightClickAttempts:Number(draft.rightClickAttempts)||0,copyAttempts:Number(draft.copyAttempts)||0,integrityEvents:Array.isArray(draft.integrityEvents)?draft.integrityEvents:[]};
   app.draftRevision=Number(draft.revision)||0; draftAnswers=draft.draftAnswers||{mc:{},matching:{},written:{}}; return true;
 }
+let examPreparing=false;
+function setExamPreparing(active){
+  examPreparing=active;
+  const button=document.getElementById('confirmQBtn');
+  button.disabled=active || !pickedKey;
+  button.textContent=active?'กำลังเตรียมข้อสอบ...':'เริ่มทำข้อสอบ →';
+  selectScreen.classList.toggle('exam-preparing',active);
+  document.getElementById('examPreparingOverlay').classList.toggle('hidden',!active);
+}
 document.getElementById('confirmQBtn').addEventListener('click', async ()=>{
+  if(examPreparing) return;
   if(!pickedKey) return;
   if(COMPLETED_KEYS.has(pickedKey) && ELIGIBLE_SETS_BY_KEY[pickedKey].accessMode!=='resit'){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
   const pickedSet = ELIGIBLE_SETS_BY_KEY[pickedKey];
+  setExamPreparing(true);
   if(pickedSet.delivery==='object-analysis-design'){ location.href='/object-analysis-design'; return; }
   app.questionKey = pickedKey;
   app.resitAccessId = ELIGIBLE_SETS_BY_KEY[pickedKey].resitAccessId || null;
   app.lateCode = lateCodeVerified[pickedKey] || null;
-  try{const claim=await apiClaimExamDevice(pickedKey,app.resitAccessId);app.draftRevision=Number(claim.draft?.revision)||0;}catch(error){showToast(error.message);return;}
+  try{const claim=await apiClaimExamDevice(pickedKey,app.resitAccessId);app.draftRevision=Number(claim.draft?.revision)||0;}catch(error){setExamPreparing(false);showToast(error.message);return;}
   try{ const remote=await apiGetExamDraft(pickedKey,app.resitAccessId); if(applyServerDraft(remote.draft)) showToast('กู้คืนคำตอบที่บันทึกไว้จากเซิร์ฟเวอร์แล้ว'); }catch(error){}
   requestExamFullscreen();
   selectScreen.classList.add('hidden');
+  setExamPreparing(false);
   runCountdown();
 });
 
