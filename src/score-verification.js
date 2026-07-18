@@ -1,8 +1,32 @@
 const { gradeMC, gradeMatching, gradeWritten, filterWrittenQuestionsForClass, round2 } = require('./grading');
 const { gradeDfdLevel } = require('./dfd-grader');
+const crypto = require('crypto');
 
 const GRADING_VERSION = 'grading-v1';
 const sameScore = (left, right) => Math.abs(Number(left || 0) - Number(right || 0)) < 0.005;
+function gradingFingerprint(snapshot) {
+  const source = { ...snapshot };
+  delete source.fingerprint;
+  return crypto.createHash('sha256').update(JSON.stringify(source)).digest('hex');
+}
+
+function buildGradingSnapshot(set, classRoom) {
+  const mc = set.sections?.mc || {};
+  const matching = set.sections?.matching || {};
+  const writtenQuestions = filterWrittenQuestionsForClass(set.sections?.written, classRoom);
+  const snapshot = {
+    version: GRADING_VERSION,
+    mc: { questions: (mc.questions || []).map(question => ({ id: question.id, answer: question.answer, points: Number(question.points || 0) })) },
+    matching: { left: (matching.left || []).map(item => ({ id: item.id })), correctMap: { ...(matching.correctMap || {}) }, pointsEach: Number(matching.pointsEach || 0) },
+    written: { questions: writtenQuestions.map(question => ({ id: question.id, answerType: question.answerType || 'keywords', keywords: [...(question.keywords || [])], answerCode: question.answerCode || '', maxPoints: Number(question.maxPoints || 0) })) }
+  };
+  snapshot.fingerprint = gradingFingerprint(snapshot);
+  return snapshot;
+}
+
+function setFromSnapshot(snapshot) {
+  return { sections: { mc: snapshot.mc || {}, matching: snapshot.matching || {}, written: snapshot.written || {} } };
+}
 
 function verifyDfd(result) {
   const levels = result.detail?.levels;
@@ -21,16 +45,18 @@ function verifyResultScore(result, set) {
   if (result.detail?.type === 'dfd') return verifyDfd(result);
   const answers = result.detail?.answers;
   if (!answers) return { status: 'unverifiable', reason: 'missing_answers', gradingVersion: GRADING_VERSION };
-  const mc = gradeMC(set.sections?.mc || {}, answers.mc);
-  const matching = gradeMatching(set.sections?.matching || {}, answers.matching);
+  if (result.detail?.gradingSnapshot && gradingFingerprint(result.detail.gradingSnapshot) !== result.detail.gradingSnapshot.fingerprint) return { status: 'mismatch', reason: 'grading_snapshot_corrupt', gradingVersion: result.detail.gradingSnapshot.version || GRADING_VERSION };
+  const gradingSet = result.detail?.gradingSnapshot ? setFromSnapshot(result.detail.gradingSnapshot) : set;
+  const mc = gradeMC(gradingSet.sections?.mc || {}, answers.mc);
+  const matching = gradeMatching(gradingSet.sections?.matching || {}, answers.matching);
   const manualScores = result.detail?.writtenManualScores;
   const written = manualScores
     ? round2(Object.values(manualScores).reduce((sum, score) => sum + Number(score || 0), 0))
-    : gradeWritten({ ...(set.sections?.written || {}), questions: filterWrittenQuestionsForClass(set.sections?.written, result.classRoom) }, answers.written).total;
+    : gradeWritten({ ...(gradingSet.sections?.written || {}), questions: filterWrittenQuestionsForClass(gradingSet.sections?.written, result.classRoom) }, answers.written).total;
   const expected = { mc, matching, written, overall: round2(mc + matching + written) };
   const actual = { ...result.sectionScores, overall: result.overallScore20 };
   const matches = sameScore(expected.mc, actual.mc) && sameScore(expected.matching, actual.matching) && sameScore(expected.written, actual.written) && sameScore(expected.overall, actual.overall);
-  return { status: matches ? 'verified' : 'mismatch', gradingVersion: GRADING_VERSION, expected, actual };
+  return { status: matches ? 'verified' : 'mismatch', gradingVersion: result.detail?.gradingSnapshot?.version || GRADING_VERSION, gradingFingerprint: result.detail?.gradingSnapshot?.fingerprint || null, expected, actual };
 }
 
 function verificationSummary(db) {
@@ -42,4 +68,4 @@ function verificationSummary(db) {
   return summary;
 }
 
-module.exports = { GRADING_VERSION, verifyResultScore, verificationSummary };
+module.exports = { GRADING_VERSION, buildGradingSnapshot, verifyResultScore, verificationSummary };

@@ -1,7 +1,7 @@
 const { activeResitAccess, resitScore } = require('../resit');
 const { filterWrittenQuestionsForClass } = require('../grading');
 const { resultAttemptKey } = require('../result-attempt');
-const { verifyResultScore } = require('../score-verification');
+const { buildGradingSnapshot, verifyResultScore } = require('../score-verification');
 function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, round2, requireStudent, applyAcademicPeriod, submissionGate }) {
   app.post('/api/results', requireStudent, submissionGate.middleware, async (req, res) => {
     const payload = req.body;
@@ -40,7 +40,7 @@ function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, grade
       attemptKey: resultAttemptKey(student.studentId, payload.questionKey, resit?.id),
       overallScore20, sectionScores: { mc, matching, written: written.total }, attemptType: resit ? 'resit' : 'normal', resitAccessId: resit?.id || null, sourceResultId: resit?.sourceResultId || null, resitScoreMax: resit?.scoreMax || null,
       tabSwitches: payload.tabSwitches || 0, fullscreenExitAttempts: payload.fullscreenExitAttempts || 0, reloadCount: payload.reloadCount || 0, rightClickAttempts: payload.rightClickAttempts || 0, copyAttempts: payload.copyAttempts || 0,
-      integrityEvents, published: false, detail: { answers, writtenPerQuestion: written.perQuestion, rawScore, visibleScoreMax }, submittedAt: new Date().toISOString()
+      integrityEvents, published: false, detail: { answers, writtenPerQuestion: written.perQuestion, rawScore, visibleScoreMax, gradingSnapshot: buildGradingSnapshot(set, student.classRoom) }, submittedAt: new Date().toISOString()
     };
     if (resit) record.convertedScore = resitScore(record.overallScore20, resit.scoreMax);
     record.scoreVerification = { ...verifyResultScore(record, set), verifiedAt: new Date().toISOString() };
