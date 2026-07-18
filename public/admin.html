@@ -532,8 +532,8 @@ async function apiResetStudentPin(id){ return apiFetch('/api/students/'+encodeUR
 async function apiGetClasses(period){ return apiFetch('/api/classes'+(period?('?period='+encodeURIComponent(period)):''), { admin:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, admin:true }); }
-async function apiUpdateDfdScores(id, dfdLevelScores){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores}, admin:true }); }
-async function apiUpdateWrittenScores(id, writtenManualScores){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{writtenManualScores}, admin:true }); }
+async function apiUpdateDfdScores(id, dfdLevelScores, reason){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores,reason}, admin:true }); }
+async function apiUpdateWrittenScores(id, writtenManualScores, reason){ return apiFetch('/api/results/'+encodeURIComponent(id), { method:'PATCH', body:{writtenManualScores,reason}, admin:true }); }
 async function apiPublishAllForSet(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/publish', { method:'POST', admin:true }); }
 async function apiGetTeachers(){ return apiFetch('/api/teachers', { admin:true }); }
 async function apiAddTeacher(t){ return apiFetch('/api/teachers', { method:'POST', body:t, admin:true }); }
@@ -545,6 +545,11 @@ function escapeAttr(str){ return escapeHtml(str).replace(/\n/g,' '); }
 function showToast(msg){
   const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
   document.body.appendChild(t); setTimeout(()=>t.remove(), 2800);
+}
+function askChangeReason(action){
+  const value=prompt(`กรุณาระบุเหตุผลในการ${action}\n(กดยกเลิกเพื่อไม่ดำเนินการ)`);
+  if(value===null) return null;
+  const reason=value.trim(); if(!reason){showToast('ต้องระบุเหตุผลก่อนดำเนินการ');return null;} return reason;
 }
 
 let EXAM_TYPES = ['กลางภาค','ปลายภาค'];
@@ -2034,8 +2039,8 @@ async function refreshResults(){
   }
   wrap.innerHTML = renderResultGroups(records);
   wrap.querySelectorAll('[data-delres]').forEach(b=>b.addEventListener('click', async ()=>{
-    if(!confirm('ลบผลสอบรายการนี้?')) return;
-    try{ await apiFetch('/api/results/'+encodeURIComponent(b.dataset.delres), { method:'DELETE', admin:true }); refreshResults(); }
+    const reason=askChangeReason('ลบผลสอบรายการนี้'); if(reason===null) return;
+    try{ await apiFetch('/api/results/'+encodeURIComponent(b.dataset.delres), { method:'DELETE', body:{reason}, admin:true }); refreshResults(); }
     catch(e){ showToast(e.message); }
   }));
   wrap.querySelectorAll('[data-togglepub]').forEach(b=>b.addEventListener('click', async ()=>{
@@ -2064,8 +2069,9 @@ function toggleDetailRow(resultId){
       const button=event.currentTarget;
       const scores=[0,1,2].map(level=>Number(td.querySelector(`[data-dfd-score-level="${level}"]`).value));
       if(scores.some(score=>!Number.isFinite(score)||score<0||score>100)){ showToast('แต่ละ Level ต้องมีคะแนน 0–100'); return; }
+      const reason=askChangeReason('แก้คะแนน DFD'); if(reason===null) return;
       button.disabled=true; button.textContent='กำลังบันทึก...';
-      try{ await apiUpdateDfdScores(rec.id, scores); showToast('ปรับคะแนน DFD แล้ว ระบบคำนวณรวม /20 ใหม่แล้ว'); refreshResults(); }
+      try{ await apiUpdateDfdScores(rec.id, scores, reason); showToast('ปรับคะแนน DFD แล้ว ระบบคำนวณรวม /20 ใหม่แล้ว'); refreshResults(); }
       catch(error){ showToast(error.message); button.disabled=false; button.textContent='บันทึกคะแนนที่ปรับ'; }
     });
   }else if(!set){
@@ -2097,7 +2103,7 @@ function toggleDetailRow(resultId){
       return `${i+1}. ${escapeHtml(qq.text)} (auto: ${pts}/${qq.maxPoints})<br>&nbsp;&nbsp;คำตอบ: ${escapeHtml(text)}<br>&nbsp;&nbsp;คะแนนอาจารย์: <input class="dfd-score-input" data-written-score="${qq.id}" type="number" min="0" max="${qq.maxPoints}" step="0.5" value="${manual??pts}"> / ${qq.maxPoints}`;
     }).join('<br><br>') + `<div class="editor-actions"><button class="btn btn-primary btn-sm" data-save-written>บันทึกคะแนนอัตนัย</button></div></div>`;
     td.innerHTML = renderIntegrityReview(rec) + html;
-    td.querySelector('[data-save-written]')?.addEventListener('click', async event=>{ const scores={}; td.querySelectorAll('[data-written-score]').forEach(input=>scores[input.dataset.writtenScore]=Number(input.value)); try{ await apiUpdateWrittenScores(rec.id,scores); showToast('บันทึกคะแนนอัตนัยแล้ว'); refreshResults(); }catch(error){ showToast(error.message); } });
+    td.querySelector('[data-save-written]')?.addEventListener('click', async event=>{ const scores={}; td.querySelectorAll('[data-written-score]').forEach(input=>scores[input.dataset.writtenScore]=Number(input.value)); const reason=askChangeReason('แก้คะแนนอัตนัย'); if(reason===null)return; try{ await apiUpdateWrittenScores(rec.id,scores,reason); showToast('บันทึกคะแนนอัตนัยแล้ว'); refreshResults(); }catch(error){ showToast(error.message); } });
   }
   tr.appendChild(td);
   rowEl.after(tr);

@@ -1,6 +1,7 @@
 const { appendAuditLog, resultAuditSnapshot } = require('../audit-log');
 
 function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher, newId }) {
+  const changeReason = req => String(req.body?.reason || '').trim();
   const ownedResult = (db, teacherId, resultId) => {
     const result = db.results.find(row => row.id === resultId);
     return result && db.sets.some(set => set.key === result.questionKey && set.teacherId === teacherId) ? result : null;
@@ -17,6 +18,7 @@ function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher, new
   app.patch('/api/teacher/results/:id', requireTeacher, async (req, res) => {
     const db = readDB(); const result = ownedResult(db, req.teacherId, req.params.id);
     if (!result) return res.status(404).json({ error: 'not_found' });
+    if ((Array.isArray(req.body.dfdLevelScores) || (req.body.writtenManualScores && typeof req.body.writtenManualScores === 'object')) && !changeReason(req)) return res.status(400).json({ error: 'reason_required', message: 'กรุณาระบุเหตุผลในการแก้คะแนน' });
     const before = resultAuditSnapshot(result);
     if (typeof req.body.published === 'boolean') result.published = req.body.published;
     if (Array.isArray(req.body.dfdLevelScores)) {
@@ -57,6 +59,7 @@ function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher, new
     await writeDB(db); res.json({ ok: true, count });
   });
   app.delete('/api/teacher/results/:id', requireTeacher, async (req, res) => {
+    if (!changeReason(req)) return res.status(400).json({ error: 'reason_required', message: 'กรุณาระบุเหตุผลในการลบผลสอบ' });
     const db = readDB(); const result = ownedResult(db, req.teacherId, req.params.id); if (!result) return res.status(404).json({ error: 'not_found' });
     appendAuditLog(db, { newId, actorType: 'teacher', actorId: req.teacherId, action: 'result_deleted', targetId: result.id, questionKey: result.questionKey, before: resultAuditSnapshot(result), reason: req.body?.reason });
     db.results = db.results.filter(row => row.id !== req.params.id); await writeDB(db); res.json({ ok: true });

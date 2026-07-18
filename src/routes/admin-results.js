@@ -1,6 +1,7 @@
 const { appendAuditLog, resultAuditSnapshot } = require('../audit-log');
 
 function registerAdminResultRoutes(app, { readDB, writeDB, requireAdmin, newId }) {
+  const changeReason = req => String(req.body?.reason || '').trim();
   app.get('/api/results', requireAdmin, (req, res) => {
     let rows = [...readDB().results];
     if (req.query.setKey) rows = rows.filter(row => row.questionKey === req.query.setKey);
@@ -11,6 +12,7 @@ function registerAdminResultRoutes(app, { readDB, writeDB, requireAdmin, newId }
   });
 
   app.delete('/api/results/:id', requireAdmin, async (req, res) => {
+    if (!changeReason(req)) return res.status(400).json({ error: 'reason_required', message: 'กรุณาระบุเหตุผลในการลบผลสอบ' });
     const db = readDB(); const result = db.results.find(row => row.id === req.params.id);
     if (!result) return res.status(404).json({ error: 'not_found' });
     appendAuditLog(db, { newId, actorType: 'admin', action: 'result_deleted', targetId: result.id, questionKey: result.questionKey, before: resultAuditSnapshot(result), reason: req.body?.reason });
@@ -20,6 +22,7 @@ function registerAdminResultRoutes(app, { readDB, writeDB, requireAdmin, newId }
   app.patch('/api/results/:id', requireAdmin, async (req, res) => {
     const db = readDB(); const result = db.results.find(row => row.id === req.params.id);
     if (!result) return res.status(404).json({ error: 'not_found' });
+    if ((Array.isArray(req.body.dfdLevelScores) || (req.body.writtenManualScores && typeof req.body.writtenManualScores === 'object')) && !changeReason(req)) return res.status(400).json({ error: 'reason_required', message: 'กรุณาระบุเหตุผลในการแก้คะแนน' });
     const before = resultAuditSnapshot(result);
     if (typeof req.body.published === 'boolean') result.published = req.body.published;
     if (Array.isArray(req.body.dfdLevelScores)) {
