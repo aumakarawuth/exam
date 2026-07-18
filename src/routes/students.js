@@ -1,8 +1,9 @@
 const express = require('express');
 const XLSX = require('xlsx');
 const { validateStudentPayload, sendValidationError } = require('../validation');
+const { nextDraftRevision } = require('../draft-revision');
 
-function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
+function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
   const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '' });
   const pinRecoveryFailures = new Map();
@@ -47,9 +48,17 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   app.post('/api/exam-drafts/:questionKey/claim', requireStudent, async (req, res) => {
     const db = readDB(); const deviceId = String(req.body?.deviceId || ''); const questionKey = String(req.params.questionKey || ''); const resitAccessId=req.body?.resitAccessId || null;
     if (!/^[a-z0-9_-]{12,80}$/i.test(deviceId) || !db.sets.some(set => set.key === questionKey)) return res.status(400).json({ error:'invalid_payload', message:'ไม่สามารถยืนยันอุปกรณ์สอบได้' });
-    const key=`${req.studentId}::${draftId(questionKey,resitAccessId)}`; const current=db.drafts.find(item=>item.draftKey===key);
-    if(lockActive(current) && current.deviceId!==deviceId) return res.status(409).json({ error:'active_on_other_device', message:'กำลังทำข้อสอบนี้อยู่บนอุปกรณ์อื่น กรุณากลับไปทำต่อที่อุปกรณ์เดิม หรือรอประมาณ 2 นาทีหลังปิดอุปกรณ์เดิม' });
-    db.drafts=db.drafts.filter(item=>item.draftKey!==key); const draft={...(current||{}),draftKey:key,studentId:req.studentId,questionKey,resitAccessId,deviceId,lockUntil:lockUntil(),savedAt:new Date().toISOString()}; db.drafts.push(draft); await writeDB(db); res.json({ok:true,draft});
+    try {
+      const draft = await mutateDB(latest => {
+        const key=`${req.studentId}::${draftId(questionKey,resitAccessId)}`; const current=latest.drafts.find(item=>item.draftKey===key);
+        if(lockActive(current) && current.deviceId!==deviceId) { const error=new Error('active_on_other_device'); error.code='ACTIVE_OTHER_DEVICE'; throw error; }
+        latest.drafts=latest.drafts.filter(item=>item.draftKey!==key); const next={...(current||{}),revision:Number(current?.revision)||0,draftKey:key,studentId:req.studentId,questionKey,resitAccessId,deviceId,lockUntil:lockUntil(),savedAt:new Date().toISOString()}; latest.drafts.push(next); return next;
+      });
+      res.json({ok:true,draft});
+    } catch(error) {
+      if(error.code==='ACTIVE_OTHER_DEVICE') return res.status(409).json({ error:'active_on_other_device', message:'กำลังทำข้อสอบนี้อยู่บนอุปกรณ์อื่น กรุณากลับไปทำต่อที่อุปกรณ์เดิม หรือรอประมาณ 2 นาทีหลังปิดอุปกรณ์เดิม' });
+      throw error;
+    }
   });
   app.get('/api/exam-drafts/:questionKey', requireStudent, (req, res) => {
     const db = readDB();
@@ -64,18 +73,26 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     const questionKey = String(req.params.questionKey || ''); const payload = req.body?.draft;
     if (!student || !db.sets.some(set => set.key === questionKey)) return res.status(404).json({ error: 'not_found' });
     if (!payload || typeof payload !== 'object' || JSON.stringify(payload).length > 250000) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลร่างข้อสอบไม่ถูกต้อง' });
-    const key = `${student.studentId}::${draftId(questionKey, payload.resitAccessId)}`;
-    const current=db.drafts.find(item=>item.draftKey===key); const deviceId=String(payload.deviceId||'');
-    if(lockActive(current) && current.deviceId!==deviceId) return res.status(409).json({ error:'active_on_other_device', message:'อุปกรณ์นี้ไม่ได้รับสิทธิ์ทำข้อสอบ' });
-    db.drafts = db.drafts.filter(item => item.draftKey !== key);
-    const draft = { ...payload, draftKey: key, studentId: student.studentId, questionKey, deviceId, lockUntil:lockUntil(), savedAt: new Date().toISOString() };
-    db.drafts.push(draft);
-    await writeDB(db); res.json({ ok: true, savedAt: draft.savedAt });
+    try {
+      const draft = await mutateDB(latest => {
+        const key = `${student.studentId}::${draftId(questionKey, payload.resitAccessId)}`;
+        const current=latest.drafts.find(item=>item.draftKey===key); const deviceId=String(payload.deviceId||'');
+        if(lockActive(current) && current.deviceId!==deviceId) { const error=new Error('active_on_other_device'); error.code='ACTIVE_OTHER_DEVICE'; throw error; }
+        const revision=nextDraftRevision(current,payload.revision);
+        latest.drafts = latest.drafts.filter(item => item.draftKey !== key);
+        const next = { ...payload, revision, draftKey: key, studentId: student.studentId, questionKey, deviceId, lockUntil:lockUntil(), savedAt: new Date().toISOString() };
+        latest.drafts.push(next); return next;
+      });
+      res.json({ ok: true, savedAt: draft.savedAt, revision:draft.revision });
+    } catch(error) {
+      if(error.code==='ACTIVE_OTHER_DEVICE') return res.status(409).json({ error:'active_on_other_device', message:'อุปกรณ์นี้ไม่ได้รับสิทธิ์ทำข้อสอบ' });
+      if(error.code==='DRAFT_CONFLICT') return res.status(409).json({ error:'draft_conflict', message:'มีคำตอบเวอร์ชันใหม่กว่าบนเซิร์ฟเวอร์', currentRevision:error.currentRevision });
+      throw error;
+    }
   });
   app.delete('/api/exam-drafts/:questionKey', requireStudent, async (req, res) => {
-    const db = readDB(); const student = findStudent(db.students, req.studentId);
-    db.drafts = db.drafts.filter(item => item.draftKey !== `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`);
-    await writeDB(db); res.status(204).end();
+    await mutateDB(db => { db.drafts = db.drafts.filter(item => item.draftKey !== `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`); });
+    res.status(204).end();
   });
 
   app.post('/api/students/:studentId/set-pin', async (req, res) => {

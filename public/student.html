@@ -471,6 +471,7 @@ const SECTION_ICON = {mc:'📝', matching:'🔗', written:'✍️'};
 let app = {
   studentId: null, studentName: '', classRoom: '', studentToken: sessionStorage.getItem('examStudentToken') || '',
   questionKey: null, section: null, lateCode: null,
+  draftRevision: 0,
   submittedSections: {mc:false, matching:false, written:false},
   mcState: null, /* {forKey, order:[qid...], choiceOrder:{qid:[origIdx...]}, currentIndex} */
   timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
@@ -513,6 +514,8 @@ function initMcStateIfNeeded(){
 const SESSION_KEY = 'examSession';
 let _saveDebounceHandle = null;
 let _serverSaveHandle = null;
+let _serverSaveInFlight = false;
+let _pendingServerPayload = null;
 let pageIsLeaving = false;
 let tabSwitchCheckTimer = null;
 function saveSession(){
@@ -525,7 +528,7 @@ function saveSession(){
     reloadCount: app.reloadCount, tabSwitches: state.tabSwitches, tabWarningAcknowledged: state.tabWarningAcknowledged,
     fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
     integrityEvents: state.integrityEvents,
-    draftAnswers: draftAnswers, eligibleSets: ELIGIBLE_SETS
+    draftAnswers: draftAnswers, eligibleSets: ELIGIBLE_SETS, draftRevision:app.draftRevision||0
   };
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); updateAutosaveTag('saved'); }
   catch(e){ updateAutosaveTag('error'); }
@@ -534,10 +537,20 @@ function saveSession(){
 function queueServerSave(payload){
   if(!navigator.onLine || !app.studentToken || app.examEnded) return;
   clearTimeout(_serverSaveHandle);
-  _serverSaveHandle=setTimeout(async()=>{
-    const draft={questionKey:payload.questionKey,resitAccessId:app.resitAccessId||null,deviceId:EXAM_DEVICE_ID,section:payload.section,lateCode:payload.lateCode,submittedSections:payload.submittedSections,mcState:payload.mcState,examEndTime:payload.examEndTime,reloadCount:payload.reloadCount,tabSwitches:payload.tabSwitches,tabWarningAcknowledged:payload.tabWarningAcknowledged,fullscreenExitAttempts:payload.fullscreenExitAttempts,rightClickAttempts:payload.rightClickAttempts,copyAttempts:payload.copyAttempts,integrityEvents:payload.integrityEvents,draftAnswers:payload.draftAnswers};
-    try{await apiSaveExamDraft(payload.questionKey,draft);updateAutosaveTag('saved');}catch(error){/* local backup remains available while offline */}
-  },1200);
+  _pendingServerPayload=payload;
+  _serverSaveHandle=setTimeout(flushServerSave,1200);
+}
+async function flushServerSave(){
+  if(_serverSaveInFlight || !_pendingServerPayload || app.examEnded) return;
+  const payload=_pendingServerPayload; _pendingServerPayload=null; _serverSaveInFlight=true;
+  const draft={questionKey:payload.questionKey,resitAccessId:app.resitAccessId||null,deviceId:EXAM_DEVICE_ID,revision:app.draftRevision||0,section:payload.section,lateCode:payload.lateCode,submittedSections:payload.submittedSections,mcState:payload.mcState,examEndTime:payload.examEndTime,reloadCount:payload.reloadCount,tabSwitches:payload.tabSwitches,tabWarningAcknowledged:payload.tabWarningAcknowledged,fullscreenExitAttempts:payload.fullscreenExitAttempts,rightClickAttempts:payload.rightClickAttempts,copyAttempts:payload.copyAttempts,integrityEvents:payload.integrityEvents,draftAnswers:payload.draftAnswers};
+  try{
+    let saved;
+    try{saved=await apiSaveExamDraft(payload.questionKey,draft);}
+    catch(error){if(error.payload?.error!=='draft_conflict') throw error; app.draftRevision=Number(error.payload.currentRevision)||0; draft.revision=app.draftRevision; saved=await apiSaveExamDraft(payload.questionKey,draft);}
+    app.draftRevision=Number(saved.revision)||app.draftRevision; updateAutosaveTag('saved');
+  }catch(error){updateAutosaveTag('error');}
+  finally{_serverSaveInFlight=false;if(_pendingServerPayload) flushServerSave();}
 }
 function updateAutosaveTag(status){
   const tag = document.getElementById('autosaveTag');
@@ -847,7 +860,7 @@ function applyServerDraft(draft){
   app.section=draft.section||null; app.lateCode=draft.lateCode||null; app.submittedSections=draft.submittedSections||{mc:false,matching:false,written:false};
   app.mcState=draft.mcState||null; app.examEndTime=draft.examEndTime; app.timeLeft=Math.max(0,Math.round((new Date(draft.examEndTime).getTime()-Date.now())/1000));
   app.reloadCount=(Number(draft.reloadCount)||0)+1; state={tabSwitches:Number(draft.tabSwitches)||0,tabWarningAcknowledged:Number(draft.tabWarningAcknowledged)||0,fullscreenExitAttempts:Number(draft.fullscreenExitAttempts)||0,rightClickAttempts:Number(draft.rightClickAttempts)||0,copyAttempts:Number(draft.copyAttempts)||0,integrityEvents:Array.isArray(draft.integrityEvents)?draft.integrityEvents:[]};
-  draftAnswers=draft.draftAnswers||{mc:{},matching:{},written:{}}; return true;
+  app.draftRevision=Number(draft.revision)||0; draftAnswers=draft.draftAnswers||{mc:{},matching:{},written:{}}; return true;
 }
 document.getElementById('confirmQBtn').addEventListener('click', async ()=>{
   if(!pickedKey) return;
@@ -857,7 +870,7 @@ document.getElementById('confirmQBtn').addEventListener('click', async ()=>{
   app.questionKey = pickedKey;
   app.resitAccessId = ELIGIBLE_SETS_BY_KEY[pickedKey].resitAccessId || null;
   app.lateCode = lateCodeVerified[pickedKey] || null;
-  try{await apiClaimExamDevice(pickedKey,app.resitAccessId);}catch(error){showToast(error.message);return;}
+  try{const claim=await apiClaimExamDevice(pickedKey,app.resitAccessId);app.draftRevision=Number(claim.draft?.revision)||0;}catch(error){showToast(error.message);return;}
   try{ const remote=await apiGetExamDraft(pickedKey,app.resitAccessId); if(applyServerDraft(remote.draft)) showToast('กู้คืนคำตอบที่บันทึกไว้จากเซิร์ฟเวอร์แล้ว'); }catch(error){}
   requestExamFullscreen();
   selectScreen.classList.add('hidden');
@@ -1292,7 +1305,7 @@ async function finalizeExam(reason){
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
   finalSubmissionInProgress=false;
   clearSessionData();
-  app = {studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, studentToken:app.studentToken, questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
+  app = {studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, studentToken:app.studentToken, questionKey:null, section:null, lateCode:null, draftRevision:0, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
   state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0, integrityEvents:[]};
   draftAnswers = {mc:{}, matching:{}, written:{}};
   proceedToSelectScreen();
@@ -1309,6 +1322,7 @@ function attemptResumeSession(){
 
   app.studentId = saved.studentId; app.studentName = saved.studentName || ''; app.classRoom = saved.classRoom || '';
   app.questionKey = saved.questionKey; app.lateCode = saved.lateCode || null;
+  app.draftRevision = Number(saved.draftRevision)||0;
   app.submittedSections = saved.submittedSections || {mc:false, matching:false, written:false};
   app.mcState = saved.mcState || null;
   app.examEndTime = saved.examEndTime;
