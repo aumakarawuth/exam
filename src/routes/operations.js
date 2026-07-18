@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { DATABASE_URL, SQLITE_PATH } = require('../config');
 const { verificationSummary } = require('../score-verification');
+const { readinessSummary } = require('../exam-readiness');
 
 function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics, submissionGate }) {
   app.get('/api/admin/operations', requireAdmin, (req, res) => {
@@ -27,6 +28,7 @@ function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, tea
       requests,
       submissions: submissionGate.snapshot(),
       scoreVerification: verificationSummary(db),
+      examReadiness: readinessSummary(db.sets),
       counts: {
         students: db.students.length,
         teachers: db.teachers.length,

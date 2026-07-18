@@ -1,4 +1,5 @@
 const { activeResitAccess } = require('../resit');
+const { checkExamReadiness } = require('../exam-readiness');
 function registerPublicExamRoutes(app, { readDB, examTypes, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, requireStudent }) {
   app.get('/api/exam-types', (req, res) => res.json(examTypes));
 
@@ -8,7 +9,7 @@ function registerPublicExamRoutes(app, { readDB, examTypes, sanitizeSetForStuden
     if (!student) return res.status(401).json({ error: 'unauthorized' });
     const sets = db.sets
       .map(set => ({ set, resit: activeResitAccess(set, student.studentId) }))
-      .filter(({ set, resit }) => !set.archived && (!set.delivery || set.delivery === 'object-analysis-design') && (resit || (hasExamAccess(set, student.classRoom) && !isBeforeStart(set, student.classRoom) && !isPastDeadline(set, student.classRoom))))
+      .filter(({ set, resit }) => !set.archived && checkExamReadiness(set).ready && (!set.delivery || set.delivery === 'object-analysis-design') && (resit || (hasExamAccess(set, student.classRoom) && !isBeforeStart(set, student.classRoom) && !isPastDeadline(set, student.classRoom))))
       .map(({ set, resit }) => Object.assign(sanitizeSetForStudent(set, student.classRoom), { delivery: set.delivery || null }, resit ? { accessMode: 'resit', resitAccessId: resit.id, availableFrom: resit.availableFrom, availableUntil: resit.availableUntil, lateAccessRequired: false, resitScoreMax: resit.scoreMax } : {}));
     res.json(sets);
   });

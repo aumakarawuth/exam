@@ -2,6 +2,7 @@ const { activeResitAccess, resitScore } = require('../resit');
 const { filterWrittenQuestionsForClass } = require('../grading');
 const { resultAttemptKey } = require('../result-attempt');
 const { buildGradingSnapshot, verifyResultScore } = require('../score-verification');
+const { checkExamReadiness } = require('../exam-readiness');
 function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, round2, requireStudent, applyAcademicPeriod, submissionGate }) {
   app.post('/api/results', requireStudent, submissionGate.middleware, async (req, res) => {
     const payload = req.body;
@@ -11,6 +12,8 @@ function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, grade
     if (!student) return res.status(401).json({ error: 'unauthorized' });
     const set = db.sets.find(item => item.key === payload.questionKey);
     if (!set || set.archived) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบนี้ในระบบ' });
+    const readiness = checkExamReadiness(set);
+    if (!readiness.ready) return res.status(409).json({ error: 'exam_not_ready', message: 'ชุดข้อสอบยังไม่ผ่านการตรวจความพร้อม กรุณาแจ้งอาจารย์ผู้สอน', details: readiness.errors });
     applyAcademicPeriod(set, db.settings);
     const resit = payload.resitAccessId ? activeResitAccess(set, student.studentId, payload.resitAccessId) : null;
     if (!resit && isBeforeStart(set, student.classRoom)) return res.status(403).json({ error: 'not_started', message: 'ยังไม่ถึงเวลาเริ่มสอบ' });

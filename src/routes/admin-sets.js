@@ -1,7 +1,9 @@
 const { validateExamSetPayload, sendValidationError } = require('../validation');
+const { checkExamReadiness } = require('../exam-readiness');
 
 function registerAdminSetRoutes(app, { readDB, writeDB, requireAdmin, examTypes, newId, applyAcademicPeriod }) {
   app.get('/api/admin/sets', requireAdmin, (req, res) => res.json(readDB().sets));
+  app.get('/api/admin/sets/:key/readiness', requireAdmin, (req, res) => { const set = readDB().sets.find(item => item.key === req.params.key); if (!set) return res.status(404).json({ error: 'not_found' }); res.json(checkExamReadiness(set)); });
 
   app.post('/api/sets', requireAdmin, async (req, res) => {
     const body = req.body;

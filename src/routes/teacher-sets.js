@@ -1,8 +1,10 @@
 const { validateExamSetPayload, sendValidationError } = require('../validation');
+const { checkExamReadiness } = require('../exam-readiness');
 
 function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTypes, newId, applyAcademicPeriod }) {
   const owned = (db, key, teacherId) => db.sets.find(set => set.key === key && set.teacherId === teacherId);
   app.get('/api/teacher/sets', requireTeacher, (req, res) => res.json(readDB().sets.filter(set => set.teacherId === req.teacherId)));
+  app.get('/api/teacher/sets/:key/readiness', requireTeacher, (req, res) => { const set = owned(readDB(), req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' }); res.json(checkExamReadiness(set)); });
   app.post('/api/teacher/sets', requireTeacher, async (req, res) => {
     const body = req.body; const errors = validateExamSetPayload(body);
     if (errors.length) return sendValidationError(res, errors);

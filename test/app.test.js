@@ -85,6 +85,8 @@ test('operations requires admin access and reports system health', async () => {
   assert.equal(body.submissions.maxPending, 500);
   assert.equal(typeof body.scoreVerification.verified, 'number');
   assert.equal(typeof body.scoreVerification.mismatch, 'number');
+  assert.equal(typeof body.examReadiness.ready, 'number');
+  assert.equal(typeof body.examReadiness.blocked, 'number');
   assert.equal(Array.isArray(body.recentActivity), true);
 });
 
