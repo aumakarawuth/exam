@@ -1,10 +1,12 @@
 const fs = require('fs');
 const { DATABASE_URL, SQLITE_PATH } = require('../config');
 
-function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions }) {
+function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics }) {
   app.get('/api/admin/operations', requireAdmin, (req, res) => {
     const db = readDB();
     const memory = process.memoryUsage();
+    const requests = runtimeMetrics.snapshot();
+    requests.inFlight = Math.max(0, requests.inFlight - 1);
     let databaseBytes = null;
     if (!DATABASE_URL) {
       try { databaseBytes = fs.statSync(SQLITE_PATH).size; } catch (error) { databaseBytes = null; }
@@ -21,6 +23,7 @@ function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, tea
       database: { status: 'connected', engine: DATABASE_URL ? 'PostgreSQL' : 'SQLite', sizeBytes: databaseBytes },
       storage: { status: assetStorage.configured ? 'configured' : 'not_configured', maxBytes: assetStorage.maxBytes },
       memory: { rssBytes: memory.rss, heapUsedBytes: memory.heapUsed, heapTotalBytes: memory.heapTotal },
+      requests,
       counts: {
         students: db.students.length,
         teachers: db.teachers.length,
