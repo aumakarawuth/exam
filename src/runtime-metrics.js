@@ -7,7 +7,7 @@ function createRuntimeMetrics({ now = () => Date.now() } = {}) {
   const recentFailures = [];
 
   function middleware(req, res, next) {
-    if (!req.path.startsWith('/api')) return next();
+    if (!req.path.startsWith('/api') || req.path === '/api/admin/operations/stream') return next();
     const requestStartedAt = now();
     let completed = false;
     inFlight += 1;

@@ -25,3 +25,12 @@ test('runtime metrics ignore non-API requests', () => {
   metrics.middleware({ path: '/admin', method: 'GET' }, new EventEmitter(), () => {});
   assert.equal(metrics.snapshot().totalRequests, 0);
 });
+
+test('runtime metrics ignore long-lived Operations streams', () => {
+  const metrics = createRuntimeMetrics();
+  let nextCalled = false;
+  metrics.middleware({ path: '/api/admin/operations/stream' }, {}, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  assert.equal(metrics.snapshot().inFlight, 0);
+  assert.equal(metrics.snapshot().totalRequests, 0);
+});

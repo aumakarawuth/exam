@@ -121,6 +121,11 @@ test('manual restore drill requires encrypted backup configuration', async () =>
   assert.equal(JSON.parse(response.body).error, 'restore_drill_not_configured');
 });
 
+test('live Operations stream requires administrator authentication', async () => {
+  const response = await request('/api/admin/operations/stream');
+  assert.equal(response.status, 401);
+});
+
 test('student lookup returns a stable not-found response', async () => {
   const response = await request('/api/students/not-a-student');
   assert.equal(response.status, 404);

@@ -3,7 +3,43 @@ const { DATABASE_URL, SQLITE_PATH } = require('../config');
 const { verificationSummary } = require('../score-verification');
 const { readinessSummary } = require('../exam-readiness');
 
+function liveOperationsSnapshot(db, { submissions, jobs, requests }, now = Date.now()) {
+  const activeStudentIds = new Set(db.drafts.filter(draft => draft.studentId && new Date(draft.lockUntil || 0).getTime() > now).map(draft => draft.studentId));
+  const recentCutoff = now - 5 * 60 * 1000;
+  const activeExams = db.sets.filter(set => !set.archived && !set.deletedAt && (!set.availableFrom || new Date(set.availableFrom).getTime() <= now) && (!set.availableUntil || new Date(set.availableUntil).getTime() >= now)).length;
+  return {
+    generatedAt: new Date(now).toISOString(), activeStudents: activeStudentIds.size, activeExams,
+    resultsLast5Minutes: db.results.filter(result => new Date(result.submittedAt || 0).getTime() >= recentCutoff).length,
+    submissions: { active: submissions.active, pending: submissions.pending, overloaded: submissions.overloaded },
+    jobs: { active: jobs.active, pending: jobs.pending, failed: jobs.failed },
+    api: { inFlight: requests.inFlight, errorRatePercent: requests.errorRatePercent }
+  };
+}
+
 function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, runtimeMetrics, submissionGate, pingDatabase, readinessTimeoutMs, backupService, restoreDrill, enqueueRestoreDrill, systemMonitor, alertManager, jobQueue, sessionStore }) {
+  let activeStreams = 0;
+  app.get('/api/admin/operations/stream', requireAdmin, (req, res) => {
+    if (activeStreams >= 5) return res.status(429).json({ error: 'stream_limit', message: 'Too many live Operations connections.' });
+    activeStreams += 1;
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write('retry: 3000\n\n');
+    const publish = () => {
+      const snapshot = liveOperationsSnapshot(readDB(), { submissions: submissionGate.snapshot(), jobs: jobQueue.snapshot(), requests: runtimeMetrics.snapshot() });
+      res.write(`event: operations\ndata: ${JSON.stringify(snapshot)}\n\n`);
+    };
+    publish();
+    const timer = setInterval(publish, 3000);
+    timer.unref?.();
+    let closed = false;
+    const close = () => { if (closed) return; closed = true; clearInterval(timer); activeStreams = Math.max(0, activeStreams - 1); };
+    req.once('close', close);
+    res.once('close', close);
+  });
+
   app.post('/api/admin/operations/restore-drill', requireAdmin, (req, res) => {
     if (!restoreDrill.status().configured) return res.status(409).json({ error: 'restore_drill_not_configured', message: 'Encrypted backup and restore drill must be configured first.' });
     const queued = enqueueRestoreDrill();
@@ -61,4 +97,4 @@ function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, run
   });
 }
 
-module.exports = { registerOperationsRoutes };
+module.exports = { registerOperationsRoutes, liveOperationsSnapshot };
