@@ -143,6 +143,16 @@ test('live Operations stream requires administrator authentication', async () =>
   assert.equal(response.status, 401);
 });
 
+test('score verification detail report is admin-only and omits answer data', async () => {
+  assert.equal((await request('/api/admin/operations/score-verification')).status, 401);
+  const response = await request('/api/admin/operations/score-verification', { headers: { 'x-admin-key': ADMIN_KEY } });
+  assert.equal(response.status, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(Array.isArray(body.issues), true);
+  const containsForbiddenKey = value => value && typeof value === 'object' && (Object.keys(value).some(key => ['answers', 'correctMap', 'keywords', 'answerCode'].includes(key)) || Object.values(value).some(containsForbiddenKey));
+  assert.equal(containsForbiddenKey(body), false);
+});
+
 test('student lookup returns a stable not-found response', async () => {
   const response = await request('/api/students/not-a-student');
   assert.equal(response.status, 404);

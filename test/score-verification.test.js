@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildGradingSnapshot, verifyResultScore } = require('../src/score-verification');
+const { buildGradingSnapshot, verifyResultScore, verificationReport } = require('../src/score-verification');
 
 const set = { sections: { mc: { questions: [{ id: 'm1', answer: 1, points: 5 }] }, matching: { left: [{ id: 'l1' }], correctMap: { l1: 'r1' }, pointsEach: 5 }, written: { questions: [{ id: 'w1', keywords: ['alpha'], maxPoints: 10 }] } } };
 const result = { classRoom: '1/1', sectionScores: { mc: 5, matching: 5, written: 10 }, overallScore20: 20, detail: { answers: { mc: { m1: 1 }, matching: { l1: 'r1' }, written: { w1: 'alpha' } } } };
@@ -38,4 +38,16 @@ test('score verification blocks a grading snapshot that was modified after submi
   const verification = verifyResultScore(tampered, set);
   assert.equal(verification.status, 'mismatch');
   assert.equal(verification.reason, 'grading_snapshot_corrupt');
+});
+
+test('verification report identifies mismatched sections without exposing answers', () => {
+  const exam = { ...structuredClone(set), key: 'set-1', title: 'วิชาทดสอบ' };
+  const corrupted = { ...structuredClone(result), id: 'result-1', studentId: '10001', questionKey: 'set-1', overallScore20: 19 };
+  const issues = verificationReport({ sets: [exam], results: [corrupted], students: [{ studentId: '10001', firstName: 'สมชาย', lastName: 'ใจดี', classRoom: 'ม.3/1' }] });
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].reason, 'score_components_mismatch');
+  assert.deepEqual(issues[0].differences, [{ section: 'overall', expected: 20, actual: 19, delta: -1 }]);
+  assert.equal(issues[0].studentName, 'สมชาย ใจดี');
+  assert.equal('answers' in issues[0], false);
+  assert.equal(JSON.stringify(issues).includes('alpha'), false);
 });

@@ -68,4 +68,28 @@ function verificationSummary(db) {
   return summary;
 }
 
-module.exports = { GRADING_VERSION, buildGradingSnapshot, verifyResultScore, verificationSummary };
+function verificationReport(db, { limit = 100 } = {}) {
+  const issues = [];
+  for (const result of db.results) {
+    const set = db.sets.find(item => item.key === result.questionKey);
+    const verification = verifyResultScore(result, set);
+    if (verification.status === 'verified') continue;
+    const student = db.students.find(item => item.studentId === result.studentId);
+    const differences = [];
+    for (const section of ['mc', 'matching', 'written', 'overall']) {
+      const expected = verification.expected?.[section];
+      const actual = verification.actual?.[section];
+      if (expected !== undefined && actual !== undefined && !sameScore(expected, actual)) differences.push({ section, expected: Number(expected), actual: Number(actual), delta: round2(Number(actual) - Number(expected)) });
+    }
+    issues.push({
+      resultId: result.id, studentId: result.studentId, studentName: [student?.firstName || result.firstName, student?.lastName || result.lastName].filter(Boolean).join(' '),
+      classRoom: student?.classRoom || result.classRoom || '', questionKey: result.questionKey, examTitle: set?.title || result.examTitle || '',
+      status: verification.status, reason: verification.reason || (differences.length ? 'score_components_mismatch' : 'score_mismatch'),
+      gradingVersion: verification.gradingVersion, differences, submittedAt: result.submittedAt || null, published: Boolean(result.published)
+    });
+    if (issues.length >= limit) break;
+  }
+  return issues;
+}
+
+module.exports = { GRADING_VERSION, buildGradingSnapshot, verifyResultScore, verificationSummary, verificationReport };

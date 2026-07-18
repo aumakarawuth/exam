@@ -1,6 +1,6 @@
 const fs = require('fs');
 const { DATABASE_URL, SQLITE_PATH } = require('../config');
-const { verificationSummary } = require('../score-verification');
+const { verificationSummary, verificationReport } = require('../score-verification');
 const { readinessSummary } = require('../exam-readiness');
 
 function liveOperationsSnapshot(db, { submissions, jobs, requests }, now = Date.now()) {
@@ -17,6 +17,11 @@ function liveOperationsSnapshot(db, { submissions, jobs, requests }, now = Date.
 }
 
 function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, runtimeMetrics, submissionGate, pingDatabase, readinessTimeoutMs, backupService, restoreDrill, enqueueRestoreDrill, systemMonitor, alertManager, jobQueue, sessionStore }) {
+  app.get('/api/admin/operations/score-verification', requireAdmin, (req, res) => {
+    const db = readDB();
+    res.json({ generatedAt: new Date().toISOString(), summary: verificationSummary(db), issues: verificationReport(db) });
+  });
+
   let activeStreams = 0;
   app.get('/api/admin/operations/stream', requireAdmin, (req, res) => {
     if (activeStreams >= 5) return res.status(429).json({ error: 'stream_limit', message: 'Too many live Operations connections.' });
