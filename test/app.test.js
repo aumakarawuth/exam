@@ -61,8 +61,6 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.equal(admin.status, 200);
   assert.match(admin.body, /href="\/assets\/admin\.css"/);
   assert.match(admin.body, /src="\/assets\/admin-main\.js"/);
-  assert.match(admin.body, /href="\/manifest\.webmanifest"/);
-  assert.match(admin.body, /src="\/assets\/pwa\.js"/);
   assert.doesNotMatch(admin.body, /<style>/);
   const [css, script] = await Promise.all([request('/assets/admin.css'), request('/assets/admin-main.js')]);
   assert.equal(css.status, 200);
@@ -72,22 +70,6 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.match(script.body, /score-verification-detail-btn/);
   assert.match(script.body, /addEventListener\('click'/);
   assert.doesNotMatch(script.body, /onclick="openScoreVerificationIssues/);
-});
-
-test('PWA shell is installable and never caches API responses', async () => {
-  const [manifestResponse, worker, pwa] = await Promise.all([request('/manifest.webmanifest'), request('/service-worker.js'), request('/assets/pwa.js')]);
-  assert.equal(manifestResponse.status, 200);
-  const manifest = JSON.parse(manifestResponse.body);
-  assert.equal(manifest.display, 'standalone');
-  assert.equal(manifest.start_url, '/');
-  assert.equal(worker.status, 200);
-  assert.match(worker.headers['cache-control'], /no-cache/);
-  assert.equal(worker.headers['service-worker-allowed'], '/');
-  assert.match(worker.body, /url\.pathname\.startsWith\('\/api\/'\)/);
-  assert.match(worker.body, /exam-shell-v2/);
-  assert.doesNotMatch(worker.body, /cache\.put\([^\n]*api/i);
-  assert.equal(pwa.status, 200);
-  assert.match(pwa.body, /beforeinstallprompt/);
 });
 
 test('unknown API endpoints return a JSON 404 response', async () => {

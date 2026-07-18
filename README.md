@@ -96,8 +96,6 @@ npm test
 
 Frontend หลักถูกแยกเป็น HTML สำหรับโครงสร้าง และไฟล์ CSS/JavaScript รายหน้าภายใต้ `public/assets/` เพื่อลดขนาดไฟล์ HTML และทำให้แก้ไข ทดสอบ และ cache asset ได้ง่ายขึ้น
 
-ระบบรองรับ PWA สำหรับติดตั้งบนอุปกรณ์และ cache เฉพาะ application shell โดย Service Worker จะไม่ intercept หรือ cache `/api/*`, ข้อมูลข้อสอบ คะแนน หรือ session ใด ๆ และจะแสดงสถานะ offline ให้ผู้ใช้ทราบชัดเจน
-
 - `GET /health` ใช้ตรวจว่า process ยังทำงาน (liveness)
 - `GET /ready` probe ฐานข้อมูลจริงทุกครั้งและคืน HTTP 503 เมื่อฐานข้อมูลไม่ตอบภายใน `DATABASE_READINESS_TIMEOUT_MS`
 - หน้า Admin > Operations แสดงสถานะฐานข้อมูลแบบ live, latency, backup และ external alerts
