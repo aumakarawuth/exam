@@ -1,5 +1,6 @@
 const OBJECT_ANALYSIS_SET_KEY = 'object_analysis_design_dfd';
 const { gradeDfdLevel } = require('../dfd-grader');
+const { resultAttemptKey } = require('../result-attempt');
 const DFD_DURATION_MS = 60 * 60 * 1000;
 
 function objectAnalysisSet(now = new Date().toISOString()) {
@@ -16,7 +17,7 @@ function ensureObjectAnalysisSet(db) {
   return db.sets.find(set => set.key === OBJECT_ANALYSIS_SET_KEY);
 }
 
-function registerObjectAnalysisRoutes(app, { readDB, writeDB, newId, isPastDeadline, isBeforeStart, requireStudent, applyAcademicPeriod }) {
+function registerObjectAnalysisRoutes(app, { readDB, writeDB, mutateDB, newId, isPastDeadline, isBeforeStart, requireStudent, applyAcademicPeriod }) {
   app.get('/api/object-analysis/access', requireStudent, async (req, res) => {
     const db = readDB();
     const student = db.students.find(item => item.studentId === req.studentId);
@@ -68,13 +69,25 @@ function registerObjectAnalysisRoutes(app, { readDB, writeDB, newId, isPastDeadl
     const record = {
       id: newId('result'), studentId: student.studentId, studentName: `${student.firstName} ${student.lastName}`, classRoom: student.classRoom || '',
       questionKey: set.key, questionTitle: set.title, examType: set.examType, academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null, subjectTeacherName: set.subjectTeacherName || '', subjectTeacherEmail: set.subjectTeacherEmail || '',
+      attemptKey: resultAttemptKey(student.studentId, set.key),
       overallScore20, sectionScores: { mc: levelScores[0], matching: levelScores[1], written: levelScores[2] }, published: false,
       tabSwitches: payload.tabSwitches || 0, fullscreenExitAttempts: payload.fullscreenExitAttempts || 0, reloadCount: payload.reloadCount || 0, rightClickAttempts: 0, copyAttempts: 0,
       integrityEvents: Array.isArray(payload.integrityEvents) ? payload.integrityEvents.filter(event => ['tab_switch','fullscreen_exit','reload'].includes(event?.type) && !Number.isNaN(Date.parse(event.at))).slice(-50) : [],
       detail: { type: 'dfd', levels, grades, levelScores, rawScore, startedAt: session.startedAt, examEndTime: session.examEndTime }, submittedAt: new Date().toISOString()
     };
-    db.results.push(record);
-    await writeDB(db);
+    try {
+      await mutateDB(latest => {
+        ensureObjectAnalysisSet(latest);
+        if (latest.results.some(item => item.attemptKey === record.attemptKey || (item.studentId === student.studentId && item.questionKey === set.key))) {
+          const error = new Error('duplicate_attempt'); error.code = 'DUPLICATE_ATTEMPT'; throw error;
+        }
+        latest.results.push(record);
+      });
+    } catch (error) {
+      if (error.code === 'DUPLICATE_ATTEMPT' || error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === '23505') return res.status(409).json({ error: 'already_submitted', message: 'ส่งข้อสอบวิชานี้แล้ว' });
+      console.error('Failed to save object-analysis submission.', error);
+      return res.status(500).json({ error: 'save_failed', message: 'บันทึกคำตอบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+    }
     res.status(201).json({ id: record.id, message: 'บันทึกคำตอบเรียบร้อยแล้ว' });
   });
 }

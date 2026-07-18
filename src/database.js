@@ -77,6 +77,18 @@ function ensureSqliteResultAttemptsSchema() {
 }
 ensureSqliteResultAttemptsSchema();
 
+function ensureSqliteAttemptKeysAndIndexes() {
+  const columns = sqlite.prepare('PRAGMA table_info(results)').all().map(column => column.name);
+  if (!columns.includes('attempt_key')) sqlite.exec('ALTER TABLE results ADD COLUMN attempt_key TEXT');
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_results_attempt_key ON results(attempt_key) WHERE attempt_key IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_results_question_submitted ON results(question_key, submitted_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_results_student_question ON results(student_id, question_key);
+    CREATE INDEX IF NOT EXISTS idx_exam_drafts_question ON exam_drafts(question_key);
+  `);
+}
+ensureSqliteAttemptKeysAndIndexes();
+
 function parseSqliteRows(statement) {
   return statement.all().map(row => JSON.parse(row.data));
 }
@@ -102,7 +114,7 @@ function replaceSqliteDatabase(db) {
   const insertSet = sqlite.prepare('INSERT INTO exam_sets (key, data) VALUES (?, ?)');
   const insertStudent = sqlite.prepare('INSERT INTO students (student_id, class_room, data) VALUES (?, ?, ?)');
   const insertTeacher = sqlite.prepare('INSERT INTO teachers (id, username, data) VALUES (?, ?, ?)');
-  const insertResult = sqlite.prepare('INSERT INTO results (id, student_id, question_key, submitted_at, published, data) VALUES (?, ?, ?, ?, ?, ?)');
+  const insertResult = sqlite.prepare('INSERT INTO results (id, student_id, question_key, attempt_key, submitted_at, published, data) VALUES (?, ?, ?, ?, ?, ?, ?)');
   const insertBankQuestion = sqlite.prepare('INSERT INTO question_bank (id, data) VALUES (?, ?)');
   const insertDraft = sqlite.prepare('INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES (?, ?, ?, ?, ?)');
   const insertSettings = sqlite.prepare('INSERT INTO system_settings (id, data) VALUES (?, ?)');
@@ -114,7 +126,7 @@ function replaceSqliteDatabase(db) {
     for (const set of clean.sets) insertSet.run(set.key, JSON.stringify(set));
     for (const student of clean.students) insertStudent.run(student.studentId, student.classRoom || null, JSON.stringify(student));
     for (const teacher of clean.teachers) insertTeacher.run(teacher.id, teacher.username, JSON.stringify(teacher));
-    for (const result of clean.results) insertResult.run(result.id, result.studentId, result.questionKey, result.submittedAt || null, result.published ? 1 : 0, JSON.stringify(result));
+    for (const result of clean.results) insertResult.run(result.id, result.studentId, result.questionKey, result.attemptKey || null, result.submittedAt || null, result.published ? 1 : 0, JSON.stringify(result));
     for (const question of clean.questionBank) insertBankQuestion.run(question.id, JSON.stringify(question));
     for (const draft of clean.drafts) insertDraft.run(draft.draftKey, draft.studentId, draft.questionKey, draft.savedAt || null, JSON.stringify(draft));
     insertSettings.run('main', JSON.stringify(clean.settings));
@@ -217,8 +229,8 @@ async function persistPostgresChanges(previous, next) {
       [question.id, question.ownerId || null, question.courseName || '', question.createdAt || null, JSON.stringify(question)]
     );
     for (const result of changes.results) await client.query(
-      'INSERT INTO results (id, student_id, question_key, submitted_at, published, overall_score_20, data) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT (id) DO UPDATE SET student_id=EXCLUDED.student_id, question_key=EXCLUDED.question_key, submitted_at=EXCLUDED.submitted_at, published=EXCLUDED.published, overall_score_20=EXCLUDED.overall_score_20, data=EXCLUDED.data',
-      [result.id, result.studentId, result.questionKey, result.submittedAt || null, !!result.published, result.overallScore20 ?? null, JSON.stringify(result)]
+      'INSERT INTO results (id, student_id, question_key, attempt_key, submitted_at, published, overall_score_20, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT (id) DO UPDATE SET student_id=EXCLUDED.student_id, question_key=EXCLUDED.question_key, attempt_key=EXCLUDED.attempt_key, submitted_at=EXCLUDED.submitted_at, published=EXCLUDED.published, overall_score_20=EXCLUDED.overall_score_20, data=EXCLUDED.data',
+      [result.id, result.studentId, result.questionKey, result.attemptKey || null, result.submittedAt || null, !!result.published, result.overallScore20 ?? null, JSON.stringify(result)]
     );
     for (const draft of changes.drafts) await client.query(
       'INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (draft_key) DO UPDATE SET updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
@@ -265,7 +277,7 @@ async function initializePostgres() {
       id TEXT PRIMARY KEY, owner_id TEXT, course_name TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ, data JSONB NOT NULL
     );
     CREATE TABLE IF NOT EXISTS results (
-      id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL, submitted_at TIMESTAMPTZ,
+      id TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL, attempt_key TEXT, submitted_at TIMESTAMPTZ,
       published BOOLEAN NOT NULL DEFAULT FALSE, overall_score_20 DOUBLE PRECISION, data JSONB NOT NULL
     );
     CREATE TABLE IF NOT EXISTS exam_drafts (
@@ -273,12 +285,17 @@ async function initializePostgres() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), data JSONB NOT NULL
     );
     ALTER TABLE results DROP CONSTRAINT IF EXISTS results_student_id_question_key_key;
+    ALTER TABLE results ADD COLUMN IF NOT EXISTS attempt_key TEXT;
     CREATE INDEX IF NOT EXISTS idx_exam_sets_teacher_id ON exam_sets(teacher_id);
     CREATE INDEX IF NOT EXISTS idx_exam_sets_available_from ON exam_sets(available_from);
     CREATE INDEX IF NOT EXISTS idx_students_class_room ON students(class_room);
     CREATE INDEX IF NOT EXISTS idx_results_question_key ON results(question_key);
     CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_results_attempt_key ON results(attempt_key) WHERE attempt_key IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_results_question_submitted ON results(question_key, submitted_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_results_student_question ON results(student_id, question_key);
     CREATE INDEX IF NOT EXISTS idx_exam_drafts_student ON exam_drafts(student_id);
+    CREATE INDEX IF NOT EXISTS idx_exam_drafts_question ON exam_drafts(question_key);
     CREATE INDEX IF NOT EXISTS idx_question_bank_owner_id ON question_bank(owner_id);
     CREATE TABLE IF NOT EXISTS exam_system_state (
       id SMALLINT PRIMARY KEY CHECK (id = 1),
@@ -323,15 +340,36 @@ function writeDB(db) {
   const previous = currentDatabase;
   currentDatabase = snapshot;
   if (!DATABASE_URL) {
-    replaceSqliteDatabase(currentDatabase);
-    return Promise.resolve();
+    try {
+      replaceSqliteDatabase(currentDatabase);
+      return Promise.resolve();
+    } catch (error) {
+      currentDatabase = previous;
+      return Promise.reject(error);
+    }
   }
-  writeChain = writeChain.then(() => persistPostgresChanges(previous, snapshot));
+  writeChain = writeChain.catch(() => {}).then(() => persistPostgresChanges(previous, snapshot)).catch(error => {
+    if (currentDatabase === snapshot) currentDatabase = previous;
+    throw error;
+  });
   return writeChain;
+}
+
+let mutationChain = Promise.resolve();
+function mutateDB(mutator) {
+  const run = mutationChain.then(async () => {
+    const snapshot = readDB();
+    const value = await mutator(snapshot);
+    await writeDB(snapshot);
+    return value;
+  });
+  mutationChain = run.catch(() => {});
+  return run;
 }
 
 async function closeDatabase() {
   let failure = null;
+  try { await mutationChain; } catch (error) { failure = error; }
   try { await writeChain; } catch (error) { failure = error; }
   try {
     if (pool) {
@@ -345,4 +383,4 @@ async function closeDatabase() {
   if (failure) throw failure;
 }
 
-module.exports = { readDB, writeDB, closeDatabase, databaseReady, changedRows, deletedIds };
+module.exports = { readDB, writeDB, mutateDB, closeDatabase, databaseReady, changedRows, deletedIds };

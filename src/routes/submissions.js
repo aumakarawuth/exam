@@ -1,6 +1,7 @@
 const { activeResitAccess, resitScore } = require('../resit');
 const { filterWrittenQuestionsForClass } = require('../grading');
-function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, round2, requireStudent, applyAcademicPeriod }) {
+const { resultAttemptKey } = require('../result-attempt');
+function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, round2, requireStudent, applyAcademicPeriod }) {
   app.post('/api/results', requireStudent, async (req, res) => {
     const payload = req.body;
     if (!payload || !payload.questionKey) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลผลสอบไม่ครบ' });
@@ -34,21 +35,33 @@ function registerSubmissionRoutes(app, { readDB, writeDB, newId, gradeMC, gradeM
       id: newId('result'), studentId: student.studentId, studentName: `${student.firstName} ${student.lastName}`, classRoom: student.classRoom || '',
       questionKey: payload.questionKey, questionTitle: set.title, examType: set.examType || '', subjectTeacherName: set.subjectTeacherName || '', subjectTeacherEmail: set.subjectTeacherEmail || '',
       academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null,
+      attemptKey: resultAttemptKey(student.studentId, payload.questionKey, resit?.id),
       overallScore20, sectionScores: { mc, matching, written: written.total }, attemptType: resit ? 'resit' : 'normal', resitAccessId: resit?.id || null, sourceResultId: resit?.sourceResultId || null, resitScoreMax: resit?.scoreMax || null,
       tabSwitches: payload.tabSwitches || 0, fullscreenExitAttempts: payload.fullscreenExitAttempts || 0, reloadCount: payload.reloadCount || 0, rightClickAttempts: payload.rightClickAttempts || 0, copyAttempts: payload.copyAttempts || 0,
       integrityEvents, published: set.publishMode === 'auto', detail: { answers, writtenPerQuestion: written.perQuestion, rawScore, visibleScoreMax }, submittedAt: new Date().toISOString()
     };
-    db.results.push(record);
-    // A completed attempt makes every in-progress copy of this attempt obsolete.
-    // Remove the server draft here (not only in the browser) so another device
-    // cannot remain locked or restore an exam that has already been submitted.
-    db.drafts = (db.drafts || []).filter(draft => !(
-      draft.studentId === student.studentId &&
-      draft.questionKey === payload.questionKey &&
-      (resit ? draft.resitAccessId === resit.id : !draft.resitAccessId)
-    ));
-    if (resit) { record.convertedScore = resitScore(record.overallScore20, resit.scoreMax); resit.usedResultId = record.id; resit.usedAt = record.submittedAt; }
-    await writeDB(db);
+    if (resit) record.convertedScore = resitScore(record.overallScore20, resit.scoreMax);
+    try {
+      await mutateDB(latest => {
+        if (latest.results.some(item => item.attemptKey === record.attemptKey || (item.studentId === student.studentId && item.questionKey === payload.questionKey && (resit ? item.resitAccessId === resit.id : item.attemptType !== 'resit')))) {
+          const error = new Error('duplicate_attempt'); error.code = 'DUPLICATE_ATTEMPT'; throw error;
+        }
+        latest.results.push(record);
+        latest.drafts = (latest.drafts || []).filter(draft => !(
+          draft.studentId === student.studentId && draft.questionKey === payload.questionKey &&
+          (resit ? draft.resitAccessId === resit.id : !draft.resitAccessId)
+        ));
+        if (resit) {
+          const latestSet = latest.sets.find(item => item.key === payload.questionKey);
+          const latestResit = (latestSet?.resitAccesses || []).find(item => item.id === resit.id);
+          if (latestResit) { latestResit.usedResultId = record.id; latestResit.usedAt = record.submittedAt; }
+        }
+      });
+    } catch (error) {
+      if (error.code === 'DUPLICATE_ATTEMPT' || error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === '23505') return res.status(409).json({ error: 'already_submitted', message: 'ทำข้อสอบชุดนี้ไปแล้ว' });
+      console.error('Failed to save exam submission.', error);
+      return res.status(500).json({ error: 'save_failed', message: 'บันทึกคำตอบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+    }
     res.status(201).json({ id: record.id, message: 'บันทึกคำตอบเรียบร้อยแล้ว' });
   });
 }
