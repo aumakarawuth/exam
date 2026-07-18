@@ -23,8 +23,27 @@ function splitStudentName(studentName) {
   return { firstName: parts.shift() || '', lastName: parts.join(' ') };
 }
 
-function buildGradebookWorkbook({ results, students = [], courseName = 'รายวิชา' }) {
+function examSetScoreMax(set) {
+  const mc = (set?.sections?.mc?.questions || []).reduce((sum, question) => sum + (Number(question.points) || 0), 0);
+  const matching = (set?.sections?.matching?.left || []).length * (Number(set?.sections?.matching?.pointsEach) || 0);
+  const written = (set?.sections?.written?.questions || []).reduce((sum, question) => sum + (Number(question.maxPoints) || 0), 0);
+  return Math.round((mc + matching + written) * 100) / 100;
+}
+
+function blockCourseSlotScore(result, set) {
+  const setScoreMax = examSetScoreMax(set);
+  const visibleScoreMax = Number(result?.detail?.visibleScoreMax);
+  const modeScoreMax = setScoreMax > 0 ? setScoreMax : visibleScoreMax;
+  const scoreMax = Number.isFinite(visibleScoreMax) && visibleScoreMax > 0 ? visibleScoreMax : setScoreMax;
+  if (!Number.isFinite(scoreMax) || scoreMax <= 0 || !Number.isFinite(modeScoreMax) || Math.abs(modeScoreMax - 20) < 0.001) return null;
+  const score = Number(result.overallScore20);
+  if (!Number.isFinite(score)) return null;
+  return Math.round(Math.min(20, Math.max(0, score / scoreMax * 20)) * 100) / 100;
+}
+
+function buildGradebookWorkbook({ results, students = [], sets = [], courseName = 'รายวิชา' }) {
   const studentsById = new Map(students.map(student => [student.studentId, student]));
+  const setsByKey = new Map(sets.map(set => [set.key, set]));
   const rowsByStudent = new Map();
   for (const result of results) {
     if (!['กลางภาค', 'ปลายภาค'].includes(result.examType)) continue;
@@ -38,9 +57,15 @@ function buildGradebookWorkbook({ results, students = [], courseName = 'รา�
       midterm: null,
       final: null
     };
-    const field = result.examType === 'กลางภาค' ? 'midterm' : 'final';
     const score = Number(result.overallScore20);
-    if (Number.isFinite(score)) row[field] = row[field] === null ? score : Math.max(row[field], score);
+    const blockSlotScore = blockCourseSlotScore(result, setsByKey.get(result.questionKey));
+    if (blockSlotScore !== null) {
+      row.midterm = row.midterm === null ? blockSlotScore : Math.max(row.midterm, blockSlotScore);
+      row.final = row.final === null ? blockSlotScore : Math.max(row.final, blockSlotScore);
+    } else if (Number.isFinite(score)) {
+      const field = result.examType === 'กลางภาค' ? 'midterm' : 'final';
+      row[field] = row[field] === null ? score : Math.max(row[field], score);
+    }
     rowsByStudent.set(result.studentId, row);
   }
 
@@ -98,4 +123,4 @@ function buildGradebookWorkbook({ results, students = [], courseName = 'รา�
   return StyledXLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
-module.exports = { buildResultsWorkbook, buildGradebookWorkbook };
+module.exports = { buildResultsWorkbook, buildGradebookWorkbook, examSetScoreMax, blockCourseSlotScore };

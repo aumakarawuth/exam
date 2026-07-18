@@ -47,3 +47,38 @@ test('gradebook pairs only the same course, year, semester, and teacher', () => 
   assert.deepEqual(gradebookOptions(db, 't1'), ['mid', 'final', 'other-year']);
   assert.equal(gradebookContext(db, 'other-year', 't1').ready, true);
 });
+
+test('gradebook normalizes a block course and splits its best score across both exam columns', () => {
+  const blockSet = {
+    key: 'block',
+    sections: {
+      mc: { questions: [{ points: 40 }] },
+      matching: { left: [], pointsEach: 0 },
+      written: { questions: [] }
+    }
+  };
+  const buffer = buildGradebookWorkbook({
+    courseName: 'วิชาบล็อกคอร์ส',
+    sets: [blockSet],
+    students: [{ studentId: '10001', firstName: 'สมชาย', lastName: 'ใจดี', classRoom: 'ปวช.1/1' }],
+    results: [
+      { questionKey: 'block', studentId: '10001', examType: 'กลางภาค', overallScore20: 30, detail: { visibleScoreMax: 40 } },
+      { questionKey: 'block', studentId: '10001', examType: 'กลางภาค', overallScore20: 36, attemptType: 'resit', detail: { visibleScoreMax: 40 } }
+    ]
+  });
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.I2.v, 18);
+  assert.equal(sheet.J2.v, 18);
+});
+
+test('gradebook scales non-40 block course scores to a combined weight of 40', () => {
+  const buffer = buildGradebookWorkbook({
+    sets: [{ key: 'block-60', sections: { mc: { questions: [{ points: 60 }] }, matching: { left: [], pointsEach: 0 }, written: { questions: [] } } }],
+    results: [{ questionKey: 'block-60', studentId: '10001', studentName: 'สมชาย ใจดี', examType: 'ปลายภาค', overallScore20: 45, detail: { visibleScoreMax: 60 } }]
+  });
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.I2.v, 15);
+  assert.equal(sheet.J2.v, 15);
+});

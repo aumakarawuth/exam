@@ -37,7 +37,7 @@ function registerExportRoutes(app, { readDB, requireAdmin, requireTeacher, build
     if (!context) return res.status(404).json({ error: 'not_found', message: 'ไม่พบรายวิชา' });
     if (!context.ready) return res.status(409).json({ error: 'gradebook_not_ready', message: 'ต้องมีผลสอบกลางภาคหรือปลายภาคอย่างน้อยหนึ่งรายการก่อนส่งออกรวมคะแนน' });
     const courseName = context.anchor.courseName || context.anchor.title || 'รวมคะแนน';
-    const buffer = buildGradebookWorkbook({ results: context.results, students: db.students, courseName });
+    const buffer = buildGradebookWorkbook({ results: context.results, students: db.students, sets: context.sets, courseName });
     res.setHeader('Content-Disposition', `attachment; filename="gradebook.xlsx"; filename*=UTF-8''${encodeURIComponent(`รวมคะแนนวิชา(${courseName}).xlsx`)}`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
