@@ -7,7 +7,7 @@ const { normalizeStudentEnrollments } = require('./student-enrollments');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 function emptyDatabase() {
-  return { sets: [], results: [], students: [], teachers: [], questionBank: [], drafts: [], settings: { academicCalendar: [] } };
+  return { sets: [], results: [], students: [], teachers: [], questionBank: [], drafts: [], auditLogs: [], settings: { academicCalendar: [] } };
 }
 
 function normalizeDatabase(db) {
@@ -32,6 +32,7 @@ function normalizeDatabase(db) {
     teachers: Array.isArray(db?.teachers) ? db.teachers : [],
     questionBank: Array.isArray(db?.questionBank) ? db.questionBank : [],
     drafts,
+    auditLogs: Array.isArray(db?.auditLogs) ? db.auditLogs : [],
     settings: { ...(db?.settings || {}), academicCalendar: Array.isArray(db?.settings?.academicCalendar) ? db.settings.academicCalendar : [] }
   };
 }
@@ -50,10 +51,14 @@ sqlite.exec(`
   );
   CREATE TABLE IF NOT EXISTS exam_drafts (draft_key TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL, updated_at TEXT, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS system_settings (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, event_at TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT, action TEXT NOT NULL, target_id TEXT, question_key TEXT, data TEXT NOT NULL);
   CREATE INDEX IF NOT EXISTS idx_students_class_room ON students(class_room);
   CREATE INDEX IF NOT EXISTS idx_results_question_key ON results(question_key);
   CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id);
   CREATE INDEX IF NOT EXISTS idx_exam_drafts_student ON exam_drafts(student_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_event_at ON audit_logs(event_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_target_id ON audit_logs(target_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_question_key ON audit_logs(question_key);
 `);
 
 function ensureSqliteResultAttemptsSchema() {
@@ -102,6 +107,7 @@ function readSqliteDatabase() {
       teachers: parseSqliteRows(sqlite.prepare('SELECT data FROM teachers ORDER BY rowid')),
       questionBank: parseSqliteRows(sqlite.prepare('SELECT data FROM question_bank ORDER BY rowid')),
       drafts: parseSqliteRows(sqlite.prepare('SELECT data FROM exam_drafts ORDER BY updated_at')),
+      auditLogs: parseSqliteRows(sqlite.prepare('SELECT data FROM audit_logs ORDER BY event_at, id')),
       settings: JSON.parse(sqlite.prepare("SELECT data FROM system_settings WHERE id = 'main'").get()?.data || '{"academicCalendar":[]}')
     };
   } catch (error) {
@@ -117,18 +123,20 @@ function replaceSqliteDatabase(db) {
   const insertResult = sqlite.prepare('INSERT INTO results (id, student_id, question_key, attempt_key, submitted_at, published, data) VALUES (?, ?, ?, ?, ?, ?, ?)');
   const insertBankQuestion = sqlite.prepare('INSERT INTO question_bank (id, data) VALUES (?, ?)');
   const insertDraft = sqlite.prepare('INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES (?, ?, ?, ?, ?)');
+  const insertAudit = sqlite.prepare('INSERT INTO audit_logs (id, event_at, actor_type, actor_id, action, target_id, question_key, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   const insertSettings = sqlite.prepare('INSERT INTO system_settings (id, data) VALUES (?, ?)');
   const clean = normalizeDatabase(db);
 
   sqlite.exec('BEGIN IMMEDIATE');
   try {
-    sqlite.exec('DELETE FROM results; DELETE FROM exam_sets; DELETE FROM students; DELETE FROM teachers; DELETE FROM question_bank; DELETE FROM exam_drafts; DELETE FROM system_settings;');
+    sqlite.exec('DELETE FROM results; DELETE FROM exam_sets; DELETE FROM students; DELETE FROM teachers; DELETE FROM question_bank; DELETE FROM exam_drafts; DELETE FROM audit_logs; DELETE FROM system_settings;');
     for (const set of clean.sets) insertSet.run(set.key, JSON.stringify(set));
     for (const student of clean.students) insertStudent.run(student.studentId, student.classRoom || null, JSON.stringify(student));
     for (const teacher of clean.teachers) insertTeacher.run(teacher.id, teacher.username, JSON.stringify(teacher));
     for (const result of clean.results) insertResult.run(result.id, result.studentId, result.questionKey, result.attemptKey || null, result.submittedAt || null, result.published ? 1 : 0, JSON.stringify(result));
     for (const question of clean.questionBank) insertBankQuestion.run(question.id, JSON.stringify(question));
     for (const draft of clean.drafts) insertDraft.run(draft.draftKey, draft.studentId, draft.questionKey, draft.savedAt || null, JSON.stringify(draft));
+    for (const event of clean.auditLogs) insertAudit.run(event.id, event.eventAt, event.actorType, event.actorId || null, event.action, event.targetId || null, event.questionKey || null, JSON.stringify(event));
     insertSettings.run('main', JSON.stringify(clean.settings));
     sqlite.exec('COMMIT');
   } catch (error) {
@@ -160,19 +168,20 @@ function hasData(db) {
 }
 
 async function readPostgresDatabase() {
-  const [sets, results, students, teachers, questionBank, drafts, settings] = await Promise.all([
+  const [sets, results, students, teachers, questionBank, drafts, auditLogs, settings] = await Promise.all([
     pool.query('SELECT data FROM exam_sets ORDER BY created_at, key'),
     pool.query('SELECT data FROM results ORDER BY submitted_at, id'),
     pool.query('SELECT data FROM students ORDER BY class_room, student_id'),
     pool.query('SELECT data FROM teachers ORDER BY username'),
     pool.query('SELECT data FROM question_bank ORDER BY created_at, id'),
     pool.query('SELECT data FROM exam_drafts ORDER BY updated_at'),
+    pool.query('SELECT data FROM audit_logs ORDER BY event_at, id'),
     pool.query("SELECT data FROM system_settings WHERE id = 'main'")
   ]);
   return normalizeDatabase({
     sets: sets.rows.map(row => row.data), results: results.rows.map(row => row.data),
     students: students.rows.map(row => row.data), teachers: teachers.rows.map(row => row.data),
-    questionBank: questionBank.rows.map(row => row.data), drafts: drafts.rows.map(row => row.data),
+    questionBank: questionBank.rows.map(row => row.data), drafts: drafts.rows.map(row => row.data), auditLogs: auditLogs.rows.map(row => row.data),
     settings: settings.rows[0]?.data || { academicCalendar: [] }
   });
 }
@@ -201,6 +210,7 @@ async function persistPostgresChanges(previous, next) {
     questionBank: changedRows(before.questionBank, clean.questionBank, 'id'),
     results: changedRows(before.results, clean.results, 'id'),
     drafts: changedRows(before.drafts, clean.drafts, 'draftKey'),
+    auditLogs: changedRows(before.auditLogs, clean.auditLogs, 'id'),
     settingsChanged: JSON.stringify(before.settings) !== JSON.stringify(clean.settings)
   };
   const client = await pool.connect();
@@ -235,6 +245,10 @@ async function persistPostgresChanges(previous, next) {
     for (const draft of changes.drafts) await client.query(
       'INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (draft_key) DO UPDATE SET updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
       [draft.draftKey, draft.studentId, draft.questionKey, draft.savedAt || new Date().toISOString(), JSON.stringify(draft)]
+    );
+    for (const event of changes.auditLogs) await client.query(
+      'INSERT INTO audit_logs (id, event_at, actor_type, actor_id, action, target_type, target_id, question_key, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT (id) DO NOTHING',
+      [event.id, event.eventAt, event.actorType, event.actorId || null, event.action, event.targetType || null, event.targetId || null, event.questionKey || null, JSON.stringify(event)]
     );
     if (changes.settingsChanged) await client.query(
       'INSERT INTO system_settings (id, data, updated_at) VALUES ($1,$2::jsonb,NOW()) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()',
@@ -284,6 +298,10 @@ async function initializePostgres() {
       draft_key TEXT PRIMARY KEY, student_id TEXT NOT NULL, question_key TEXT NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), data JSONB NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY, event_at TIMESTAMPTZ NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT,
+      action TEXT NOT NULL, target_type TEXT, target_id TEXT, question_key TEXT, data JSONB NOT NULL
+    );
     ALTER TABLE results DROP CONSTRAINT IF EXISTS results_student_id_question_key_key;
     ALTER TABLE results ADD COLUMN IF NOT EXISTS attempt_key TEXT;
     CREATE INDEX IF NOT EXISTS idx_exam_sets_teacher_id ON exam_sets(teacher_id);
@@ -296,6 +314,9 @@ async function initializePostgres() {
     CREATE INDEX IF NOT EXISTS idx_results_student_question ON results(student_id, question_key);
     CREATE INDEX IF NOT EXISTS idx_exam_drafts_student ON exam_drafts(student_id);
     CREATE INDEX IF NOT EXISTS idx_exam_drafts_question ON exam_drafts(question_key);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_event_at ON audit_logs(event_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_target_id ON audit_logs(target_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_question_key ON audit_logs(question_key);
     CREATE INDEX IF NOT EXISTS idx_question_bank_owner_id ON question_bank(owner_id);
     CREATE TABLE IF NOT EXISTS exam_system_state (
       id SMALLINT PRIMARY KEY CHECK (id = 1),

@@ -116,6 +116,11 @@ test('result exports require the correct role', async () => {
   assert.equal(teacherExport.status, 401);
 });
 
+test('audit logs require the correct role', async () => {
+  assert.equal((await request('/api/audit-logs')).status, 401);
+  assert.equal((await request('/api/teacher/audit-logs')).status, 401);
+});
+
 test('gradebook endpoints require authentication', async () => {
   assert.equal((await request('/api/gradebook/options')).status, 401);
   assert.equal((await request('/api/teacher/gradebook/options')).status, 401);
