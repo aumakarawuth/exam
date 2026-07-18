@@ -2,12 +2,39 @@ const { gradeMC, gradeMatching, gradeWritten, filterWrittenQuestionsForClass, ro
 const { gradeDfdLevel } = require('./dfd-grader');
 const crypto = require('crypto');
 
-const GRADING_VERSION = 'grading-v1';
+const GRADING_VERSION = 'grading-v2';
 const sameScore = (left, right) => Math.abs(Number(left || 0) - Number(right || 0)) < 0.005;
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
 function gradingFingerprint(snapshot) {
   const source = { ...snapshot };
   delete source.fingerprint;
-  return crypto.createHash('sha256').update(JSON.stringify(source)).digest('hex');
+  return crypto.createHash('sha256').update(stableStringify(source)).digest('hex');
+}
+function legacySnapshotSource(snapshot) {
+  const correctMap = {};
+  for (const item of snapshot.matching?.left || []) {
+    if (Object.prototype.hasOwnProperty.call(snapshot.matching?.correctMap || {}, item.id)) correctMap[item.id] = snapshot.matching.correctMap[item.id];
+  }
+  for (const key of Object.keys(snapshot.matching?.correctMap || {})) {
+    if (!Object.prototype.hasOwnProperty.call(correctMap, key)) correctMap[key] = snapshot.matching.correctMap[key];
+  }
+  return {
+    version: snapshot.version,
+    mc: { questions: (snapshot.mc?.questions || []).map(question => ({ id: question.id, answer: question.answer, points: question.points })) },
+    matching: { left: (snapshot.matching?.left || []).map(item => ({ id: item.id })), correctMap, pointsEach: snapshot.matching?.pointsEach },
+    written: { questions: (snapshot.written?.questions || []).map(question => ({ id: question.id, answerType: question.answerType, keywords: question.keywords, answerCode: question.answerCode, maxPoints: question.maxPoints })) }
+  };
+}
+function snapshotFingerprintIsValid(snapshot) {
+  if (!snapshot?.fingerprint) return false;
+  if (gradingFingerprint(snapshot) === snapshot.fingerprint) return true;
+  if (snapshot.version !== 'grading-v1') return false;
+  const legacyHash = crypto.createHash('sha256').update(JSON.stringify(legacySnapshotSource(snapshot))).digest('hex');
+  return legacyHash === snapshot.fingerprint;
 }
 
 function buildGradingSnapshot(set, classRoom) {
@@ -45,7 +72,7 @@ function verifyResultScore(result, set) {
   if (result.detail?.type === 'dfd') return verifyDfd(result);
   const answers = result.detail?.answers;
   if (!answers) return { status: 'unverifiable', reason: 'missing_answers', gradingVersion: GRADING_VERSION };
-  if (result.detail?.gradingSnapshot && gradingFingerprint(result.detail.gradingSnapshot) !== result.detail.gradingSnapshot.fingerprint) return { status: 'mismatch', reason: 'grading_snapshot_corrupt', gradingVersion: result.detail.gradingSnapshot.version || GRADING_VERSION };
+  if (result.detail?.gradingSnapshot && !snapshotFingerprintIsValid(result.detail.gradingSnapshot)) return { status: 'mismatch', reason: 'grading_snapshot_corrupt', gradingVersion: result.detail.gradingSnapshot.version || GRADING_VERSION };
   const gradingSet = result.detail?.gradingSnapshot ? setFromSnapshot(result.detail.gradingSnapshot) : set;
   const mc = gradeMC(gradingSet.sections?.mc || {}, answers.mc);
   const matching = gradeMatching(gradingSet.sections?.matching || {}, answers.matching);

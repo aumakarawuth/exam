@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { buildGradingSnapshot, verifyResultScore, verificationReport } = require('../src/score-verification');
 
 const set = { sections: { mc: { questions: [{ id: 'm1', answer: 1, points: 5 }] }, matching: { left: [{ id: 'l1' }], correctMap: { l1: 'r1' }, pointsEach: 5 }, written: { questions: [{ id: 'w1', keywords: ['alpha'], maxPoints: 10 }] } } };
@@ -38,6 +39,26 @@ test('score verification blocks a grading snapshot that was modified after submi
   const verification = verifyResultScore(tampered, set);
   assert.equal(verification.status, 'mismatch');
   assert.equal(verification.reason, 'grading_snapshot_corrupt');
+});
+
+test('legacy grading snapshot remains valid after PostgreSQL JSONB reorders its keys', () => {
+  const legacySource = {
+    version: 'grading-v1',
+    mc: { questions: [{ id: 'm1', answer: 1, points: 5 }] },
+    matching: { left: [{ id: 'l1' }], correctMap: { l1: 'r1' }, pointsEach: 5 },
+    written: { questions: [{ id: 'w1', answerType: 'keywords', keywords: ['alpha'], answerCode: '', maxPoints: 10 }] }
+  };
+  const legacySnapshot = { ...legacySource, fingerprint: crypto.createHash('sha256').update(JSON.stringify(legacySource)).digest('hex') };
+  const jsonbReordered = {
+    mc: { questions: legacySnapshot.mc.questions.map(question => ({ points: question.points, answer: question.answer, id: question.id })) },
+    version: legacySnapshot.version,
+    written: { questions: legacySnapshot.written.questions.map(question => ({ maxPoints: question.maxPoints, answerCode: question.answerCode, keywords: question.keywords, answerType: question.answerType, id: question.id })) },
+    matching: { pointsEach: 5, correctMap: { l1: 'r1' }, left: [{ id: 'l1' }] },
+    fingerprint: legacySnapshot.fingerprint
+  };
+  const storedResult = structuredClone(result);
+  storedResult.detail.gradingSnapshot = jsonbReordered;
+  assert.equal(verifyResultScore(storedResult, set).status, 'verified');
 });
 
 test('verification report identifies mismatched sections without exposing answers', () => {
