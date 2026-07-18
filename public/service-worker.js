@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exam-shell-v1';
+const CACHE_NAME = 'exam-shell-v2';
 const SHELL = [
   '/', '/student.html', '/admin', '/admin.html', '/teacher', '/teacher.html', '/object-analysis-design', '/object-analysis-design.html',
   '/manifest.webmanifest', '/assets/app-icon.svg', '/assets/pwa.js',
@@ -27,11 +27,8 @@ self.addEventListener('fetch', event => {
     }).catch(async () => (await caches.match(request)) || (await caches.match('/'))));
     return;
   }
-  event.respondWith(caches.match(request).then(cached => {
-    const refreshed = fetch(request).then(response => {
+  event.respondWith(fetch(request).then(response => {
       if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
       return response;
-    }).catch(() => cached);
-    return cached || refreshed;
-  }));
+    }).catch(() => caches.match(request)));
 });

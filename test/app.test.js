@@ -69,6 +69,9 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.match(css.headers['content-type'], /text\/css/);
   assert.equal(script.status, 200);
   assert.match(script.headers['content-type'], /javascript/);
+  assert.match(script.body, /score-verification-detail-btn/);
+  assert.match(script.body, /addEventListener\('click'/);
+  assert.doesNotMatch(script.body, /onclick="openScoreVerificationIssues/);
 });
 
 test('PWA shell is installable and never caches API responses', async () => {
@@ -81,6 +84,7 @@ test('PWA shell is installable and never caches API responses', async () => {
   assert.match(worker.headers['cache-control'], /no-cache/);
   assert.equal(worker.headers['service-worker-allowed'], '/');
   assert.match(worker.body, /url\.pathname\.startsWith\('\/api\/'\)/);
+  assert.match(worker.body, /exam-shell-v2/);
   assert.doesNotMatch(worker.body, /cache\.put\([^\n]*api/i);
   assert.equal(pwa.status, 200);
   assert.match(pwa.body, /beforeinstallprompt/);
