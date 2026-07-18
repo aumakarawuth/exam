@@ -10,8 +10,7 @@ function gradebookContext(db, setKey, teacherId) {
   const sets = db.sets.filter(set => sameGradebookCourse(set, anchor) && (teacherId === undefined || set.teacherId === teacherId));
   const keys = new Set(sets.map(set => set.key));
   const results = db.results.filter(result => keys.has(result.questionKey) && ['กลางภาค', 'ปลายภาค'].includes(result.examType));
-  const examTypes = new Set(results.map(result => result.examType));
-  return { anchor, sets, results, ready: examTypes.has('กลางภาค') && examTypes.has('ปลายภาค') };
+  return { anchor, sets, results, ready: results.length > 0 };
 }
 
 function gradebookOptions(db, teacherId) {
@@ -36,7 +35,7 @@ function registerExportRoutes(app, { readDB, requireAdmin, requireTeacher, build
   const sendGradebook = (req, res, teacherId) => {
     const db = readDB(); const context = gradebookContext(db, String(req.query.setKey || ''), teacherId);
     if (!context) return res.status(404).json({ error: 'not_found', message: 'ไม่พบรายวิชา' });
-    if (!context.ready) return res.status(409).json({ error: 'gradebook_not_ready', message: 'ต้องมีผลสอบทั้งกลางภาคและปลายภาคก่อนส่งออกรวมคะแนน' });
+    if (!context.ready) return res.status(409).json({ error: 'gradebook_not_ready', message: 'ต้องมีผลสอบกลางภาคหรือปลายภาคอย่างน้อยหนึ่งรายการก่อนส่งออกรวมคะแนน' });
     const courseName = context.anchor.courseName || context.anchor.title || 'รวมคะแนน';
     const buffer = buildGradebookWorkbook({ results: context.results, students: db.students, courseName });
     res.setHeader('Content-Disposition', `attachment; filename="gradebook.xlsx"; filename*=UTF-8''${encodeURIComponent(`รวมคะแนน-${courseName}.xlsx`)}`);

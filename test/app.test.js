@@ -122,7 +122,7 @@ test('gradebook endpoints require authentication', async () => {
   assert.equal((await request('/api/export/gradebook.xlsx?setKey=set_seed_sample1')).status, 401);
 });
 
-test('gradebook export waits for both midterm and final results', async () => {
+test('gradebook export waits for at least one midterm or final result', async () => {
   const response = await request('/api/export/gradebook.xlsx?setKey=set_seed_sample1', { headers: { 'x-admin-key': ADMIN_KEY } });
   assert.equal(response.status, 409);
   assert.equal(JSON.parse(response.body).error, 'gradebook_not_ready');

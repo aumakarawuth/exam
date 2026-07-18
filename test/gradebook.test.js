@@ -40,6 +40,6 @@ test('gradebook pairs only the same course, year, semester, and teacher', () => 
   const context = gradebookContext(db, 'mid', 't1');
   assert.equal(context.ready, true);
   assert.deepEqual(context.sets.map(set => set.key), ['mid', 'final']);
-  assert.deepEqual(gradebookOptions(db, 't1'), ['mid', 'final']);
-  assert.equal(gradebookContext(db, 'other-year', 't1').ready, false);
+  assert.deepEqual(gradebookOptions(db, 't1'), ['mid', 'final', 'other-year']);
+  assert.equal(gradebookContext(db, 'other-year', 't1').ready, true);
 });
