@@ -78,6 +78,7 @@ async function apiGetResults(setKey, examType, academicYear, semester){
 async function apiGetQuestionAnalysis(setKey){ return apiFetch('/api/question-analysis?setKey='+encodeURIComponent(setKey), { admin:true }); }
 async function apiGetAuditLogs(setKey){ return apiFetch('/api/audit-logs'+(setKey?('?setKey='+encodeURIComponent(setKey)):''), { admin:true }); }
 async function apiGetOperations(){ return apiFetch('/api/admin/operations', { admin:true }); }
+async function apiRunRestoreDrill(){ return apiFetch('/api/admin/operations/restore-drill', { method:'POST', admin:true }); }
 async function apiGetStudents(classRoom){ return apiFetch('/api/students'+(classRoom?('?classRoom='+encodeURIComponent(classRoom)):''), { admin:true }); }
 async function apiAddStudent(s){ return apiFetch('/api/students', { method:'POST', body:s, admin:true }); }
 async function apiBulkImportStudents(text){ return apiFetch('/api/students/bulk', { method:'POST', body:{text}, admin:true }); }
@@ -313,9 +314,9 @@ async function refreshOperations(){
   const wrap=document.getElementById('operationsWrap');
   wrap.innerHTML='<div class="loading-note">กำลังตรวจสอบระบบ...</div>';
   try{
-    const data=await apiGetOperations(),counts=data.counts||{},activity=data.recentActivity||[],requests=data.requests||{},submissions=data.submissions||{},scoreChecks=data.scoreVerification||{},examChecks=data.examReadiness||{},backup=data.backup||{},alerts=data.alerts||{},jobs=data.jobs||{},sessions=data.sessions||{};
+    const data=await apiGetOperations(),counts=data.counts||{},activity=data.recentActivity||[],requests=data.requests||{},submissions=data.submissions||{},scoreChecks=data.scoreVerification||{},examChecks=data.examReadiness||{},backup=data.backup||{},restore=data.restoreDrill||{},alerts=data.alerts||{},jobs=data.jobs||{},sessions=data.sessions||{};
     const storageReady=data.storage?.status==='configured';
-    const databaseReady=data.database?.status==='connected',backupReady=backup.configured,alertsReady=alerts.configured;
+    const databaseReady=data.database?.status==='connected',backupReady=backup.configured,alertsReady=alerts.configured,restoreHealthy=restore.lastSuccessAt&&(!restore.lastFailureAt||restore.lastSuccessAt>=restore.lastFailureAt);
     const countCards=[['นักเรียน',counts.students],['อาจารย์',counts.teachers],['ชุดข้อสอบ',counts.examSets],['ผลสอบ',counts.results],['ฉบับร่าง',counts.drafts],['เซสชันอาจารย์',counts.activeTeacherSessions]];
     const activityRows=activity.length?activity.map(row=>`<tr><td>${escapeHtml(new Date(row.eventAt).toLocaleString('th-TH'))}</td><td>${escapeHtml(row.action||'-')}</td><td>${escapeHtml(row.actorId||row.actorType||'-')}</td><td>${escapeHtml(row.targetId||'-')}</td></tr>`).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--sub);">ยังไม่มีกิจกรรมที่บันทึกไว้</td></tr>';
     const failureRows=requests.recentFailures?.length?requests.recentFailures.map(row=>`<tr><td>${escapeHtml(new Date(row.occurredAt).toLocaleString('th-TH'))}</td><td>${escapeHtml(row.method)}</td><td>${escapeHtml(row.path)}</td><td>${Number(row.status)}</td><td>${Number(row.durationMs)} ms</td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--green);">ไม่พบข้อผิดพลาดของเซิร์ฟเวอร์นับตั้งแต่เริ่มระบบ</td></tr>';
@@ -324,6 +325,7 @@ async function refreshOperations(){
       <div class="operations-card"><div class="label">ฐานข้อมูล (Live)</div><div class="value ${databaseReady?'operations-ok':'operations-warn'}">● ${databaseReady?'เชื่อมต่อแล้ว':'ขาดการเชื่อมต่อ'}</div><div class="note">${escapeHtml(data.database.engine)} · ${databaseReady?Number(data.database.latencyMs||0)+' ms':'probe ไม่ผ่าน'} · ${formatOperationsBytes(data.database.sizeBytes)}</div></div>
       <div class="operations-card"><div class="label">พื้นที่เก็บไฟล์</div><div class="value ${storageReady?'operations-ok':'operations-warn'}">● ${storageReady?'พร้อมใช้งาน':'ยังไม่ได้ตั้งค่า'}</div><div class="note">ขนาดไฟล์สูงสุด ${formatOperationsBytes(data.storage.maxBytes)}</div></div>
       <div class="operations-card"><div class="label">Backup อัตโนมัติ</div><div class="value ${backupReady?'operations-ok':'operations-warn'}">● ${backupReady?'เข้ารหัสแล้ว':'ยังไม่ได้ตั้งค่า'}</div><div class="note">${backup.lastSuccessAt?'ล่าสุด '+escapeHtml(new Date(backup.lastSuccessAt).toLocaleString('th-TH')):'ยังไม่มี backup'} · เก็บ ${Number(backup.retentionDays)||0} วัน</div></div>
+      <div class="operations-card"><div class="label">Restore Drill</div><div class="value ${restoreHealthy?'operations-ok':'operations-warn'}">● ${restoreHealthy?'กู้คืนได้':restore.lastFailureAt?'ตรวจไม่ผ่าน':'ยังไม่เคยตรวจ'}</div><div class="note">${restore.lastSuccessAt?'สำเร็จล่าสุด '+escapeHtml(new Date(restore.lastSuccessAt).toLocaleString('th-TH')):'ตรวจไฟล์ backup โดยไม่แตะฐานจริง'}</div>${restore.configured?'<button class="btn btn-ghost btn-sm" style="margin-top:9px;" onclick="runRestoreDrill()">ทดสอบตอนนี้</button>':''}</div>
       <div class="operations-card"><div class="label">External Alerts</div><div class="value ${alertsReady?'operations-ok':'operations-warn'}">● ${alertsReady?'พร้อมแจ้งเตือน':'ยังไม่ได้ตั้งค่า'}</div><div class="note">${alerts.lastSuccessAt?'ส่งสำเร็จล่าสุด '+escapeHtml(new Date(alerts.lastSuccessAt).toLocaleString('th-TH')):'Webhook monitoring'}</div></div>
       <div class="operations-card"><div class="label">Shared Sessions</div><div class="value ${sessions.configured&&sessions.connected?'operations-ok':'operations-warn'}">● ${sessions.configured&&sessions.connected?'Redis พร้อมใช้งาน':'Memory instance เดียว'}</div><div class="note">${escapeHtml(sessions.engine||'Memory')} · ${Number(counts.activeTeacherSessions)||0} session อาจารย์</div></div>
       <div class="operations-card"><div class="label">หน่วยความจำ</div><div class="value">${formatOperationsBytes(data.memory.rssBytes)}</div><div class="note">Heap ${formatOperationsBytes(data.memory.heapUsedBytes)} / ${formatOperationsBytes(data.memory.heapTotalBytes)}</div></div>
@@ -339,6 +341,7 @@ async function refreshOperations(){
   }catch(error){ wrap.innerHTML='<div class="empty-note">ตรวจสอบระบบไม่สำเร็จ: '+escapeHtml(error.message)+'</div>'; }
 }
 document.getElementById('refreshOperationsBtn').addEventListener('click', refreshOperations);
+async function runRestoreDrill(){ try{ await apiRunRestoreDrill(); showToast('เพิ่มงาน Restore Drill เข้าคิวแล้ว','success'); setTimeout(refreshOperations,500); }catch(error){ showToast(error.message,'error'); } }
 
 /* ======================================================================
    TEACHERS

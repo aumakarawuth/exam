@@ -103,6 +103,7 @@ test('operations requires admin access and reports system health', async () => {
   assert.equal(body.jobs.concurrency, 2);
   assert.equal(body.sessions.engine, 'Memory');
   assert.equal(body.sessions.connected, true);
+  assert.equal(typeof body.restoreDrill.configured, 'boolean');
   assert.equal(Number.isInteger(body.uptimeSeconds), true);
   assert.equal(typeof body.counts.students, 'number');
   assert.equal(body.submissions.maxConcurrent, 25);
@@ -112,6 +113,12 @@ test('operations requires admin access and reports system health', async () => {
   assert.equal(typeof body.examReadiness.ready, 'number');
   assert.equal(typeof body.examReadiness.blocked, 'number');
   assert.equal(Array.isArray(body.recentActivity), true);
+});
+
+test('manual restore drill requires encrypted backup configuration', async () => {
+  const response = await request('/api/admin/operations/restore-drill', { method: 'POST', headers: { 'x-admin-key': ADMIN_KEY } });
+  assert.equal(response.status, 409);
+  assert.equal(JSON.parse(response.body).error, 'restore_drill_not_configured');
 });
 
 test('student lookup returns a stable not-found response', async () => {

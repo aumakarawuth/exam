@@ -31,6 +31,7 @@ const { createAlertManager } = require('./src/alerts');
 const { createBackupService } = require('./src/backup');
 const { createSystemMonitor } = require('./src/system-monitor');
 const { createJobQueue } = require('./src/job-queue');
+const { createRestoreDrill } = require('./src/restore-drill');
 
 if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
@@ -104,9 +105,17 @@ const submissionGate = createSubmissionGate();
 const alertManager = createAlertManager({ webhookUrl: config.ALERT_WEBHOOK_URL, cooldownMs: config.ALERT_COOLDOWN_MINUTES * 60_000 });
 const jobQueue = createJobQueue({ concurrency: config.JOB_CONCURRENCY, maxPending: config.JOB_MAX_PENDING, baseRetryMs: config.JOB_RETRY_BASE_MS });
 const backupService = createBackupService({ enabled: config.BACKUP_ENABLED, backupDir: config.BACKUP_DIR, intervalMs: config.BACKUP_INTERVAL_HOURS * 3_600_000, retentionMs: config.BACKUP_RETENTION_DAYS * 86_400_000, encryptionKey: config.BACKUP_ENCRYPTION_KEY, readDB, alertManager });
+const restoreDrill = createRestoreDrill({ enabled: config.RESTORE_DRILL_ENABLED, backupDir: config.BACKUP_DIR, encryptionKey: config.BACKUP_ENCRYPTION_KEY, maxBytes: config.RESTORE_DRILL_MAX_BYTES, alertManager });
+jobQueue.register('restore_drill', async () => {
+  const result = await restoreDrill.run();
+  if (!result.verified && result.reason === 'failed') throw new Error('Automated restore drill failed');
+  return result;
+});
+const enqueueRestoreDrill = () => jobQueue.enqueue('restore_drill', { maxAttempts: 3, timeoutMs: 300_000, dedupeKey: 'restore-drill' });
 jobQueue.register('database_backup', async () => {
   const result = await backupService.run();
   if (!result.created && result.reason === 'failed') throw new Error('Encrypted database backup failed');
+  if (result.created && restoreDrill.status().configured) enqueueRestoreDrill();
   return result;
 });
 const enqueueBackup = () => jobQueue.enqueue('database_backup', { maxAttempts: 3, timeoutMs: 300_000, dedupeKey: 'automatic-backup' });
@@ -119,7 +128,7 @@ registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
 console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
-registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, systemMonitor, alertManager, jobQueue, sessionStore, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
+registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, restoreDrill, enqueueRestoreDrill, systemMonitor, alertManager, jobQueue, sessionStore, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
 
 registerFallback(app, PUBLIC_DIR);
 registerErrorHandler(app);
