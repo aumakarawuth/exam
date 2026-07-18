@@ -49,7 +49,10 @@ test('health and readiness endpoints report application state', async () => {
 
   const ready = await request('/ready');
   assert.equal(ready.status, 200);
-  assert.deepEqual(JSON.parse(ready.body), { status: 'ready' });
+  const readyBody = JSON.parse(ready.body);
+  assert.equal(readyBody.status, 'ready');
+  assert.equal(readyBody.database.status, 'connected');
+  assert.equal(typeof readyBody.database.latencyMs, 'number');
 });
 
 test('unknown API endpoints return a JSON 404 response', async () => {
@@ -79,6 +82,9 @@ test('operations requires admin access and reports system health', async () => {
   const body = JSON.parse(response.body);
   assert.equal(body.status, 'operational');
   assert.equal(body.database.status, 'connected');
+  assert.equal(typeof body.database.latencyMs, 'number');
+  assert.equal(typeof body.backup.configured, 'boolean');
+  assert.equal(typeof body.alerts.configured, 'boolean');
   assert.equal(Number.isInteger(body.uptimeSeconds), true);
   assert.equal(typeof body.counts.students, 'number');
   assert.equal(body.submissions.maxConcurrent, 25);

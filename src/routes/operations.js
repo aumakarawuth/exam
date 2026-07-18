@@ -3,8 +3,8 @@ const { DATABASE_URL, SQLITE_PATH } = require('../config');
 const { verificationSummary } = require('../score-verification');
 const { readinessSummary } = require('../exam-readiness');
 
-function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics, submissionGate }) {
-  app.get('/api/admin/operations', requireAdmin, (req, res) => {
+function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics, submissionGate, pingDatabase, readinessTimeoutMs, backupService, systemMonitor, alertManager }) {
+  app.get('/api/admin/operations', requireAdmin, async (req, res) => {
     const db = readDB();
     const memory = process.memoryUsage();
     const requests = runtimeMetrics.snapshot();
@@ -18,11 +18,19 @@ function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, tea
       .slice(0, 8)
       .map(event => ({ id: event.id, eventAt: event.eventAt, action: event.action, actorType: event.actorType, actorId: event.actorId || '', targetId: event.targetId || '' }));
 
+    let database;
+    try { database = await pingDatabase({ timeoutMs: readinessTimeoutMs }); }
+    catch (error) { database = { status: 'disconnected', engine: DATABASE_URL ? 'PostgreSQL' : 'SQLite' }; }
+    database.sizeBytes = databaseBytes;
+
     res.json({
       generatedAt: new Date().toISOString(),
       status: 'operational',
       uptimeSeconds: Math.floor(process.uptime()),
-      database: { status: 'connected', engine: DATABASE_URL ? 'PostgreSQL' : 'SQLite', sizeBytes: databaseBytes },
+      database,
+      backup: backupService.status(),
+      monitoring: systemMonitor.status(),
+      alerts: alertManager.status(),
       storage: { status: assetStorage.configured ? 'configured' : 'not_configured', maxBytes: assetStorage.maxBytes },
       memory: { rssBytes: memory.rss, heapUsedBytes: memory.heapUsed, heapTotalBytes: memory.heapTotal },
       requests,

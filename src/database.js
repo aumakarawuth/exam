@@ -352,6 +352,26 @@ async function initializePostgres() {
 
 const databaseReady = DATABASE_URL ? initializePostgres() : Promise.resolve();
 
+async function pingDatabase({ timeoutMs = 3000 } = {}) {
+  const startedAt = Date.now();
+  const probe = DATABASE_URL
+    ? pool.query('SELECT 1')
+    : Promise.resolve(sqlite.prepare('SELECT 1 AS ok').get());
+  let timer;
+  try {
+    await Promise.race([
+      probe,
+      new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Database readiness probe timed out')), timeoutMs);
+        timer.unref?.();
+      })
+    ]);
+    return { status: 'connected', engine: DATABASE_URL ? 'PostgreSQL' : 'SQLite', latencyMs: Date.now() - startedAt };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function readDB() {
   return structuredClone(currentDatabase);
 }
@@ -404,4 +424,4 @@ async function closeDatabase() {
   if (failure) throw failure;
 }
 
-module.exports = { readDB, writeDB, mutateDB, closeDatabase, databaseReady, changedRows, deletedIds };
+module.exports = { readDB, writeDB, mutateDB, closeDatabase, databaseReady, pingDatabase, changedRows, deletedIds };

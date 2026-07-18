@@ -11,8 +11,9 @@
    ====================================================================== */
 require('dotenv').config();
 const express = require('express');
-const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR, SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET, GOOGLE_FORMS_CLIENT_ID, GOOGLE_FORMS_CLIENT_SECRET, GOOGLE_FORMS_REDIRECT_URI } = require('./src/config');
-const { readDB, writeDB, mutateDB, closeDatabase, databaseReady } = require('./src/database');
+const config = require('./src/config');
+const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR, SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET, GOOGLE_FORMS_CLIENT_ID, GOOGLE_FORMS_CLIENT_SECRET, GOOGLE_FORMS_REDIRECT_URI } = config;
+const { readDB, writeDB, mutateDB, closeDatabase, databaseReady, pingDatabase } = require('./src/database');
 const { hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
 const { round2, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
 const { registerPages, registerFallback, registerErrorHandler } = require('./src/pages');
@@ -26,6 +27,9 @@ const { applyAcademicPeriod } = require('./src/academic-calendar');
 const { createShutdownHandler, registerShutdownSignals } = require('./src/shutdown');
 const { createRuntimeMetrics } = require('./src/runtime-metrics');
 const { createSubmissionGate } = require('./src/submission-gate');
+const { createAlertManager } = require('./src/alerts');
+const { createBackupService } = require('./src/backup');
+const { createSystemMonitor } = require('./src/system-monitor');
 
 if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
@@ -96,6 +100,9 @@ app.set('trust proxy', 1);
 app.use(applySecurityHeaders);
 const runtimeMetrics = createRuntimeMetrics();
 const submissionGate = createSubmissionGate();
+const alertManager = createAlertManager({ webhookUrl: config.ALERT_WEBHOOK_URL, cooldownMs: config.ALERT_COOLDOWN_MINUTES * 60_000 });
+const backupService = createBackupService({ enabled: config.BACKUP_ENABLED, backupDir: config.BACKUP_DIR, intervalMs: config.BACKUP_INTERVAL_HOURS * 3_600_000, retentionMs: config.BACKUP_RETENTION_DAYS * 86_400_000, encryptionKey: config.BACKUP_ENCRYPTION_KEY, readDB, alertManager });
+const systemMonitor = createSystemMonitor({ pingDatabase, runtimeMetrics, submissionGate, alertManager, intervalMs: config.MONITOR_INTERVAL_SECONDS * 1000, databaseTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, errorRateThreshold: config.ALERT_ERROR_RATE_PERCENT, queuePercentThreshold: config.ALERT_QUEUE_PERCENT });
 app.use(runtimeMetrics.middleware);
 app.use(express.json({ limit: '2mb' }));
 
@@ -104,7 +111,7 @@ registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
 console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
-registerRoutes(app, { ready: app.ready, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
+registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, systemMonitor, alertManager, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
 
 registerFallback(app, PUBLIC_DIR);
 registerErrorHandler(app);
@@ -112,10 +119,17 @@ registerErrorHandler(app);
 if (require.main === module) {
   Promise.all([databaseReady, seedReady])
     .then(() => {
+      systemMonitor.start();
+      backupService.schedule();
+      if (backupService.status().configured) void backupService.run();
       const server = app.listen(PORT, () => {
         console.log(`Exam system backend running at http://localhost:${PORT}  (admin: http://localhost:${PORT}/admin)`);
       });
-      registerShutdownSignals(createShutdownHandler({ server, closeDatabase }));
+      registerShutdownSignals(createShutdownHandler({ server, closeDatabase: async () => {
+        systemMonitor.stop();
+        backupService.stop();
+        await closeDatabase();
+      } }));
     })
     .catch(error => {
       console.error('Database initialization failed.', error);

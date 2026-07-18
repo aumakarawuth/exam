@@ -92,6 +92,17 @@ npm run migrate:postgres
 npm test
 ```
 
+## Production readiness, backup และ alerts
+
+- `GET /health` ใช้ตรวจว่า process ยังทำงาน (liveness)
+- `GET /ready` probe ฐานข้อมูลจริงทุกครั้งและคืน HTTP 503 เมื่อฐานข้อมูลไม่ตอบภายใน `DATABASE_READINESS_TIMEOUT_MS`
+- หน้า Admin > Operations แสดงสถานะฐานข้อมูลแบบ live, latency, backup และ external alerts
+- เปิด backup ด้วย `BACKUP_ENABLED=true` และกำหนด `BACKUP_ENCRYPTION_KEY` อย่างน้อย 32 ตัวอักษร ไฟล์จะถูก gzip และเข้ารหัส AES-256-GCM ก่อนเขียนแบบ atomic
+- `BACKUP_INTERVAL_HOURS` กำหนดรอบสำรอง และ `BACKUP_RETENTION_DAYS` กำหนดอายุไฟล์
+- กำหนด `ALERT_WEBHOOK_URL` เพื่อรับ JSON alerts เมื่อฐานข้อมูลล่ม/ฟื้น, backup ล้มเหลว/ฟื้น, 5xx สูง หรือคิวส่งข้อสอบใกล้เต็ม โดยไม่มีข้อมูลนักเรียนหรือคำตอบใน payload
+
+หาก deploy บน Railway หรือ container ต้อง mount persistent volume ให้ `BACKUP_DIR` มิฉะนั้นไฟล์ backup จะหายเมื่อ redeploy และควรให้ระบบ monitoring ภายนอก (เช่น UptimeRobot, Better Stack หรือ provider health check) เรียก `/ready` จากภายนอกด้วย ไม่ควรพึ่ง webhook ภายใน process เพียงทางเดียว ควรทดสอบ restore จากไฟล์ `.json.gz.enc` เป็นระยะและเก็บ `BACKUP_ENCRYPTION_KEY` แยกจากไฟล์ backup
+
 ชุดทดสอบใช้ SQLite และปิดการเชื่อมต่อ PostgreSQL เมื่อ `NODE_ENV=test` โดยครอบคลุมการยืนยันตัวตน สิทธิ์การเข้าถึง การตรวจคะแนน การส่งออกเอกสาร Google Forms และการไม่เปิดเผยเฉลยแก่นักเรียน
 
 ## ตรวจสอบก่อน deploy

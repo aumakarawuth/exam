@@ -2,6 +2,16 @@ const path = require('path');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 
+function positiveNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function enabled(value, fallback = false) {
+  if (value === undefined || value === '') return fallback;
+  return String(value).toLowerCase() === 'true';
+}
+
 module.exports = {
   ROOT_DIR,
   DATA_DIR: path.join(ROOT_DIR, 'data'),
@@ -10,6 +20,7 @@ module.exports = {
   PUBLIC_DIR: path.join(ROOT_DIR, 'public'),
   PORT: process.env.PORT || 3000,
   DATABASE_URL: process.env.DATABASE_URL || '',
+  DATABASE_READINESS_TIMEOUT_MS: positiveNumber(process.env.DATABASE_READINESS_TIMEOUT_MS, 3000),
   ADMIN_KEY: process.env.ADMIN_KEY || 'changeme123',
   SUPABASE_URL: (process.env.SUPABASE_URL || '').replace(/\/$/, ''),
   // New Supabase secret keys replace legacy service-role keys. Keep the fallback for older projects.
@@ -18,5 +29,15 @@ module.exports = {
   GOOGLE_FORMS_CLIENT_ID: process.env.GOOGLE_FORMS_CLIENT_ID || '',
   GOOGLE_FORMS_CLIENT_SECRET: process.env.GOOGLE_FORMS_CLIENT_SECRET || '',
   GOOGLE_FORMS_REDIRECT_URI: process.env.GOOGLE_FORMS_REDIRECT_URI || '',
+  BACKUP_ENABLED: enabled(process.env.BACKUP_ENABLED),
+  BACKUP_DIR: path.resolve(process.env.BACKUP_DIR || path.join(ROOT_DIR, 'data', 'backups')),
+  BACKUP_INTERVAL_HOURS: positiveNumber(process.env.BACKUP_INTERVAL_HOURS, 24),
+  BACKUP_RETENTION_DAYS: positiveNumber(process.env.BACKUP_RETENTION_DAYS, 30),
+  BACKUP_ENCRYPTION_KEY: process.env.BACKUP_ENCRYPTION_KEY || '',
+  ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL || '',
+  MONITOR_INTERVAL_SECONDS: positiveNumber(process.env.MONITOR_INTERVAL_SECONDS, 60),
+  ALERT_COOLDOWN_MINUTES: positiveNumber(process.env.ALERT_COOLDOWN_MINUTES, 15),
+  ALERT_ERROR_RATE_PERCENT: positiveNumber(process.env.ALERT_ERROR_RATE_PERCENT, 5),
+  ALERT_QUEUE_PERCENT: positiveNumber(process.env.ALERT_QUEUE_PERCENT, 80),
   EXAM_TYPES: ['กลางภาค', 'ปลายภาค']
 };
