@@ -19,6 +19,23 @@ const teacherSessions = new Map();
 const TEACHER_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const studentSessions = new Map();
 const STUDENT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+
+function purgeExpiredSessions(now = Date.now()) {
+  let removed = 0;
+  for (const store of [teacherSessions, studentSessions]) {
+    for (const [token, session] of store) {
+      if (session.expiresAt <= now) {
+        store.delete(token);
+        removed += 1;
+      }
+    }
+  }
+  return removed;
+}
+
+const sessionCleanupTimer = setInterval(purgeExpiredSessions, SESSION_CLEANUP_INTERVAL_MS);
+sessionCleanupTimer.unref();
 
 function requireTeacher(req, res, next) {
   const token = req.get('x-teacher-token');
@@ -73,5 +90,6 @@ function removeTeacherSessions(teacherId) {
 module.exports = {
   hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent,
   createTeacherSession, createStudentSession, removeTeacherSessions,
-  teacherSessions, studentSessions, TEACHER_SESSION_TTL_MS, STUDENT_SESSION_TTL_MS
+  teacherSessions, studentSessions, TEACHER_SESSION_TTL_MS, STUDENT_SESSION_TTL_MS,
+  SESSION_CLEANUP_INTERVAL_MS, purgeExpiredSessions
 };

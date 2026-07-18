@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Backend + database for the Choice/Matching/Written exam system",
   "main": "server.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",

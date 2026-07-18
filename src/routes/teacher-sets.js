@@ -1,8 +1,11 @@
+const { validateExamSetPayload, sendValidationError } = require('../validation');
+
 function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTypes, newId, applyAcademicPeriod }) {
   const owned = (db, key, teacherId) => db.sets.find(set => set.key === key && set.teacherId === teacherId);
   app.get('/api/teacher/sets', requireTeacher, (req, res) => res.json(readDB().sets.filter(set => set.teacherId === req.teacherId)));
   app.post('/api/teacher/sets', requireTeacher, async (req, res) => {
-    const body = req.body; if (!body?.title || !body.sections || !['ปวช.','ปวส.'].includes(body.educationLevel)) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณาเลือกระดับ ปวช. หรือ ปวส.' });
+    const body = req.body; const errors = validateExamSetPayload(body);
+    if (errors.length) return sendValidationError(res, errors);
     const now = new Date().toISOString(); const db = readDB(); const key = body.key || newId('set');
     const teacher = db.teachers.find(item => item.id === req.teacherId);
     const subjectTeacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '';
@@ -11,7 +14,8 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
   });
   app.put('/api/teacher/sets/:key', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' });
-    if (!['ปวช.','ปวส.'].includes(req.body.educationLevel)) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณาเลือกระดับ ปวช. หรือ ปวส.' });
+    const errors = validateExamSetPayload(req.body, { allowKey: false });
+    if (errors.length) return sendValidationError(res, errors);
     const teacher = db.teachers.find(item => item.id === req.teacherId);
     const subjectTeacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : set.subjectTeacherName;
     Object.assign(set, { ...req.body, key: set.key, teacherId: set.teacherId, subjectTeacherName, subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(req.body.examType) ? req.body.examType : set.examType, assignedClasses: Array.isArray(req.body.assignedClasses) ? req.body.assignedClasses : [], updatedAt: new Date().toISOString() });

@@ -1,5 +1,15 @@
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const { validateTeacherPayload, sendValidationError } = require('../validation');
+
+function purgeExpiredLoginFailures(store, now = Date.now()) {
+  let removed = 0;
+  for (const [key, entry] of store) {
+    const expiresAt = Math.max(entry.windowStartedAt + LOGIN_WINDOW_MS, entry.lockedUntil || 0);
+    if (expiresAt <= now) { store.delete(key); removed += 1; }
+  }
+  return removed;
+}
 
 function clientKey(req) { return req.ip || req.socket?.remoteAddress || 'unknown'; }
 function canAttempt(store, key) {
@@ -26,6 +36,11 @@ function registerAccountRoutes(app, dependencies) {
   } = dependencies;
   const adminLoginFailures = new Map();
   const teacherLoginFailures = new Map();
+  const cleanupTimer = setInterval(() => {
+    purgeExpiredLoginFailures(adminLoginFailures);
+    purgeExpiredLoginFailures(teacherLoginFailures);
+  }, LOGIN_WINDOW_MS);
+  cleanupTimer.unref();
 
   app.post('/api/admin/verify', (req, res) => {
     const key = clientKey(req);
@@ -48,9 +63,8 @@ function registerAccountRoutes(app, dependencies) {
 
   app.post('/api/teachers', requireAdmin, async (req, res) => {
     const body = req.body;
-    if (!body || !body.firstName || !body.lastName || !body.username || !body.password) {
-      return res.status(400).json({ error: 'invalid_payload', message: 'กรอกข้อมูลอาจารย์ไม่ครบ (ชื่อ, นามสกุล, username, password)' });
-    }
+    const errors = validateTeacherPayload(body);
+    if (errors.length) return sendValidationError(res, errors);
     const db = readDB();
     if (db.teachers.some(t => t.username === body.username)) {
       return res.status(409).json({ error: 'duplicate', message: 'มี username นี้อยู่ในระบบแล้ว' });
@@ -120,4 +134,4 @@ function registerAccountRoutes(app, dependencies) {
   });
 }
 
-module.exports = { registerAccountRoutes };
+module.exports = { registerAccountRoutes, purgeExpiredLoginFailures, LOGIN_WINDOW_MS };

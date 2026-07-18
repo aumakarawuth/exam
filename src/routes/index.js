@@ -16,8 +16,10 @@ const { registerQuestionAnalysisRoutes } = require('./question-analysis');
 const { registerResitRoutes } = require('./resit');
 const { registerAcademicCalendarRoutes } = require('./academic-calendar');
 const { registerStudentPromotionRoutes } = require('./student-promotion');
+const { registerHealthRoutes } = require('./health');
 
 function registerRoutes(app, dependencies) {
+  registerHealthRoutes(app, dependencies);
   registerAccountRoutes(app, dependencies);
   registerStudentRoutes(app, dependencies);
   registerPublicExamRoutes(app, { ...dependencies, examTypes: dependencies.EXAM_TYPES });

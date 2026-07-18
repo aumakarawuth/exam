@@ -39,6 +39,29 @@ test('public exam types endpoint remains available', async () => {
   assert.equal(response.headers['x-frame-options'], 'DENY');
 });
 
+test('health and readiness endpoints report application state', async () => {
+  await app.ready;
+  const health = await request('/health');
+  assert.equal(health.status, 200);
+  const healthBody = JSON.parse(health.body);
+  assert.equal(healthBody.status, 'ok');
+  assert.equal(Number.isInteger(healthBody.uptimeSeconds), true);
+
+  const ready = await request('/ready');
+  assert.equal(ready.status, 200);
+  assert.deepEqual(JSON.parse(ready.body), { status: 'ready' });
+});
+
+test('unknown API endpoints return a JSON 404 response', async () => {
+  const response = await request('/api/endpoint-that-does-not-exist');
+  assert.equal(response.status, 404);
+  assert.match(response.headers['content-type'], /application\/json/);
+  assert.deepEqual(JSON.parse(response.body), {
+    error: 'not_found',
+    message: 'API endpoint not found: GET /api/endpoint-that-does-not-exist'
+  });
+});
+
 test('exam sets require a verified student session', async () => {
   const response = await request('/api/sets');
   assert.equal(response.status, 401);
@@ -131,6 +154,23 @@ test('admin set creation rejects an incomplete payload without changing data', a
   const response = await request('/api/sets', { method: 'POST', headers: { 'x-admin-key': ADMIN_KEY }, body: {} });
   assert.equal(response.status, 400);
   assert.equal(JSON.parse(response.body).error, 'invalid_payload');
+});
+
+test('bulk student import skips invalid records without changing the database', async () => {
+  const studentId = '../invalid-bulk-student';
+  const before = readDB().students.length;
+  const response = await request('/api/students/bulk', {
+    method: 'POST',
+    headers: { 'x-admin-key': ADMIN_KEY },
+    body: { text: `${studentId},สมชาย,ใจดี,ปวช.1/1` }
+  });
+  assert.equal(response.status, 200);
+  const result = JSON.parse(response.body);
+  assert.equal(result.imported, 0);
+  assert.equal(result.updated, 0);
+  assert.equal(result.errors.length, 1);
+  assert.equal(readDB().students.length, before);
+  assert.equal(readDB().students.some(student => student.studentId === studentId), false);
 });
 
 test('teacher set management requires a teacher session', async () => {

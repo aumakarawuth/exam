@@ -330,4 +330,19 @@ function writeDB(db) {
   return writeChain;
 }
 
-module.exports = { readDB, writeDB, databaseReady, SQLITE_PATH, changedRows, deletedIds };
+async function closeDatabase() {
+  let failure = null;
+  try { await writeChain; } catch (error) { failure = error; }
+  try {
+    if (pool) {
+      await pool.end();
+      pool = null;
+    }
+  } catch (error) {
+    failure ||= error;
+  }
+  try { sqlite.close(); } catch (error) { failure ||= error; }
+  if (failure) throw failure;
+}
+
+module.exports = { readDB, writeDB, closeDatabase, databaseReady, SQLITE_PATH, changedRows, deletedIds };

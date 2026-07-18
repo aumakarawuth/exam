@@ -1,10 +1,18 @@
 const express = require('express');
 const XLSX = require('xlsx');
+const { validateStudentPayload, sendValidationError } = require('../validation');
 
 function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
   const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '' });
   const pinRecoveryFailures = new Map();
+  const pinRecoveryCleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of pinRecoveryFailures) {
+      if (Math.max((entry.startedAt || 0) + 15 * 60 * 1000, entry.lockedUntil || 0) <= now) pinRecoveryFailures.delete(key);
+    }
+  }, 15 * 60 * 1000);
+  pinRecoveryCleanupTimer.unref();
   const recoveryKey = req => req.ip || req.socket?.remoteAddress || 'unknown';
   const educationRank = room => /\.\s*\d+\s*\//.test(String(room || '')) ? 0 : 1;
   const byRoomThenStudentId = (a, b) => educationRank(a.classRoom) - educationRank(b.classRoom) || String(a.classRoom ?? '').localeCompare(String(b.classRoom ?? ''), 'th', { numeric: true }) || String(a.studentId ?? '').localeCompare(String(b.studentId ?? ''), 'th', { numeric: true });
@@ -151,7 +159,8 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
 
   app.post('/api/students', requireAdmin, async (req, res) => {
     const body = req.body;
-    if (!body || !body.studentId || !body.firstName || !body.lastName || !body.classRoom) return res.status(400).json({ error: 'invalid_payload', message: 'กรอกข้อมูลนักเรียนไม่ครบ' });
+    const errors = validateStudentPayload(body);
+    if (errors.length) return sendValidationError(res, errors);
     const db = readDB();
     const studentId = body.studentId.trim();
     if (db.students.some(student => student.studentId === studentId)) return res.status(409).json({ error: 'duplicate', message: 'มีรหัสนักเรียนนี้อยู่ในระบบแล้ว' });
@@ -166,7 +175,8 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
     let imported = 0, updated = 0; const errors = [];
     lines.forEach((line, index) => {
       const [studentId, firstName, lastName, classRoom, examPeriod] = (line.includes('\t') ? line.split('\t') : line.split(',')).map(value => (value || '').trim());
-      if (!studentId || !firstName || !lastName || !classRoom) { errors.push(`บรรทัดที่ ${index + 1}: ข้อมูลไม่ครบ ("${line}")`); return; }
+      const validationErrors = validateStudentPayload({ studentId, firstName, lastName, classRoom });
+      if (validationErrors.length) { errors.push(`บรรทัดที่ ${index + 1}: ${validationErrors.join(', ')}`); return; }
       if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย','ทวิภาคี'].includes(examPeriod) ? examPeriod : '' }); updated++; }
       else { const student = { studentId, firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย','ทวิภาคี'].includes(examPeriod) ? examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported++; }
     });
@@ -196,7 +206,8 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
       const firstName = valueOf(row, ['ชื่อ', 'firstname', 'first_name']);
       const lastName = valueOf(row, ['นามสกุล', 'lastname', 'last_name']);
       const classRoom = valueOf(row, ['ห้อง', 'classroom', 'class_room', 'class']); const examPeriod = valueOf(row, ['รอบเรียน', 'รอบ', 'period', 'examperiod']);
-      if (!studentId || !firstName || !lastName || !classRoom) { errors.push(`แถว ${index + 2}: ข้อมูลไม่ครบ`); return; }
+      const validationErrors = validateStudentPayload({ studentId, firstName, lastName, classRoom });
+      if (validationErrors.length) { errors.push(`แถว ${index + 2}: ${validationErrors.join(', ')}`); return; }
       if (byId.has(studentId)) { Object.assign(byId.get(studentId), { firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '' }); updated += 1; }
       else { const student = { studentId, firstName, lastName, classRoom, examPeriod: ['เช้า','บ่าย'].includes(examPeriod) ? examPeriod : '', pinFailedAttempts: 0, createdAt: new Date().toISOString() }; byId.set(studentId, student); db.students.push(student); imported += 1; }
     });
@@ -206,6 +217,8 @@ function registerStudentRoutes(app, { readDB, writeDB, requireAdmin, requireStud
   app.put('/api/students/:studentId', requireAdmin, async (req, res) => {
     const db = readDB(); const student = findStudent(db.students, req.params.studentId);
     if (!student) return res.status(404).json({ error: 'not_found' });
+    const errors = validateStudentPayload({ ...student, ...req.body, studentId: student.studentId });
+    if (errors.length) return sendValidationError(res, errors);
     Object.assign(student, { firstName: req.body.firstName ?? student.firstName, lastName: req.body.lastName ?? student.lastName, classRoom: req.body.classRoom ?? student.classRoom, examPeriod: req.body.examPeriod === '' ? '' : (['เช้า','บ่าย','ทวิภาคี'].includes(req.body.examPeriod) ? req.body.examPeriod : student.examPeriod) });
     await writeDB(db); res.json({ ok: true });
   });
