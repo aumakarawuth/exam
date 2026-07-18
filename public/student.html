@@ -446,7 +446,7 @@ async function apiFetch(path, options){
     let msg = 'เกิดข้อผิดพลาด (HTTP '+res.status+')';
     let payload = null;
     try{ payload = await res.json(); if(payload && payload.message) msg = payload.message; }catch(e){}
-    const err = new Error(msg); err.payload = payload; throw err;
+    const err = new Error(msg); err.payload = payload; err.retryAfterMs = Math.max(0,Number(res.headers.get('Retry-After'))||0)*1000; throw err;
   }
   return res.json();
 }
@@ -1219,7 +1219,7 @@ async function submitFinalAnswers(autoSubmit){
       lastErr = e;
       // "already submitted" is not something a retry will fix — stop immediately
       if(e.payload && e.payload.error==='already_submitted') break;
-      if(attempt<MAX_TRIES) await new Promise(r=>setTimeout(r, 800));
+      if(attempt<MAX_TRIES) await new Promise(r=>setTimeout(r, e.retryAfterMs || 800));
     }
   }
   console.error('ส่งคำตอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ', lastErr);

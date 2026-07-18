@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { DATABASE_URL, SQLITE_PATH } = require('../config');
 
-function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics }) {
+function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics, submissionGate }) {
   app.get('/api/admin/operations', requireAdmin, (req, res) => {
     const db = readDB();
     const memory = process.memoryUsage();
@@ -24,6 +24,7 @@ function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, tea
       storage: { status: assetStorage.configured ? 'configured' : 'not_configured', maxBytes: assetStorage.maxBytes },
       memory: { rssBytes: memory.rss, heapUsedBytes: memory.heapUsed, heapTotalBytes: memory.heapTotal },
       requests,
+      submissions: submissionGate.snapshot(),
       counts: {
         students: db.students.length,
         teachers: db.teachers.length,

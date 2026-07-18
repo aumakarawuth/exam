@@ -81,6 +81,8 @@ test('operations requires admin access and reports system health', async () => {
   assert.equal(body.database.status, 'connected');
   assert.equal(Number.isInteger(body.uptimeSeconds), true);
   assert.equal(typeof body.counts.students, 'number');
+  assert.equal(body.submissions.maxConcurrent, 25);
+  assert.equal(body.submissions.maxPending, 500);
   assert.equal(Array.isArray(body.recentActivity), true);
 });
 
