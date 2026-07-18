@@ -10,7 +10,7 @@ const { createStudentSession } = require('../src/auth');
 async function studentHeaders() {
   await Promise.all([databaseReady, app.ready]);
   const student = readDB().students[0];
-  return { 'x-student-token': createStudentSession(student.studentId) };
+  return { 'x-student-token': await createStudentSession(student.studentId) };
 }
 
 function request(path, { method = 'GET', headers = {}, body } = {}) {
@@ -53,6 +53,7 @@ test('health and readiness endpoints report application state', async () => {
   assert.equal(readyBody.status, 'ready');
   assert.equal(readyBody.database.status, 'connected');
   assert.equal(typeof readyBody.database.latencyMs, 'number');
+  assert.equal(readyBody.sessions.status, 'connected');
 });
 
 test('frontend pages load extracted CSS and JavaScript assets', async () => {
@@ -100,6 +101,8 @@ test('operations requires admin access and reports system health', async () => {
   assert.equal(typeof body.alerts.configured, 'boolean');
   assert.equal(typeof body.jobs.pending, 'number');
   assert.equal(body.jobs.concurrency, 2);
+  assert.equal(body.sessions.engine, 'Memory');
+  assert.equal(body.sessions.connected, true);
   assert.equal(Number.isInteger(body.uptimeSeconds), true);
   assert.equal(typeof body.counts.students, 'number');
   assert.equal(body.submissions.maxConcurrent, 25);

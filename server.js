@@ -14,7 +14,7 @@ const express = require('express');
 const config = require('./src/config');
 const { PORT, ADMIN_KEY, EXAM_TYPES, PUBLIC_DIR, SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET, GOOGLE_FORMS_CLIENT_ID, GOOGLE_FORMS_CLIENT_SECRET, GOOGLE_FORMS_REDIRECT_URI } = config;
 const { readDB, writeDB, mutateDB, closeDatabase, databaseReady, pingDatabase } = require('./src/database');
-const { hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions } = require('./src/auth');
+const { hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, sessionStore } = require('./src/auth');
 const { round2, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
 const { registerPages, registerFallback, registerErrorHandler } = require('./src/pages');
 const { registerRoutes } = require('./src/routes');
@@ -95,7 +95,7 @@ const seedReady = seedIfEmpty();
 
 /* ---------------------------- APP SETUP ---------------------------- */
 const app = express();
-app.ready = Promise.all([databaseReady, seedReady]);
+app.ready = Promise.all([databaseReady, seedReady, sessionStore.ready]);
 // Railway sits behind a reverse proxy; trust its first hop so login rate limits use the visitor IP.
 app.set('trust proxy', 1);
 app.use(applySecurityHeaders);
@@ -110,7 +110,7 @@ jobQueue.register('database_backup', async () => {
   return result;
 });
 const enqueueBackup = () => jobQueue.enqueue('database_backup', { maxAttempts: 3, timeoutMs: 300_000, dedupeKey: 'automatic-backup' });
-const systemMonitor = createSystemMonitor({ pingDatabase, runtimeMetrics, submissionGate, alertManager, intervalMs: config.MONITOR_INTERVAL_SECONDS * 1000, databaseTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, errorRateThreshold: config.ALERT_ERROR_RATE_PERCENT, queuePercentThreshold: config.ALERT_QUEUE_PERCENT });
+const systemMonitor = createSystemMonitor({ pingDatabase, sessionStore, runtimeMetrics, submissionGate, alertManager, intervalMs: config.MONITOR_INTERVAL_SECONDS * 1000, databaseTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, errorRateThreshold: config.ALERT_ERROR_RATE_PERCENT, queuePercentThreshold: config.ALERT_QUEUE_PERCENT });
 app.use(runtimeMetrics.middleware);
 app.use(express.json({ limit: '2mb' }));
 
@@ -119,13 +119,13 @@ registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
 console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
-registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, systemMonitor, alertManager, jobQueue, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
+registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, systemMonitor, alertManager, jobQueue, sessionStore, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
 
 registerFallback(app, PUBLIC_DIR);
 registerErrorHandler(app);
 
 if (require.main === module) {
-  Promise.all([databaseReady, seedReady])
+  app.ready
     .then(() => {
       systemMonitor.start();
       backupService.schedule(enqueueBackup);
@@ -137,6 +137,7 @@ if (require.main === module) {
         systemMonitor.stop();
         backupService.stop();
         await jobQueue.stop();
+        await sessionStore.close();
         await closeDatabase();
       } }));
     })

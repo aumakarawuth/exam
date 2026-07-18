@@ -13,21 +13,21 @@ test('password hashes verify only the original password', () => {
   assert.equal(verifyPassword('wrong-password', hash), false);
 });
 
-test('teacher sessions have an expiration and can be revoked', () => {
+test('teacher sessions have an expiration and can be revoked', async () => {
   const teacherId = 'teacher-test';
-  const token = createTeacherSession(teacherId);
+  const token = await createTeacherSession(teacherId);
   const session = teacherSessions.get(token);
   assert.equal(session.teacherId, teacherId);
   assert.ok(session.expiresAt > Date.now());
-  removeTeacherSessions(teacherId);
+  await removeTeacherSessions(teacherId);
   assert.equal(teacherSessions.has(token), false);
 });
 
-test('expired sessions are removed without affecting active sessions', () => {
-  const expiredTeacherToken = createTeacherSession('expired-teacher');
-  const activeTeacherToken = createTeacherSession('active-teacher');
-  const expiredStudentToken = createStudentSession('expired-student');
-  const activeStudentToken = createStudentSession('active-student');
+test('expired sessions are removed without affecting active sessions', async () => {
+  const expiredTeacherToken = await createTeacherSession('expired-teacher');
+  const activeTeacherToken = await createTeacherSession('active-teacher');
+  const expiredStudentToken = await createStudentSession('expired-student');
+  const activeStudentToken = await createStudentSession('active-student');
   const now = Date.now();
 
   teacherSessions.get(expiredTeacherToken).expiresAt = now - 1;

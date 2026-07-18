@@ -32,7 +32,7 @@ function registerFailure(store, key) {
 function registerAccountRoutes(app, dependencies) {
   const {
     ADMIN_KEY, readDB, writeDB, hashPassword, verifyPassword, requireAdmin,
-    requireTeacher, createTeacherSession, removeTeacherSessions, teacherSessions, newId
+    requireTeacher, createTeacherSession, removeTeacherSessions, sessionStore, newId
   } = dependencies;
   const adminLoginFailures = new Map();
   const teacherLoginFailures = new Map();
@@ -83,11 +83,11 @@ function registerAccountRoutes(app, dependencies) {
     db.teachers = db.teachers.filter(t => t.id !== req.params.id);
     db.sets.forEach(set => { if (set.teacherId === req.params.id) set.teacherId = null; });
     await writeDB(db);
-    removeTeacherSessions(req.params.id);
+    await removeTeacherSessions(req.params.id);
     res.json({ ok: true });
   });
 
-  app.post('/api/teacher/login', (req, res) => {
+  app.post('/api/teacher/login', async (req, res) => {
     const { username, password } = req.body || {};
     if (!username || !password) return res.status(400).json({ error: 'invalid_payload', message: 'กรุณากรอก username และ password' });
     const key = clientKey(req);
@@ -98,7 +98,7 @@ function registerAccountRoutes(app, dependencies) {
       return res.status(locked ? 429 : 401).json({ error: locked ? 'rate_limited' : 'invalid_credentials', message: locked ? 'ลองรหัสผิดครบ 5 ครั้ง กรุณารอ 15 นาทีแล้วลองใหม่' : 'username หรือ password ไม่ถูกต้อง' });
     }
     teacherLoginFailures.delete(key);
-    const token = createTeacherSession(teacher.id);
+    const token = await createTeacherSession(teacher.id);
     res.json({ token, teacherId: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName });
   });
 
@@ -123,13 +123,13 @@ function registerAccountRoutes(app, dependencies) {
     teacher.passwordHash = hashPassword(newPassword);
     teacher.passwordChangedAt = new Date().toISOString();
     await writeDB(db);
-    removeTeacherSessions(teacher.id);
-    const token = createTeacherSession(teacher.id);
+    await removeTeacherSessions(teacher.id);
+    const token = await createTeacherSession(teacher.id);
     res.json({ ok: true, token });
   });
 
-  app.post('/api/teacher/logout', requireTeacher, (req, res) => {
-    teacherSessions.delete(req.get('x-teacher-token'));
+  app.post('/api/teacher/logout', requireTeacher, async (req, res) => {
+    await sessionStore.remove('teacher', req.get('x-teacher-token'));
     res.json({ ok: true });
   });
 }

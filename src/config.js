@@ -42,5 +42,7 @@ module.exports = {
   JOB_CONCURRENCY: positiveNumber(process.env.JOB_CONCURRENCY, 2),
   JOB_MAX_PENDING: positiveNumber(process.env.JOB_MAX_PENDING, 100),
   JOB_RETRY_BASE_MS: positiveNumber(process.env.JOB_RETRY_BASE_MS, 1000),
+  REDIS_URL: process.env.REDIS_URL || '',
+  SESSION_KEY_PREFIX: process.env.SESSION_KEY_PREFIX || 'exam',
   EXAM_TYPES: ['กลางภาค', 'ปลายภาค']
 };

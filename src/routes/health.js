@@ -1,4 +1,4 @@
-function registerHealthRoutes(app, { ready, pingDatabase, readinessTimeoutMs = 3000 }) {
+function registerHealthRoutes(app, { ready, pingDatabase, sessionStore, readinessTimeoutMs = 3000 }) {
   let readiness = 'starting';
   Promise.resolve(ready).then(
     () => { readiness = 'ready'; },
@@ -12,10 +12,10 @@ function registerHealthRoutes(app, { ready, pingDatabase, readinessTimeoutMs = 3
   app.get('/ready', async (req, res) => {
     if (readiness !== 'ready') return res.status(503).json({ status: 'not_ready', database: { status: 'disconnected' } });
     try {
-      const database = await pingDatabase({ timeoutMs: readinessTimeoutMs });
-      res.json({ status: 'ready', database });
+      const [database, sessions] = await Promise.all([pingDatabase({ timeoutMs: readinessTimeoutMs }), sessionStore.ping({ timeoutMs: readinessTimeoutMs })]);
+      res.json({ status: 'ready', database, sessions });
     } catch (error) {
-      res.status(503).json({ status: 'not_ready', database: { status: 'disconnected' } });
+      res.status(503).json({ status: 'not_ready' });
     }
   });
 }

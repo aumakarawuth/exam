@@ -1,5 +1,6 @@
 const crypto = require('crypto');
-const { ADMIN_KEY } = require('./config');
+const { ADMIN_KEY, REDIS_URL, SESSION_KEY_PREFIX } = require('./config');
+const { createSessionStore } = require('./session-store');
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -15,80 +16,57 @@ function verifyPassword(password, stored) {
   catch { return false; }
 }
 
-const teacherSessions = new Map();
 const TEACHER_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const studentSessions = new Map();
 const STUDENT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+const sessionStore = createSessionStore({ redisUrl: REDIS_URL, prefix: SESSION_KEY_PREFIX });
+const teacherSessions = sessionStore.memory.teacher;
+const studentSessions = sessionStore.memory.student;
 
-function purgeExpiredSessions(now = Date.now()) {
-  let removed = 0;
-  for (const store of [teacherSessions, studentSessions]) {
-    for (const [token, session] of store) {
-      if (session.expiresAt <= now) {
-        store.delete(token);
-        removed += 1;
-      }
-    }
-  }
-  return removed;
-}
-
+function purgeExpiredSessions(now = Date.now()) { return sessionStore.purgeExpired(now); }
 const sessionCleanupTimer = setInterval(purgeExpiredSessions, SESSION_CLEANUP_INTERVAL_MS);
 sessionCleanupTimer.unref();
 
-function requireTeacher(req, res, next) {
-  const token = req.get('x-teacher-token');
-  const session = token && teacherSessions.get(token);
-  if (!session || session.expiresAt <= Date.now()) {
-    if (token) teacherSessions.delete(token);
-    return res.status(401).json({ error: 'unauthorized', message: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอาจารย์ใหม่อีกครั้ง' });
-  }
-  session.expiresAt = Date.now() + TEACHER_SESSION_TTL_MS;
-  req.teacherId = session.teacherId;
-  next();
+async function requireTeacher(req, res, next) {
+  try {
+    const teacherId = await sessionStore.getAndTouch('teacher', req.get('x-teacher-token'), TEACHER_SESSION_TTL_MS);
+    if (!teacherId) return res.status(401).json({ error: 'unauthorized', message: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอาจารย์ใหม่อีกครั้ง' });
+    req.teacherId = teacherId;
+    next();
+  } catch (error) { next(error); }
 }
 
 function requireAdmin(req, res, next) {
   const key = req.get('x-admin-key');
-  if (!key || key !== ADMIN_KEY) {
-    return res.status(401).json({ error: 'unauthorized', message: 'ต้องระบุรหัสผู้ดูแลระบบที่ถูกต้อง' });
-  }
+  if (!key || key !== ADMIN_KEY) return res.status(401).json({ error: 'unauthorized', message: 'ต้องระบุรหัสผู้ดูแลระบบที่ถูกต้อง' });
   next();
 }
 
-function requireStudent(req, res, next) {
-  const token = req.get('x-student-token');
-  const session = token && studentSessions.get(token);
-  if (!session || session.expiresAt <= Date.now()) {
-    if (token) studentSessions.delete(token);
-    return res.status(401).json({ error: 'unauthorized', message: 'Student session expired. Please sign in again.' });
-  }
-  session.expiresAt = Date.now() + STUDENT_SESSION_TTL_MS;
-  req.studentId = session.studentId;
-  next();
+async function requireStudent(req, res, next) {
+  try {
+    const studentId = await sessionStore.getAndTouch('student', req.get('x-student-token'), STUDENT_SESSION_TTL_MS);
+    if (!studentId) return res.status(401).json({ error: 'unauthorized', message: 'Student session expired. Please sign in again.' });
+    req.studentId = studentId;
+    next();
+  } catch (error) { next(error); }
 }
 
-function createTeacherSession(teacherId) {
+async function createTeacherSession(teacherId) {
   const token = crypto.randomBytes(24).toString('hex');
-  teacherSessions.set(token, { teacherId, expiresAt: Date.now() + TEACHER_SESSION_TTL_MS });
+  await sessionStore.set('teacher', token, teacherId, TEACHER_SESSION_TTL_MS);
   return token;
 }
 
-function createStudentSession(studentId) {
+async function createStudentSession(studentId) {
   const token = crypto.randomBytes(24).toString('hex');
-  studentSessions.set(token, { studentId, expiresAt: Date.now() + STUDENT_SESSION_TTL_MS });
+  await sessionStore.set('student', token, studentId, STUDENT_SESSION_TTL_MS);
   return token;
 }
 
-function removeTeacherSessions(teacherId) {
-  for (const [token, session] of teacherSessions) {
-    if (session.teacherId === teacherId) teacherSessions.delete(token);
-  }
-}
+async function removeTeacherSessions(teacherId) { await sessionStore.removeBySubject('teacher', teacherId); }
 
 module.exports = {
   hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent,
   createTeacherSession, createStudentSession, removeTeacherSessions,
-  teacherSessions, studentSessions, purgeExpiredSessions
+  teacherSessions, studentSessions, purgeExpiredSessions, sessionStore
 };

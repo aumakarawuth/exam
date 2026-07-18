@@ -1,9 +1,11 @@
-function createSystemMonitor({ pingDatabase, runtimeMetrics, submissionGate, alertManager, intervalMs = 60_000, databaseTimeoutMs = 3000, errorRateThreshold = 5, queuePercentThreshold = 80, now = () => Date.now() } = {}) {
+function createSystemMonitor({ pingDatabase, sessionStore, runtimeMetrics, submissionGate, alertManager, intervalMs = 60_000, databaseTimeoutMs = 3000, errorRateThreshold = 5, queuePercentThreshold = 80, now = () => Date.now() } = {}) {
   let timer = null;
   let checking = false;
   let previousDatabaseStatus = null;
+  let previousSessionStatus = null;
   let lastCheckAt = null;
   let database = { status: 'unknown' };
+  let sessions = { status: 'unknown' };
 
   async function check() {
     if (checking) return;
@@ -18,6 +20,17 @@ function createSystemMonitor({ pingDatabase, runtimeMetrics, submissionGate, ale
         database = { status: 'disconnected' };
         if (previousDatabaseStatus !== 'disconnected') await alertManager.send({ type: 'database_down', severity: 'critical', message: 'Database readiness probe failed.' });
         previousDatabaseStatus = 'disconnected';
+      }
+      if (sessionStore) {
+        try {
+          sessions = await sessionStore.ping({ timeoutMs: databaseTimeoutMs });
+          if (previousSessionStatus === 'disconnected') await alertManager.send({ type: 'session_store_recovered', severity: 'info', message: 'Shared session store recovered.', details: { engine: sessions.engine, latencyMs: sessions.latencyMs } });
+          previousSessionStatus = 'connected';
+        } catch (error) {
+          sessions = { status: 'disconnected', engine: sessionStore.status().engine };
+          if (previousSessionStatus !== 'disconnected') await alertManager.send({ type: 'session_store_down', severity: 'critical', message: 'Shared session store readiness probe failed.' });
+          previousSessionStatus = 'disconnected';
+        }
       }
       const requests = runtimeMetrics.snapshot();
       if (requests.totalRequests >= 20 && requests.errorRatePercent >= errorRateThreshold) {
@@ -38,7 +51,7 @@ function createSystemMonitor({ pingDatabase, runtimeMetrics, submissionGate, ale
     timer.unref?.();
   }
   function stop() { if (timer) clearInterval(timer); timer = null; }
-  function status() { return { enabled: true, intervalSeconds: Math.round(intervalMs / 1000), lastCheckAt, database }; }
+  function status() { return { enabled: true, intervalSeconds: Math.round(intervalMs / 1000), lastCheckAt, database, sessions }; }
   return { check, start, stop, status };
 }
 

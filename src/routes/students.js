@@ -105,7 +105,7 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
     student.pinHash = hashPassword(pin);
     student.pinFailedAttempts = 0;
     await writeDB(db);
-    res.json({ ok: true, token: createStudentSession(student.studentId), student: publicStudent(student) });
+    res.json({ ok: true, token: await createStudentSession(student.studentId), student: publicStudent(student) });
   });
 
   app.post('/api/students/:studentId/verify-pin', async (req, res) => {
@@ -119,7 +119,7 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
     if (verifyPassword(pin, student.pinHash)) {
       student.pinFailedAttempts = 0;
       await writeDB(db);
-      return res.json({ ok: true, token: createStudentSession(student.studentId), student: publicStudent(student) });
+      return res.json({ ok: true, token: await createStudentSession(student.studentId), student: publicStudent(student) });
     }
     student.pinFailedAttempts = (student.pinFailedAttempts || 0) + 1;
     await writeDB(db);
@@ -148,7 +148,7 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
     student.pinFailedAttempts = 0;
     pinRecoveryFailures.delete(key);
     await writeDB(db);
-    res.json({ ok: true, token: createStudentSession(student.studentId), student: publicStudent(student) });
+    res.json({ ok: true, token: await createStudentSession(student.studentId), student: publicStudent(student) });
   });
 
   app.post('/api/students/:studentId/reset-pin', requireAdmin, async (req, res) => {
