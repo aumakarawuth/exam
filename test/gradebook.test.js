@@ -14,12 +14,16 @@ test('gradebook uses the highest midterm and final scores and includes formulas'
       { studentId: '10001', studentName: 'สมชาย ใจดี', classRoom: 'ปวช.1/1', examType: 'ปลายภาค', overallScore20: 16 }
     ]
   });
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellFormula: true });
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellFormula: true, cellStyles: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   assert.equal(sheet.I2.v, 18);
   assert.equal(sheet.J2.v, 16);
   assert.match(sheet.K2.f, /COUNT\(F2:J2\)/);
   assert.match(sheet.L2.f, />=80,4/);
+  assert.equal(sheet['!autofilter'].ref, 'A1:B2');
+  assert.equal(sheet.A1.s.fgColor.rgb, '0F766E');
+  assert.equal(sheet.I2.s.fgColor.rgb, 'EFF6FF');
+  assert.equal(sheet.K2.s.fgColor.rgb, 'F0FDF4');
 });
 
 test('gradebook pairs only the same course, year, semester, and teacher', () => {

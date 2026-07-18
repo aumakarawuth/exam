@@ -2154,7 +2154,8 @@ async function downloadGradebook(setKey,button){
   try{
     const res=await fetch('/api/export/gradebook.xlsx?setKey='+encodeURIComponent(setKey),{headers:{'x-admin-key':adminKey||''}});
     const errorBody=res.ok?null:await res.json().catch(()=>({})); if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');} if(!res.ok)throw new Error(errorBody?.message||'ส่งออกไฟล์รวมคะแนนไม่สำเร็จ');
-    const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a'); a.href=url;a.download='รวมคะแนนและเกรด.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลด Excel รวมคะแนนแล้ว');
+    const set=ADMIN_SETS.find(item=>item.key===setKey),courseName=String(set?.courseName||set?.title||'รายวิชา').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim()||'รายวิชา';
+    const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a'); a.href=url;a.download=`รวมคะแนนวิชา(${courseName}).xlsx`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลด Excel รวมคะแนนแล้ว');
   }catch(error){showToast(error.message);}finally{button.disabled=false;button.textContent=original;}
 }
 async function downloadQuestionAnalysis(setKey){

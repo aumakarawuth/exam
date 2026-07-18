@@ -1,4 +1,5 @@
 const XLSX = require('xlsx');
+const StyledXLSX = require('xlsx-js-style');
 
 function buildResultsWorkbook(rows) {
   const data = rows.map(row => ({
@@ -55,14 +56,46 @@ function buildGradebookWorkbook({ results, students = [], courseName = 'รา�
     data[index + 1][11] = { t: 'n', v: 0, f: `IF(K${excelRow}="","",IF(K${excelRow}>=80,4,IF(K${excelRow}>=75,3.5,IF(K${excelRow}>=70,3,IF(K${excelRow}>=65,2.5,IF(K${excelRow}>=60,2,IF(K${excelRow}>=55,1.5,IF(K${excelRow}>=50,1,0))))))))` };
   });
 
-  const sheet = XLSX.utils.aoa_to_sheet(data);
+  const sheet = StyledXLSX.utils.aoa_to_sheet(data);
   sheet['!cols'] = [12, 14, 18, 20, 3, 12, 12, 12, 12, 12, 12, 10].map(wch => ({ wch }));
-  sheet['!autofilter'] = { ref: `A1:L${Math.max(1, data.length)}` };
-  const workbook = XLSX.utils.book_new();
+  sheet['!rows'] = data.map((_, index) => ({ hpt: index === 0 ? 26 : 21 }));
+  sheet['!autofilter'] = { ref: `A1:B${Math.max(1, data.length)}` };
+
+  const borderColor = { rgb: 'CBD5E1' };
+  const bodyBorder = { bottom: { style: 'thin', color: borderColor } };
+  const headerColors = ['0F766E', '0F766E', '0F766E', '0F766E', '475569', 'D97706', 'D97706', 'D97706', '2563EB', '2563EB', '15803D', '15803D'];
+  for (let column = 0; column < 12; column += 1) {
+    const address = StyledXLSX.utils.encode_cell({ r: 0, c: column });
+    sheet[address].s = {
+      font: { name: 'Tahoma', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: headerColors[column] } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: { bottom: { style: 'medium', color: { rgb: 'FFFFFF' } } }
+    };
+  }
+  for (let row = 1; row < data.length; row += 1) {
+    for (let column = 0; column < 12; column += 1) {
+      const address = StyledXLSX.utils.encode_cell({ r: row, c: column });
+      const cell = sheet[address] || (sheet[address] = { t: 's', v: '' });
+      let fill = row % 2 === 0 ? 'F8FAFC' : 'FFFFFF';
+      if (column === 4) fill = 'E2E8F0';
+      else if (column >= 5 && column <= 7) fill = 'FFFBEB';
+      else if (column >= 8 && column <= 9) fill = 'EFF6FF';
+      else if (column >= 10) fill = 'F0FDF4';
+      cell.s = {
+        font: { name: 'Tahoma', sz: 10, color: { rgb: '1E293B' } },
+        fill: { patternType: 'solid', fgColor: { rgb: fill } },
+        alignment: { horizontal: column >= 5 ? 'right' : (column < 2 ? 'center' : 'left'), vertical: 'center' },
+        border: bodyBorder,
+        numFmt: column >= 5 ? '0.##' : (column === 1 ? '@' : 'General')
+      };
+    }
+  }
+  const workbook = StyledXLSX.utils.book_new();
   workbook.Workbook = { CalcPr: { calcMode: 'auto', fullCalcOnLoad: true, forceFullCalc: true } };
   const safeSheetName = String(courseName || 'รวมคะแนน').replace(/[\\/?*:[\]]/g, ' ').trim().slice(0, 31) || 'รวมคะแนน';
-  XLSX.utils.book_append_sheet(workbook, sheet, safeSheetName);
-  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  StyledXLSX.utils.book_append_sheet(workbook, sheet, safeSheetName);
+  return StyledXLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
 module.exports = { buildResultsWorkbook, buildGradebookWorkbook };
