@@ -1779,7 +1779,8 @@ function toggleDetailRow(resultId){
       const isCorrect = rid === set.sections.matching.correctMap[item.id];
       return `${escapeHtml(item.text)} → ${rightItem?escapeHtml(rightItem.text):'(ไม่ได้จับคู่)'} ${isCorrect?'✅':'❌ (เฉลย: '+escapeHtml(correctRightItem?correctRightItem.text:'-')+')'}`;
     }).join('<br>') + `</div>`;
-    html += `<div class="detail-block"><b>อัตนัย (${rec.sectionScores.written} คะแนน โดยประมาณจากคำสำคัญ)</b><br>` + set.sections.written.questions.map((qq,i)=>{
+    const writtenQuestions=set.sections?.written?.questions||[];
+    if(writtenQuestions.length) html += `<div class="detail-block"><b>อัตนัย (${rec.sectionScores.written} คะแนน โดยประมาณจากคำสำคัญ)</b><br>` + writtenQuestions.map((qq,i)=>{
       const text = (answers.written && answers.written[qq.id]) || '(ไม่ได้ตอบ)';
       const pts = (rec.detail && rec.detail.writtenPerQuestion) ? rec.detail.writtenPerQuestion[qq.id] : '-';
       const manual=rec.detail?.writtenManualScores?.[qq.id];

@@ -36,8 +36,10 @@ function registerAdminResultRoutes(app, { readDB, writeDB, requireAdmin, newId }
     if (req.body.writtenManualScores && typeof req.body.writtenManualScores === 'object') {
       const set = db.sets.find(item => item.key === result.questionKey);
       if (!set) return res.status(404).json({ error: 'not_found' });
+      const writtenQuestions = set.sections?.written?.questions || [];
+      if (!writtenQuestions.length) return res.status(400).json({ error: 'no_written_questions', message: 'ข้อสอบชุดนี้ไม่มีข้ออัตนัย' });
       const scores = {};
-      for (const question of set.sections.written.questions || []) {
+      for (const question of writtenQuestions) {
         const score = Number(req.body.writtenManualScores[question.id]);
         if (!Number.isFinite(score) || score < 0 || score > Number(question.maxPoints || 0)) return res.status(400).json({ error: 'invalid_written_scores', message: 'คะแนนอัตนัยไม่ถูกต้อง' });
         scores[question.id] = score;
