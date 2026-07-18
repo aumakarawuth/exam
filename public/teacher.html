@@ -1765,14 +1765,16 @@ function toggleDetailRow(resultId){
   }else{
     const answers = (rec.detail && rec.detail.answers) || {mc:{},matching:{},written:{}};
     let html = '';
-    html += `<div class="detail-block"><b>ปรนัย (${rec.sectionScores.mc} คะแนน)</b><br>` + set.sections.mc.questions.map((qq,i)=>{
+    const mcQuestions=set.sections?.mc?.questions||[];
+    if(mcQuestions.length) html += `<div class="detail-block"><b>ปรนัย (${rec.sectionScores.mc} คะแนน)</b><br>` + mcQuestions.map((qq,i)=>{
       const picked = answers.mc ? answers.mc[qq.id] : undefined;
       const pickedText = (picked!=null && qq.choices[picked]!=null) ? qq.choices[picked] : '(ไม่ได้ตอบ)';
       const correctText = qq.choices[qq.answer];
       const isCorrect = picked===qq.answer;
       return `${i+1}. ${escapeHtml(qq.text)}<br>&nbsp;&nbsp;ตอบ: ${escapeHtml(pickedText)} ${isCorrect?'✅':'❌ (เฉลย: '+escapeHtml(correctText)+')'}`;
     }).join('<br>') + `</div>`;
-    html += `<div class="detail-block"><b>จับคู่ (${rec.sectionScores.matching} คะแนน)</b><br>` + set.sections.matching.left.map(item=>{
+    const matchingItems=set.sections?.matching?.left||[];
+    if(matchingItems.length) html += `<div class="detail-block"><b>จับคู่ (${rec.sectionScores.matching} คะแนน)</b><br>` + matchingItems.map(item=>{
       const rid = answers.matching ? answers.matching[item.id] : undefined;
       const rightItem = set.sections.matching.right.find(r=>r.id===rid);
       const correctRightItem = set.sections.matching.right.find(r=>r.id===set.sections.matching.correctMap[item.id]);
