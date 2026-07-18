@@ -3,7 +3,7 @@ const { DATABASE_URL, SQLITE_PATH } = require('../config');
 const { verificationSummary } = require('../score-verification');
 const { readinessSummary } = require('../exam-readiness');
 
-function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics, submissionGate, pingDatabase, readinessTimeoutMs, backupService, systemMonitor, alertManager }) {
+function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, teacherSessions, runtimeMetrics, submissionGate, pingDatabase, readinessTimeoutMs, backupService, systemMonitor, alertManager, jobQueue }) {
   app.get('/api/admin/operations', requireAdmin, async (req, res) => {
     const db = readDB();
     const memory = process.memoryUsage();
@@ -31,6 +31,7 @@ function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, tea
       backup: backupService.status(),
       monitoring: systemMonitor.status(),
       alerts: alertManager.status(),
+      jobs: jobQueue.snapshot(),
       storage: { status: assetStorage.configured ? 'configured' : 'not_configured', maxBytes: assetStorage.maxBytes },
       memory: { rssBytes: memory.rss, heapUsedBytes: memory.heapUsed, heapTotalBytes: memory.heapTotal },
       requests,

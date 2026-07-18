@@ -39,5 +39,8 @@ module.exports = {
   ALERT_COOLDOWN_MINUTES: positiveNumber(process.env.ALERT_COOLDOWN_MINUTES, 15),
   ALERT_ERROR_RATE_PERCENT: positiveNumber(process.env.ALERT_ERROR_RATE_PERCENT, 5),
   ALERT_QUEUE_PERCENT: positiveNumber(process.env.ALERT_QUEUE_PERCENT, 80),
+  JOB_CONCURRENCY: positiveNumber(process.env.JOB_CONCURRENCY, 2),
+  JOB_MAX_PENDING: positiveNumber(process.env.JOB_MAX_PENDING, 100),
+  JOB_RETRY_BASE_MS: positiveNumber(process.env.JOB_RETRY_BASE_MS, 1000),
   EXAM_TYPES: ['กลางภาค', 'ปลายภาค']
 };

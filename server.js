@@ -30,6 +30,7 @@ const { createSubmissionGate } = require('./src/submission-gate');
 const { createAlertManager } = require('./src/alerts');
 const { createBackupService } = require('./src/backup');
 const { createSystemMonitor } = require('./src/system-monitor');
+const { createJobQueue } = require('./src/job-queue');
 
 if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
@@ -101,7 +102,14 @@ app.use(applySecurityHeaders);
 const runtimeMetrics = createRuntimeMetrics();
 const submissionGate = createSubmissionGate();
 const alertManager = createAlertManager({ webhookUrl: config.ALERT_WEBHOOK_URL, cooldownMs: config.ALERT_COOLDOWN_MINUTES * 60_000 });
+const jobQueue = createJobQueue({ concurrency: config.JOB_CONCURRENCY, maxPending: config.JOB_MAX_PENDING, baseRetryMs: config.JOB_RETRY_BASE_MS });
 const backupService = createBackupService({ enabled: config.BACKUP_ENABLED, backupDir: config.BACKUP_DIR, intervalMs: config.BACKUP_INTERVAL_HOURS * 3_600_000, retentionMs: config.BACKUP_RETENTION_DAYS * 86_400_000, encryptionKey: config.BACKUP_ENCRYPTION_KEY, readDB, alertManager });
+jobQueue.register('database_backup', async () => {
+  const result = await backupService.run();
+  if (!result.created && result.reason === 'failed') throw new Error('Encrypted database backup failed');
+  return result;
+});
+const enqueueBackup = () => jobQueue.enqueue('database_backup', { maxAttempts: 3, timeoutMs: 300_000, dedupeKey: 'automatic-backup' });
 const systemMonitor = createSystemMonitor({ pingDatabase, runtimeMetrics, submissionGate, alertManager, intervalMs: config.MONITOR_INTERVAL_SECONDS * 1000, databaseTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, errorRateThreshold: config.ALERT_ERROR_RATE_PERCENT, queuePercentThreshold: config.ALERT_QUEUE_PERCENT });
 app.use(runtimeMetrics.middleware);
 app.use(express.json({ limit: '2mb' }));
@@ -111,7 +119,7 @@ registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
 console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
-registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, systemMonitor, alertManager, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
+registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, systemMonitor, alertManager, jobQueue, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
 
 registerFallback(app, PUBLIC_DIR);
 registerErrorHandler(app);
@@ -120,14 +128,15 @@ if (require.main === module) {
   Promise.all([databaseReady, seedReady])
     .then(() => {
       systemMonitor.start();
-      backupService.schedule();
-      if (backupService.status().configured) void backupService.run();
+      backupService.schedule(enqueueBackup);
+      if (backupService.status().configured) enqueueBackup();
       const server = app.listen(PORT, () => {
         console.log(`Exam system backend running at http://localhost:${PORT}  (admin: http://localhost:${PORT}/admin)`);
       });
       registerShutdownSignals(createShutdownHandler({ server, closeDatabase: async () => {
         systemMonitor.stop();
         backupService.stop();
+        await jobQueue.stop();
         await closeDatabase();
       } }));
     })

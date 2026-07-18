@@ -98,6 +98,8 @@ test('operations requires admin access and reports system health', async () => {
   assert.equal(typeof body.database.latencyMs, 'number');
   assert.equal(typeof body.backup.configured, 'boolean');
   assert.equal(typeof body.alerts.configured, 'boolean');
+  assert.equal(typeof body.jobs.pending, 'number');
+  assert.equal(body.jobs.concurrency, 2);
   assert.equal(Number.isInteger(body.uptimeSeconds), true);
   assert.equal(typeof body.counts.students, 'number');
   assert.equal(body.submissions.maxConcurrent, 25);

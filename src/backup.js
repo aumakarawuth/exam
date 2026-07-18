@@ -79,12 +79,12 @@ function createBackupService({ enabled = false, backupDir, intervalMs = 86_400_0
     }
   }
 
-  function schedule() {
+  function schedule(runBackup = run) {
     if (!configured || timer) return;
     nextRunAt = new Date(now() + intervalMs).toISOString();
     timer = setInterval(() => {
       nextRunAt = new Date(now() + intervalMs).toISOString();
-      void run();
+      void runBackup();
     }, intervalMs);
     timer.unref?.();
   }
