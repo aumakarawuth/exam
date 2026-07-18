@@ -196,6 +196,7 @@ html.restoring-session #startScreen{visibility:hidden;}html.restoring-session bo
 .secret-note{background:rgba(217,119,6,.1);border:1px solid var(--amber);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.7;color:var(--amber);margin:18px 0;text-align:left;}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:10px;font-size:13.5px;z-index:200;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);}
 .loading-note{font-size:13px;color:var(--sub);padding:30px;text-align:center;}
+.submit-overlay{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.58);backdrop-filter:blur(3px);}.submit-overlay-card{min-width:min(340px,calc(100% - 36px));background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:28px;text-align:center;box-shadow:0 28px 80px -24px rgba(15,23,42,.7);}.submit-spinner{display:inline-block;width:36px;height:36px;border:4px solid color-mix(in srgb,var(--blue) 20%,transparent);border-top-color:var(--blue);border-radius:50%;animation:submit-spin .75s linear infinite}.submit-overlay-card b{display:block;margin-top:14px;font:600 17px 'Prompt',sans-serif}.submit-overlay-card span{display:block;margin-top:6px;color:var(--sub);font-size:13px}@keyframes submit-spin{to{transform:rotate(360deg)}}
 
 /* score-check screen */
 .score-table{width:100%;border-collapse:collapse;font-size:13.5px;text-align:left;margin-top:10px;}
@@ -1235,8 +1236,21 @@ async function submitFinalAnswers(autoSubmit){
 }
 
 /* ============ END OF EXAM ============ */
+let finalSubmissionInProgress=false;
+function setSubmissionBusy(active,message='กำลังส่งข้อสอบ...'){
+  let overlay=document.getElementById('submitOverlay');
+  if(active){
+    if(!overlay){overlay=document.createElement('div');overlay.id='submitOverlay';overlay.className='submit-overlay';overlay.setAttribute('role','status');overlay.setAttribute('aria-live','assertive');overlay.innerHTML='<div class="submit-overlay-card"><i class="submit-spinner"></i><b data-submit-message></b><span>กรุณารอสักครู่ และอย่าปิดหน้านี้</span></div>';document.body.appendChild(overlay);}
+    overlay.querySelector('[data-submit-message]').textContent=message;
+  }else overlay?.remove();
+  const button=document.getElementById('endExamBtn');
+  if(button){if(active&&!button.dataset.originalText)button.dataset.originalText=button.textContent;button.disabled=active;button.textContent=active?'⏳ กำลังส่งข้อสอบ...':(button.dataset.originalText||button.textContent);}
+}
 function forceTimeUp(){ finalizeExam('timeup'); }
 async function finalizeExam(reason){
+  if(finalSubmissionInProgress) return;
+  finalSubmissionInProgress=true;
+  setSubmissionBusy(true,reason==='manual'?'กำลังส่งข้อสอบ...':'กำลังบันทึกคำตอบอัตโนมัติ...');
   const auto = reason !== 'manual';
   const activeSections = getActiveSections();
   app.examEnded = true;
@@ -1245,13 +1259,14 @@ async function finalizeExam(reason){
   saveSession();
   let submission;
   try{ submission = await submitFinalAnswers(auto); }
-  catch(e){ app.examEnded=false; app.examInProgress=true; runGlobalTimer(); return; }
+  catch(e){ app.examEnded=false; app.examInProgress=true; finalSubmissionInProgress=false; setSubmissionBusy(false); runGlobalTimer(); return; }
   try{ await apiClearExamDraft(app.questionKey,app.resitAccessId); }catch(error){}
   clearSessionData();
   // Once this subject's exam has ended, the anti-cheat counters for it are done being tracked —
   // clear them immediately so they never carry over into a different subject or a shared device.
   state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0, integrityEvents: [] };
   examScreen.classList.add('hidden');
+  setSubmissionBusy(false);
   setFloatingThemeButtonVisible(true);
   finalScreen.classList.remove('hidden');
   const headlines = {
@@ -1275,6 +1290,7 @@ async function finalizeExam(reason){
   }).join('');
 }
 document.getElementById('restartAllBtn').addEventListener('click', ()=>{
+  finalSubmissionInProgress=false;
   clearSessionData();
   app = {studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, studentToken:app.studentToken, questionKey:null, section:null, lateCode:null, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
   state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0, integrityEvents:[]};
