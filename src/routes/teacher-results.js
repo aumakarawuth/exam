@@ -1,4 +1,5 @@
 const { appendAuditLog, resultAuditSnapshot } = require('../audit-log');
+const { verifyResultScore } = require('../score-verification');
 
 function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher, newId }) {
   const changeReason = req => String(req.body?.reason || '').trim();
@@ -20,7 +21,12 @@ function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher, new
     if (!result) return res.status(404).json({ error: 'not_found' });
     if ((Array.isArray(req.body.dfdLevelScores) || (req.body.writtenManualScores && typeof req.body.writtenManualScores === 'object')) && !changeReason(req)) return res.status(400).json({ error: 'reason_required', message: 'กรุณาระบุเหตุผลในการแก้คะแนน' });
     const before = resultAuditSnapshot(result);
-    if (typeof req.body.published === 'boolean') result.published = req.body.published;
+    if (req.body.published === true) {
+      const verification = verifyResultScore(result, db.sets.find(set => set.key === result.questionKey));
+      result.scoreVerification = { ...verification, verifiedAt: new Date().toISOString() };
+      if (verification.status !== 'verified') return res.status(409).json({ error: 'score_verification_failed', message: 'ยังประกาศผลไม่ได้ เนื่องจากตรวจคะแนนซ้ำไม่ผ่าน', verification });
+      result.published = true;
+    } else if (req.body.published === false) result.published = false;
     if (Array.isArray(req.body.dfdLevelScores)) {
       if (result.detail?.type !== 'dfd' || req.body.dfdLevelScores.length !== 3) return res.status(400).json({ error: 'invalid_dfd_scores', message: 'คะแนน DFD ไม่ถูกต้อง' });
       const scores = req.body.dfdLevelScores.map(score => Number(score));
@@ -54,7 +60,12 @@ function registerTeacherResultRoutes(app, { readDB, writeDB, requireTeacher, new
   });
   app.post('/api/teacher/sets/:key/publish', requireTeacher, async (req, res) => {
     const db = readDB(); if (!db.sets.some(set => set.key === req.params.key && set.teacherId === req.teacherId)) return res.status(404).json({ error: 'not_found' });
-    let count = 0; db.results.forEach(row => { if (row.questionKey === req.params.key) { row.published = true; count++; } });
+    const set = db.sets.find(item => item.key === req.params.key && item.teacherId === req.teacherId);
+    const rows = db.results.filter(row => row.questionKey === req.params.key);
+    const failed = [];
+    rows.forEach(row => { const verification = verifyResultScore(row, set); row.scoreVerification = { ...verification, verifiedAt: new Date().toISOString() }; if (verification.status !== 'verified') failed.push({ resultId: row.id, studentId: row.studentId, status: verification.status }); });
+    if (failed.length) return res.status(409).json({ error: 'score_verification_failed', message: `ตรวจคะแนนซ้ำไม่ผ่าน ${failed.length} รายการ จึงยังไม่ประกาศผล`, failed });
+    let count = 0; rows.forEach(row => { row.published = true; count++; });
     appendAuditLog(db, { newId, actorType: 'teacher', actorId: req.teacherId, action: 'set_results_published', targetType: 'exam_set', targetId: req.params.key, questionKey: req.params.key, after: { publishedCount: count }, reason: req.body?.reason });
     await writeDB(db); res.json({ ok: true, count });
   });
