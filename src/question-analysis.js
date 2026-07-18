@@ -1,4 +1,4 @@
-const XLSX = require('xlsx');
+const { ExcelJS, addObjectSheet, workbookBuffer } = require('./excel-workbook');
 
 const round = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const difficultyLabel = value => value < .2 ? 'ยากมาก' : value < .4 ? 'ยาก' : value < .6 ? 'ปานกลาง' : value < .8 ? 'ง่าย' : 'ง่ายมาก';
@@ -38,15 +38,15 @@ function buildQuestionAnalysis(set, results) {
   return { setKey: set?.key || '', title: set?.title || '', respondents: responseScores.length, questionCount: items.length, reliability, items };
 }
 
-function buildQuestionAnalysisWorkbook(analysis) {
-  const workbook = XLSX.utils.book_new();
+async function buildQuestionAnalysisWorkbook(analysis) {
+  const workbook = new ExcelJS.Workbook();
   const summary = [{ 'ชุดข้อสอบ': analysis.title, 'จำนวนผู้เข้าสอบ': analysis.respondents, 'จำนวนข้อปรนัย': analysis.questionCount, 'ความเชื่อมั่น KR-20': analysis.reliability ?? 'ข้อมูลไม่พอ' }];
   const items = analysis.items.map(item => ({ 'ข้อ': item.number, 'คำถาม': item.text, 'ผู้ตอบ': item.respondents, 'ตอบถูก': item.correctCount, 'ตอบผิด': item.incorrectCount, 'ค่าความยาก (P)': item.difficulty, 'แปลผลความยาก': item.difficultyLabel, 'อำนาจจำแนก (D)': item.discrimination ?? 'ข้อมูลไม่พอ', 'แปลผลอำนาจจำแนก': item.discriminationLabel, 'เฉลย': item.choices[item.correctIndex] || '' }));
   const choices = analysis.items.flatMap(item => item.choices.map((choice, index) => ({ 'ข้อ': item.number, 'คำถาม': item.text, 'ตัวเลือก': String.fromCharCode(65 + index), 'ข้อความตัวเลือก': choice, 'จำนวนผู้เลือก': item.choiceCounts[index] || 0, 'ร้อยละ': item.respondents ? round((item.choiceCounts[index] || 0) / item.respondents * 100) : 0, 'เป็นคำตอบที่ถูก': index === item.correctIndex ? 'ใช่' : 'ไม่' })));
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summary), 'สรุป');
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(items), 'วิเคราะห์รายข้อ');
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(choices), 'การเลือกตัวเลือก');
-  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  addObjectSheet(workbook, 'สรุป', summary);
+  addObjectSheet(workbook, 'วิเคราะห์รายข้อ', items);
+  addObjectSheet(workbook, 'การเลือกตัวเลือก', choices);
+  return workbookBuffer(workbook);
 }
 
 module.exports = { buildQuestionAnalysis, buildQuestionAnalysisWorkbook };

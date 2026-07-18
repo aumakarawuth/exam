@@ -1,5 +1,5 @@
 const express = require('express');
-const XLSX = require('xlsx');
+const { ExcelJS, addObjectSheet, workbookBuffer, worksheetMatrix } = require('../excel-workbook');
 const { validateStudentPayload, sendValidationError } = require('../validation');
 const { nextDraftRevision } = require('../draft-revision');
 
@@ -18,13 +18,13 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
   const educationRank = room => /\.\s*\d+\s*\//.test(String(room || '')) ? 0 : 1;
   const byRoomThenStudentId = (a, b) => educationRank(a.classRoom) - educationRank(b.classRoom) || String(a.classRoom ?? '').localeCompare(String(b.classRoom ?? ''), 'th', { numeric: true }) || String(a.studentId ?? '').localeCompare(String(b.studentId ?? ''), 'th', { numeric: true });
 
-  app.get('/api/students/export.xlsx', requireAdmin, (req, res) => {
+  app.get('/api/students/export.xlsx', requireAdmin, async (req, res) => {
     const rows = readDB().students
       .sort(byRoomThenStudentId)
       .map(student => ({ 'รหัสนักเรียน': student.studentId, 'ชื่อ': student.firstName, 'นามสกุล': student.lastName, 'ห้อง': student.classRoom, 'รอบเรียน': student.examPeriod || '', 'ตั้ง PIN แล้ว': student.pinHash ? 'ใช่' : 'ไม่' }));
-    const sheet = XLSX.utils.json_to_sheet(rows, { header: ['รหัสนักเรียน', 'ชื่อ', 'นามสกุล', 'ห้อง', 'รอบเรียน', 'ตั้ง PIN แล้ว'] });
-    const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, 'รายชื่อนักเรียน');
-    const output = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const workbook = new ExcelJS.Workbook();
+    addObjectSheet(workbook, 'รายชื่อนักเรียน', rows, ['รหัสนักเรียน', 'ชื่อ', 'นามสกุล', 'ห้อง', 'รอบเรียน', 'ตั้ง PIN แล้ว']);
+    const output = await workbookBuffer(workbook);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="students.xlsx"');
     res.send(output);
@@ -204,13 +204,13 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'invalid_file', message: 'กรุณาเลือกไฟล์ Excel' });
     let rows;
     try {
-      const workbook = XLSX.read(req.body, { type: 'buffer' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.body);
+      const matrix = worksheetMatrix(workbook.worksheets[0], 10000, 100);
       const firstCell = String(matrix[0]?.[0] ?? '').trim();
       rows = /^\d{5,}$/.test(firstCell)
         ? matrix.filter(row => row.some(value => String(value).trim())).map(row => ({ studentid: row[0], firstname: row[1], lastname: row[2], classroom: row[3], examperiod: row[4] }))
-        : XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        : matrix.slice(1).filter(row => row.some(value => String(value).trim())).map(row => Object.fromEntries((matrix[0] || []).map((header, index) => [String(header), row[index] ?? ''])));
     } catch { return res.status(400).json({ error: 'invalid_file', message: 'ไม่สามารถอ่านไฟล์ Excel นี้ได้' }); }
     const valueOf = (row, names) => {
       const key = Object.keys(row).find(column => names.includes(String(column).trim().toLowerCase()));

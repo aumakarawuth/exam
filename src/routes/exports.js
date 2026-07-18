@@ -19,7 +19,7 @@ function gradebookOptions(db, teacherId) {
 
 function registerExportRoutes(app, { readDB, requireAdmin, requireTeacher, buildResultsWorkbook, buildGradebookWorkbook }) {
   const filter = (rows, query) => rows.filter(row => !query.setKey || row.questionKey === query.setKey).filter(row => !query.examType || row.examType === query.examType).sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
-  const send = (res, rows, filename) => { res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`); res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.send(buildResultsWorkbook(rows)); };
+  const send = async (res, rows, filename) => { res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`); res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.send(await buildResultsWorkbook(rows)); };
   const examPdfFilename = set => {
     const name = String(set?.courseName || set?.title || 'exam-paper')
       .replace(/[\\/:*?"<>|\u0000-\u001F]/g, ' ')
@@ -28,22 +28,22 @@ function registerExportRoutes(app, { readDB, requireAdmin, requireTeacher, build
       .slice(0, 120);
     return `${name || 'exam-paper'}.pdf`;
   };
-  app.get('/api/export/results.xlsx', requireAdmin, (req, res) => send(res, filter(readDB().results, req.query), 'ผลสอบ.xlsx'));
-  app.get('/api/teacher/export/results.xlsx', requireTeacher, (req, res) => { const db = readDB(); const keys = new Set(db.sets.filter(set => set.teacherId === req.teacherId).map(set => set.key)); send(res, filter(db.results.filter(row => keys.has(row.questionKey)), req.query), 'ผลสอบของฉัน.xlsx'); });
+  app.get('/api/export/results.xlsx', requireAdmin, (req, res, next) => send(res, filter(readDB().results, req.query), 'ผลสอบ.xlsx').catch(next));
+  app.get('/api/teacher/export/results.xlsx', requireTeacher, (req, res, next) => { const db = readDB(); const keys = new Set(db.sets.filter(set => set.teacherId === req.teacherId).map(set => set.key)); send(res, filter(db.results.filter(row => keys.has(row.questionKey)), req.query), 'ผลสอบของฉัน.xlsx').catch(next); });
   app.get('/api/gradebook/options', requireAdmin, (req, res) => res.json({ setKeys: gradebookOptions(readDB()) }));
   app.get('/api/teacher/gradebook/options', requireTeacher, (req, res) => res.json({ setKeys: gradebookOptions(readDB(), req.teacherId) }));
-  const sendGradebook = (req, res, teacherId) => {
+  const sendGradebook = async (req, res, teacherId) => {
     const db = readDB(); const context = gradebookContext(db, String(req.query.setKey || ''), teacherId);
     if (!context) return res.status(404).json({ error: 'not_found', message: 'ไม่พบรายวิชา' });
     if (!context.ready) return res.status(409).json({ error: 'gradebook_not_ready', message: 'ต้องมีผลสอบกลางภาคหรือปลายภาคอย่างน้อยหนึ่งรายการก่อนส่งออกรวมคะแนน' });
     const courseName = context.anchor.courseName || context.anchor.title || 'รวมคะแนน';
-    const buffer = buildGradebookWorkbook({ results: context.results, students: db.students, sets: context.sets, courseName });
+    const buffer = await buildGradebookWorkbook({ results: context.results, students: db.students, sets: context.sets, courseName });
     res.setHeader('Content-Disposition', `attachment; filename="gradebook.xlsx"; filename*=UTF-8''${encodeURIComponent(`รวมคะแนนวิชา(${courseName}).xlsx`)}`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
   };
-  app.get('/api/export/gradebook.xlsx', requireAdmin, (req, res) => sendGradebook(req, res));
-  app.get('/api/teacher/export/gradebook.xlsx', requireTeacher, (req, res) => sendGradebook(req, res, req.teacherId));
+  app.get('/api/export/gradebook.xlsx', requireAdmin, (req, res, next) => sendGradebook(req, res).catch(next));
+  app.get('/api/teacher/export/gradebook.xlsx', requireTeacher, (req, res, next) => sendGradebook(req, res, req.teacherId).catch(next));
   const sendExamPdf = (res, set) => {
     if (!set) return res.status(404).json({ error: 'not_found', message: 'ไม่พบชุดข้อสอบ' });
     res.setHeader('Content-Type', 'application/pdf');
