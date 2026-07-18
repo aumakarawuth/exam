@@ -72,6 +72,18 @@ test('admin routes reject requests without an admin key', async () => {
   assert.equal(response.status, 401);
 });
 
+test('operations requires admin access and reports system health', async () => {
+  assert.equal((await request('/api/admin/operations')).status, 401);
+  const response = await request('/api/admin/operations', { headers: { 'x-admin-key': ADMIN_KEY } });
+  assert.equal(response.status, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.status, 'operational');
+  assert.equal(body.database.status, 'connected');
+  assert.equal(Number.isInteger(body.uptimeSeconds), true);
+  assert.equal(typeof body.counts.students, 'number');
+  assert.equal(Array.isArray(body.recentActivity), true);
+});
+
 test('student lookup returns a stable not-found response', async () => {
   const response = await request('/api/students/not-a-student');
   assert.equal(response.status, 404);
