@@ -31,4 +31,4 @@ function setEnrollment(student, enrollment) {
   return next;
 }
 
-module.exports = { defaultAcademicYear, normalizeStudentEnrollments, enrollmentFor, setEnrollment };
+module.exports = { normalizeStudentEnrollments, enrollmentFor, setEnrollment };

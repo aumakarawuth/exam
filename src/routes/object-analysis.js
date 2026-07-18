@@ -79,4 +79,4 @@ function registerObjectAnalysisRoutes(app, { readDB, writeDB, newId, isPastDeadl
   });
 }
 
-module.exports = { registerObjectAnalysisRoutes, ensureObjectAnalysisSet, OBJECT_ANALYSIS_SET_KEY };
+module.exports = { registerObjectAnalysisRoutes };

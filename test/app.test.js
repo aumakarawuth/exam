@@ -116,6 +116,18 @@ test('result exports require the correct role', async () => {
   assert.equal(teacherExport.status, 401);
 });
 
+test('gradebook endpoints require authentication', async () => {
+  assert.equal((await request('/api/gradebook/options')).status, 401);
+  assert.equal((await request('/api/teacher/gradebook/options')).status, 401);
+  assert.equal((await request('/api/export/gradebook.xlsx?setKey=set_seed_sample1')).status, 401);
+});
+
+test('gradebook export waits for both midterm and final results', async () => {
+  const response = await request('/api/export/gradebook.xlsx?setKey=set_seed_sample1', { headers: { 'x-admin-key': ADMIN_KEY } });
+  assert.equal(response.status, 409);
+  assert.equal(JSON.parse(response.body).error, 'gradebook_not_ready');
+});
+
 test('admin result export returns an Excel workbook', async () => {
   const response = await request('/api/export/results.xlsx', { headers: { 'x-admin-key': ADMIN_KEY } });
   assert.equal(response.status, 200);

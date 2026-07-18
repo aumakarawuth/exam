@@ -42,4 +42,4 @@ function applyAcademicPeriod(set, settings) {
   return period;
 }
 
-module.exports = { normalizeAcademicCalendar, resolveAcademicPeriod, applyAcademicPeriod, examStartDate };
+module.exports = { normalizeAcademicCalendar, resolveAcademicPeriod, applyAcademicPeriod };

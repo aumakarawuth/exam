@@ -2000,6 +2000,7 @@ function populateSetFilterOptions(){
   termSelect.innerHTML='<option value="">ทุกภาคเรียน</option>'+terms.map(([id,label])=>`<option value="${escapeAttr(id)}">${escapeHtml(label)}</option>`).join(''); termSelect.value=terms.some(([id])=>id===currentTerm)?currentTerm:'';
 }
 let LAST_RESULTS = [];
+let GRADEBOOK_SET_KEYS = new Set();
 function renderResultGroups(records){
   const groups=new Map();
   records.forEach(record=>{
@@ -2008,7 +2009,7 @@ function renderResultGroups(records){
     groups.get(key).records.push(record);
   });
   return [...groups.values()].map(group=>`<div class="course-group result-subject-group">
-    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · กดเพื่อดูผลสอบ</span><button class="btn btn-ghost btn-sm" type="button" data-export-result-set="${escapeAttr(group.key)}">⬇ Excel วิชานี้</button></div>
+    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · กดเพื่อดูผลสอบ</span>${GRADEBOOK_SET_KEYS.has(group.key)?`<button class="btn btn-primary btn-sm" type="button" data-export-gradebook="${escapeAttr(group.key)}">📊 Excel รวมคะแนน</button>`:''}<button class="btn btn-ghost btn-sm" type="button" data-export-result-set="${escapeAttr(group.key)}">⬇ Excel วิชานี้</button></div>
     <div class="course-group-body collapsed" style="overflow-x:auto;"><table class="result-table"><thead><tr>
       <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>ประเภท</th><th>รายวิชา</th><th>อาจารย์</th><th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม/20</th><th>คลิกขวา</th><th>คัดลอก</th><th>สลับแท็บ</th><th>ประกาศผล</th><th></th>
     </tr></thead><tbody>${group.records.map(r=>`<tr data-row-id="${r.id}">
@@ -2024,7 +2025,7 @@ async function refreshResults(){
   const academicYear = document.getElementById('academicYearFilterSelect').value;
   const semester = document.getElementById('semesterFilterSelect').value;
   let records;
-  try{ records = await apiGetResults(setKey || undefined, examType || undefined, academicYear || undefined, semester || undefined); }
+  try{ const [resultRows,gradebookOptions]=await Promise.all([apiGetResults(setKey || undefined, examType || undefined, academicYear || undefined, semester || undefined),apiFetch('/api/gradebook/options',{admin:true})]); records=resultRows; GRADEBOOK_SET_KEYS=new Set(gradebookOptions.setKeys||[]); }
   catch(e){ wrap.innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
   LAST_RESULTS = records;
   if(!records || !records.length){
@@ -2045,6 +2046,7 @@ async function refreshResults(){
   wrap.querySelectorAll('[data-viewdetail]').forEach(b=>b.addEventListener('click', ()=> toggleDetailRow(b.dataset.viewdetail)));
   wrap.querySelectorAll('[data-toggleresultgroup]').forEach(head=>head.addEventListener('click',()=>head.nextElementSibling.classList.toggle('collapsed')));
   wrap.querySelectorAll('[data-export-result-set]').forEach(button=>button.addEventListener('click',event=>{ event.stopPropagation(); downloadResultsExcel(button.dataset.exportResultSet,button); }));
+  wrap.querySelectorAll('[data-export-gradebook]').forEach(button=>button.addEventListener('click',event=>{ event.stopPropagation(); downloadGradebook(button.dataset.exportGradebook,button); }));
 }
 function toggleDetailRow(resultId){
   const existing = document.querySelector(`tr.detail-row[data-for="${resultId}"]`);
@@ -2146,6 +2148,14 @@ async function downloadResultsExcel(setKey,button){
     a.href=url;a.download='ผลสอบรายวิชา.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดผลสอบรายวิชาแล้ว');
   }catch(error){showToast(error.message);}
   finally{if(button){button.disabled=false;button.textContent=original;}}
+}
+async function downloadGradebook(setKey,button){
+  const original=button.textContent; button.disabled=true; button.textContent='กำลังสร้างไฟล์...';
+  try{
+    const res=await fetch('/api/export/gradebook.xlsx?setKey='+encodeURIComponent(setKey),{headers:{'x-admin-key':adminKey||''}});
+    const errorBody=res.ok?null:await res.json().catch(()=>({})); if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');} if(!res.ok)throw new Error(errorBody?.message||'ส่งออกไฟล์รวมคะแนนไม่สำเร็จ');
+    const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a'); a.href=url;a.download='รวมคะแนนและเกรด.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลด Excel รวมคะแนนแล้ว');
+  }catch(error){showToast(error.message);}finally{button.disabled=false;button.textContent=original;}
 }
 async function downloadQuestionAnalysis(setKey){
   const button=document.getElementById('exportQuestionAnalysisBtn'); if(button){button.disabled=true;button.textContent='กำลังสร้างไฟล์...';}

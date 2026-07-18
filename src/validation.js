@@ -51,6 +51,5 @@ function validateStudentPayload(body) {
 }
 
 module.exports = {
-  EDUCATION_LEVELS, SET_KEY_PATTERN, USERNAME_PATTERN, STUDENT_ID_PATTERN,
   validateExamSetPayload, validateTeacherPayload, validateStudentPayload, sendValidationError
 };

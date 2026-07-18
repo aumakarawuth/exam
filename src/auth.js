@@ -90,6 +90,5 @@ function removeTeacherSessions(teacherId) {
 module.exports = {
   hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStudent,
   createTeacherSession, createStudentSession, removeTeacherSessions,
-  teacherSessions, studentSessions, TEACHER_SESSION_TTL_MS, STUDENT_SESSION_TTL_MS,
-  SESSION_CLEANUP_INTERVAL_MS, purgeExpiredSessions
+  teacherSessions, studentSessions, purgeExpiredSessions
 };

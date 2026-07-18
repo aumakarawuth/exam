@@ -345,4 +345,4 @@ async function closeDatabase() {
   if (failure) throw failure;
 }
 
-module.exports = { readDB, writeDB, closeDatabase, databaseReady, SQLITE_PATH, changedRows, deletedIds };
+module.exports = { readDB, writeDB, closeDatabase, databaseReady, changedRows, deletedIds };
