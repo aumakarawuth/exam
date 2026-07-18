@@ -34,6 +34,9 @@ html.restoring-session #adminLoginScreen{visibility:hidden;}html.restoring-sessi
 .session-expired-dialog{border:0;padding:0;border-radius:18px;width:min(430px,calc(100% - 28px));background:var(--surface);color:var(--ink);box-shadow:0 24px 70px -18px rgba(15,23,42,.45);}.session-expired-dialog::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(2px);}.session-expired-card{padding:28px;text-align:center;}.session-expired-icon{font-size:38px;margin-bottom:7px;}.session-expired-card h2{margin:0 0 7px;font-size:20px;}.session-expired-card p{margin:0 0 20px;color:var(--sub);line-height:1.65;font-size:13.5px;}.session-expired-card .btn{width:100%;}
 .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
 .btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
+.btn-analysis{background:#fef3c7;border:1px solid #fcd34d;color:#92400e;box-shadow:none;}
+.btn-analysis:hover{background:#fde68a;border-color:#f59e0b;color:#78350f;}
+html[data-theme="dark"] .btn-analysis{background:#422006;border-color:#a16207;color:#fde68a;}
 .btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);}
 .btn-danger:hover{background:rgba(220,38,38,.08);}
 .btn-sm{padding:8px 14px;font-size:12.5px;border-radius:9px;}
@@ -351,7 +354,6 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
             <select class="filter-select" id="semesterFilterSelect"><option value="">ทุกภาคเรียน</option></select>
             <select class="filter-select" id="setFilterSelect"><option value="">ทุกรายวิชา</option></select>
             <button class="btn btn-ghost btn-sm" id="refreshResultsBtn">↻ รีเฟรช</button>
-            <button class="btn btn-ghost btn-sm" id="questionAnalysisBtn">📊 วิเคราะห์ข้อสอบ</button>
             <button class="btn btn-ghost btn-sm" id="auditLogBtn">🕘 ประวัติแก้ไขคะแนน</button>
             <button class="btn btn-primary btn-sm" id="exportExcelBtn">⬇ ส่งออก Excel</button>
           </div>
@@ -2014,7 +2016,7 @@ function renderResultGroups(records){
     groups.get(key).records.push(record);
   });
   return [...groups.values()].map(group=>`<div class="course-group result-subject-group">
-    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · กดเพื่อดูผลสอบ</span>${GRADEBOOK_SET_KEYS.has(group.key)?`<button class="btn btn-primary btn-sm" type="button" data-export-gradebook="${escapeAttr(group.key)}">📊 Excel รวมคะแนน</button>`:''}<button class="btn btn-ghost btn-sm" type="button" data-question-analysis="${escapeAttr(group.key)}">📊 วิเคราะห์ข้อสอบ</button></div>
+    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · กดเพื่อดูผลสอบ</span><button class="btn btn-analysis btn-sm" type="button" data-question-analysis="${escapeAttr(group.key)}">📊 วิเคราะห์ข้อสอบ</button>${GRADEBOOK_SET_KEYS.has(group.key)?`<button class="btn btn-primary btn-sm" type="button" data-export-gradebook="${escapeAttr(group.key)}">📊 Excel รวมคะแนน</button>`:''}</div>
     <div class="course-group-body collapsed" style="overflow-x:auto;"><table class="result-table"><thead><tr>
       <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>ประเภท</th><th>รายวิชา</th><th>อาจารย์</th><th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม/20</th><th>คลิกขวา</th><th>คัดลอก</th><th>สลับแท็บ</th><th>ประกาศผล</th><th></th>
     </tr></thead><tbody>${group.records.map(r=>`<tr data-row-id="${r.id}">
@@ -2171,7 +2173,6 @@ async function downloadQuestionAnalysis(setKey){
   const button=document.getElementById('exportQuestionAnalysisBtn'); if(button){button.disabled=true;button.textContent='กำลังสร้างไฟล์...';}
   try{const res=await fetch('/api/export/question-analysis.xlsx?setKey='+encodeURIComponent(setKey),{headers:{'x-admin-key':adminKey||''}});if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');}if(!res.ok)throw new Error('ส่งออกตารางวิเคราะห์ไม่สำเร็จ');const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ตารางวิเคราะห์ข้อสอบ.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดตารางวิเคราะห์ข้อสอบแล้ว');}catch(error){showToast(error.message);}finally{if(button){button.disabled=false;button.textContent='⬇ Export ตารางวิเคราะห์';}}
 }
-document.getElementById('questionAnalysisBtn').addEventListener('click', showQuestionAnalysis);
 document.getElementById('auditLogBtn').addEventListener('click', showAuditLogs);
 document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
   const setKey = document.getElementById('setFilterSelect').value;
