@@ -145,6 +145,58 @@ function replaceSqliteDatabase(db) {
   }
 }
 
+function applyCollectionChanges(baseRows, intendedRows, freshRows, idField) {
+  const changed = changedRows(baseRows, intendedRows, idField);
+  const removed = new Set(deletedIds(baseRows, intendedRows, idField));
+  const replacements = new Map(changed.map(row => [row[idField], row]));
+  const merged = freshRows.filter(row => !removed.has(row[idField])).map(row => replacements.get(row[idField]) || row);
+  const existing = new Set(merged.map(row => row[idField]));
+  changed.forEach(row => { if (!existing.has(row[idField])) merged.push(row); });
+  return merged;
+}
+
+function mergeDatabaseChanges(base, intended, fresh) {
+  const before = normalizeDatabase(base);
+  const next = normalizeDatabase(intended);
+  const latest = normalizeDatabase(fresh);
+  return normalizeDatabase({
+    sets: applyCollectionChanges(before.sets, next.sets, latest.sets, 'key'),
+    results: applyCollectionChanges(before.results, next.results, latest.results, 'id'),
+    students: applyCollectionChanges(before.students, next.students, latest.students, 'studentId'),
+    teachers: applyCollectionChanges(before.teachers, next.teachers, latest.teachers, 'id'),
+    questionBank: applyCollectionChanges(before.questionBank, next.questionBank, latest.questionBank, 'id'),
+    drafts: applyCollectionChanges(before.drafts, next.drafts, latest.drafts, 'draftKey'),
+    auditLogs: applyCollectionChanges(before.auditLogs, next.auditLogs, latest.auditLogs, 'id'),
+    settings: JSON.stringify(before.settings) === JSON.stringify(next.settings) ? latest.settings : next.settings
+  });
+}
+
+function persistSqliteChanges(previous, next) {
+  const before = normalizeDatabase(previous);
+  const clean = normalizeDatabase(next);
+  const operations = [
+    ['exam_sets', 'key', before.sets, clean.sets, 'key', sqlite.prepare('INSERT INTO exam_sets (key, data) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET data=excluded.data'), row => [row.key, JSON.stringify(row)]],
+    ['students', 'student_id', before.students, clean.students, 'studentId', sqlite.prepare('INSERT INTO students (student_id, class_room, data) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET class_room=excluded.class_room, data=excluded.data'), row => [row.studentId, row.classRoom || null, JSON.stringify(row)]],
+    ['teachers', 'id', before.teachers, clean.teachers, 'id', sqlite.prepare('INSERT INTO teachers (id, username, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET username=excluded.username, data=excluded.data'), row => [row.id, row.username, JSON.stringify(row)]],
+    ['question_bank', 'id', before.questionBank, clean.questionBank, 'id', sqlite.prepare('INSERT INTO question_bank (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'), row => [row.id, JSON.stringify(row)]],
+    ['results', 'id', before.results, clean.results, 'id', sqlite.prepare('INSERT INTO results (id, student_id, question_key, attempt_key, submitted_at, published, data) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET student_id=excluded.student_id, question_key=excluded.question_key, attempt_key=excluded.attempt_key, submitted_at=excluded.submitted_at, published=excluded.published, data=excluded.data'), row => [row.id, row.studentId, row.questionKey, row.attemptKey || null, row.submittedAt || null, row.published ? 1 : 0, JSON.stringify(row)]],
+    ['exam_drafts', 'draft_key', before.drafts, clean.drafts, 'draftKey', sqlite.prepare('INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(draft_key) DO UPDATE SET student_id=excluded.student_id, question_key=excluded.question_key, updated_at=excluded.updated_at, data=excluded.data'), row => [row.draftKey, row.studentId, row.questionKey, row.savedAt || null, JSON.stringify(row)]],
+    ['audit_logs', 'id', before.auditLogs, clean.auditLogs, 'id', sqlite.prepare('INSERT INTO audit_logs (id, event_at, actor_type, actor_id, action, target_id, question_key, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING'), row => [row.id, row.eventAt, row.actorType, row.actorId || null, row.action, row.targetId || null, row.questionKey || null, JSON.stringify(row)]]
+  ];
+  sqlite.exec('BEGIN IMMEDIATE');
+  try {
+    for (const [table, column, oldRows, newRows, idField, upsert, values] of operations) {
+      for (const id of deletedIds(oldRows, newRows, idField)) sqlite.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(id);
+      for (const row of changedRows(oldRows, newRows, idField)) upsert.run(...values(row));
+    }
+    if (JSON.stringify(before.settings) !== JSON.stringify(clean.settings)) sqlite.prepare("INSERT INTO system_settings (id, data) VALUES ('main', ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data").run(JSON.stringify(clean.settings));
+    sqlite.exec('COMMIT');
+  } catch (error) {
+    sqlite.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 function migrateLegacyJsonToSqlite() {
   const sqliteData = readSqliteDatabase();
   if (sqliteData.sets.length || sqliteData.results.length || sqliteData.students.length || sqliteData.teachers.length || sqliteData.questionBank.length || !fs.existsSync(LEGACY_DB_PATH)) return;
@@ -167,16 +219,16 @@ function hasData(db) {
   return db.sets.length || db.results.length || db.students.length || db.teachers.length || db.questionBank.length || db.drafts.length;
 }
 
-async function readPostgresDatabase() {
+async function readPostgresDatabase(queryable = pool) {
   const [sets, results, students, teachers, questionBank, drafts, auditLogs, settings] = await Promise.all([
-    pool.query('SELECT data FROM exam_sets ORDER BY created_at, key'),
-    pool.query('SELECT data FROM results ORDER BY submitted_at, id'),
-    pool.query('SELECT data FROM students ORDER BY class_room, student_id'),
-    pool.query('SELECT data FROM teachers ORDER BY username'),
-    pool.query('SELECT data FROM question_bank ORDER BY created_at, id'),
-    pool.query('SELECT data FROM exam_drafts ORDER BY updated_at'),
-    pool.query('SELECT data FROM audit_logs ORDER BY event_at, id'),
-    pool.query("SELECT data FROM system_settings WHERE id = 'main'")
+    queryable.query('SELECT data FROM exam_sets ORDER BY created_at, key'),
+    queryable.query('SELECT data FROM results ORDER BY submitted_at, id'),
+    queryable.query('SELECT data FROM students ORDER BY class_room, student_id'),
+    queryable.query('SELECT data FROM teachers ORDER BY username'),
+    queryable.query('SELECT data FROM question_bank ORDER BY created_at, id'),
+    queryable.query('SELECT data FROM exam_drafts ORDER BY updated_at'),
+    queryable.query('SELECT data FROM audit_logs ORDER BY event_at, id'),
+    queryable.query("SELECT data FROM system_settings WHERE id = 'main'")
   ]);
   return normalizeDatabase({
     sets: sets.rows.map(row => row.data), results: results.rows.map(row => row.data),
@@ -200,7 +252,7 @@ async function deleteRows(client, table, column, ids) {
   if (ids.length) await client.query(`DELETE FROM ${table} WHERE ${column} = ANY($1::text[])`, [ids]);
 }
 
-async function persistPostgresChanges(previous, next) {
+async function persistPostgresRows(client, previous, next) {
   const before = normalizeDatabase(previous);
   const clean = normalizeDatabase(next);
   const changes = {
@@ -213,9 +265,7 @@ async function persistPostgresChanges(previous, next) {
     auditLogs: changedRows(before.auditLogs, clean.auditLogs, 'id'),
     settingsChanged: JSON.stringify(before.settings) !== JSON.stringify(clean.settings)
   };
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
     await deleteRows(client, 'results', 'id', deletedIds(before.results, clean.results, 'id'));
     await deleteRows(client, 'question_bank', 'id', deletedIds(before.questionBank, clean.questionBank, 'id'));
     await deleteRows(client, 'exam_sets', 'key', deletedIds(before.sets, clean.sets, 'key'));
@@ -254,13 +304,20 @@ async function persistPostgresChanges(previous, next) {
       'INSERT INTO system_settings (id, data, updated_at) VALUES ($1,$2::jsonb,NOW()) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()',
       ['main', JSON.stringify(clean.settings)]
     );
+  } catch (error) { throw error; }
+}
+
+async function persistPostgresChanges(previous, next) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
+    await persistPostgresRows(client, previous, next);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
-  } finally {
-    client.release();
-  }
+  } finally { client.release(); }
 }
 
 async function persistPostgres(db) {
@@ -377,34 +434,65 @@ function readDB() {
 }
 
 function writeDB(db) {
-  const snapshot = normalizeDatabase(structuredClone(db));
-  const previous = currentDatabase;
-  currentDatabase = snapshot;
-  if (!DATABASE_URL) {
-    try {
-      replaceSqliteDatabase(currentDatabase);
-      return Promise.resolve();
-    } catch (error) {
-      currentDatabase = previous;
-      return Promise.reject(error);
+  const intended = normalizeDatabase(structuredClone(db));
+  const base = currentDatabase;
+  const operation = writeChain.catch(() => {}).then(async () => {
+    if (!DATABASE_URL) {
+      const fresh = readSqliteDatabase();
+      const merged = mergeDatabaseChanges(base, intended, fresh);
+      persistSqliteChanges(fresh, merged);
+      currentDatabase = merged;
+      return;
     }
-  }
-  writeChain = writeChain.catch(() => {}).then(() => persistPostgresChanges(previous, snapshot)).catch(error => {
-    if (currentDatabase === snapshot) currentDatabase = previous;
-    throw error;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
+      const fresh = await readPostgresDatabase(client);
+      const merged = mergeDatabaseChanges(base, intended, fresh);
+      await persistPostgresRows(client, fresh, merged);
+      await client.query('COMMIT');
+      currentDatabase = merged;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
   });
-  return writeChain;
+  writeChain = operation.catch(() => {});
+  return operation;
 }
 
 let mutationChain = Promise.resolve();
 function mutateDB(mutator) {
-  const run = mutationChain.then(async () => {
-    const snapshot = readDB();
-    const value = await mutator(snapshot);
-    await writeDB(snapshot);
-    return value;
+  const run = writeChain.catch(() => {}).then(async () => {
+    if (!DATABASE_URL) {
+      const fresh = readSqliteDatabase();
+      const snapshot = structuredClone(fresh);
+      const value = await mutator(snapshot);
+      const clean = normalizeDatabase(snapshot);
+      persistSqliteChanges(fresh, clean);
+      currentDatabase = clean;
+      return value;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
+      const fresh = await readPostgresDatabase(client);
+      const snapshot = structuredClone(fresh);
+      const value = await mutator(snapshot);
+      const clean = normalizeDatabase(snapshot);
+      await persistPostgresRows(client, fresh, clean);
+      await client.query('COMMIT');
+      currentDatabase = clean;
+      return value;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
   });
-  mutationChain = run.catch(() => {});
+  writeChain = run.catch(() => {});
+  mutationChain = writeChain;
   return run;
 }
 
@@ -424,4 +512,4 @@ async function closeDatabase() {
   if (failure) throw failure;
 }
 
-module.exports = { readDB, writeDB, mutateDB, closeDatabase, databaseReady, pingDatabase, changedRows, deletedIds };
+module.exports = { readDB, writeDB, mutateDB, closeDatabase, databaseReady, pingDatabase, changedRows, deletedIds, mergeDatabaseChanges };

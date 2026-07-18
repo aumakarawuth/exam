@@ -55,6 +55,19 @@ test('health and readiness endpoints report application state', async () => {
   assert.equal(typeof readyBody.database.latencyMs, 'number');
 });
 
+test('frontend pages load extracted CSS and JavaScript assets', async () => {
+  const admin = await request('/admin');
+  assert.equal(admin.status, 200);
+  assert.match(admin.body, /href="\/assets\/admin\.css"/);
+  assert.match(admin.body, /src="\/assets\/admin-main\.js"/);
+  assert.doesNotMatch(admin.body, /<style>/);
+  const [css, script] = await Promise.all([request('/assets/admin.css'), request('/assets/admin-main.js')]);
+  assert.equal(css.status, 200);
+  assert.match(css.headers['content-type'], /text\/css/);
+  assert.equal(script.status, 200);
+  assert.match(script.headers['content-type'], /javascript/);
+});
+
 test('unknown API endpoints return a JSON 404 response', async () => {
   const response = await request('/api/endpoint-that-does-not-exist');
   assert.equal(response.status, 404);

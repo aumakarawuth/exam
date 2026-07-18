@@ -6,8 +6,7 @@ const vm = require('node:vm');
 const { gradeDfdLevel } = require('../src/dfd-grader');
 
 function loadGrader() {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'object-analysis-design.html'), 'utf8');
-  const source = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'assets', 'object-analysis-design-main.js'), 'utf8');
   const questionBank = source
     .slice(source.indexOf('const QUESTIONS'), source.indexOf('const LEVEL_TITLES'))
     .replace('const QUESTIONS', 'var QUESTIONS');

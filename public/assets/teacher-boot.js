@@ -1,0 +1,1 @@
+try{if(sessionStorage.getItem('examTeacherSession'))document.documentElement.classList.add('restoring-session');if(localStorage.getItem('examStaffTheme')==='dark')document.documentElement.dataset.theme='dark';}catch(e){}

@@ -1,0 +1,1001 @@
+(function(){
+
+/* ============ DARK MODE ============ */
+const THEME_KEY = 'examTheme';
+function applyTheme(t){
+  document.documentElement.dataset.theme = t;
+  const btn = document.getElementById('themeToggleBtn');
+  const btnInline = document.getElementById('themeToggleBtnInline');
+  btn.textContent = t==='dark' ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด';
+  if(btnInline) btnInline.textContent = t==='dark' ? '☀️' : '🌙';
+  try{ localStorage.setItem(THEME_KEY, t); }catch(e){}
+}
+function toggleTheme(){ applyTheme(document.documentElement.dataset.theme==='dark' ? 'light' : 'dark'); }
+document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+document.getElementById('themeToggleBtnInline').addEventListener('click', toggleTheme);
+(function initTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem(THEME_KEY); }catch(e){}
+  if(!saved) saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  applyTheme(saved);
+})();
+/* the floating corner toggle only makes sense outside the exam shell (which has its own inline toggle) */
+function setFloatingThemeButtonVisible(visible){
+  document.getElementById('themeToggleBtn').classList.toggle('hidden', !visible);
+}
+
+/* ============ API CLIENT ============ */
+const API_BASE = '';
+async function apiFetch(path, options){
+  options = options || {};
+  const headers = Object.assign({'Content-Type':'application/json'}, options.headers||{});
+  if(app.studentToken) headers['x-student-token'] = app.studentToken;
+  let res;
+  try{
+    res = await fetch(API_BASE + path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
+  }catch(e){ throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'); }
+  if(!res.ok){
+    let msg = 'เกิดข้อผิดพลาด (HTTP '+res.status+')';
+    let payload = null;
+    try{ payload = await res.json(); if(payload && payload.message) msg = payload.message; }catch(e){}
+    const err = new Error(msg); err.payload = payload; err.retryAfterMs = Math.max(0,Number(res.headers.get('Retry-After'))||0)*1000; throw err;
+  }
+  return res.json();
+}
+async function apiLookupStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id)); }
+async function apiSetPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/set-pin', { method:'POST', body:{pin} }); }
+async function apiVerifyPin(studentId, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/verify-pin', { method:'POST', body:{pin} }); }
+async function apiRecoverPin(studentId, firstName, lastName, pin){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/recover-pin', { method:'POST', body:{firstName,lastName,pin} }); }
+async function apiGetEligibleSets(){ return apiFetch('/api/sets'); }
+async function apiSubmitResult(record){ return apiFetch('/api/results', { method:'POST', body:record }); }
+async function apiGetMyResults(studentId){ return apiFetch('/api/students/'+encodeURIComponent(studentId)+'/results'); }
+async function apiGetExamDraft(key,resitAccessId){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key)+(resitAccessId?('?resitAccessId='+encodeURIComponent(resitAccessId)):'')); }
+async function apiSaveExamDraft(key,draft){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key),{method:'PUT',body:{draft}}); }
+async function apiClearExamDraft(key,resitAccessId){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key)+(resitAccessId?('?resitAccessId='+encodeURIComponent(resitAccessId)):''),{method:'DELETE'}); }
+const EXAM_DEVICE_ID=(()=>{let id=sessionStorage.getItem('examDeviceId');if(!id){id='dev_'+crypto.randomUUID().replace(/-/g,'');sessionStorage.setItem('examDeviceId',id);}return id;})();
+async function apiClaimExamDevice(key,resitAccessId){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key)+'/claim',{method:'POST',body:{resitAccessId,deviceId:EXAM_DEVICE_ID}}); }
+
+const SECTION_KEYS = ['mc','matching','written'];
+const SECTION_TITLES = {mc:'ส่วนที่ 1 — ปรนัย', matching:'ส่วนที่ 2 — จับคู่', written:'ส่วนที่ 3 — อัตนัย'};
+const SECTION_ICON = {mc:'📝', matching:'🔗', written:'✍️'};
+
+/* ============ APP / SESSION STATE ============ */
+let app = {
+  studentId: null, studentName: '', classRoom: '', studentToken: sessionStorage.getItem('examStudentToken') || '',
+  questionKey: null, section: null, lateCode: null,
+  draftRevision: 0,
+  submittedSections: {mc:false, matching:false, written:false},
+  mcState: null, /* {forKey, order:[qid...], choiceOrder:{qid:[origIdx...]}, currentIndex} */
+  timeLeft: 60*60, examEndTime: null, globalTimerHandle: null,
+  examEnded: false, examInProgress: false, reloadCount: 0
+};
+let state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0, integrityEvents: [] };
+let draftAnswers = { mc:{}, matching:{}, written:{} };
+let ELIGIBLE_SETS = [];
+function setStudentSession(result){
+  app.studentToken = result.token;
+  app.studentId = result.student.studentId;
+  app.studentName = result.student.firstName + ' ' + result.student.lastName;
+  app.classRoom = result.student.classRoom;
+  sessionStorage.setItem('examStudentToken', result.token);
+}
+let ELIGIBLE_SETS_BY_KEY = {};
+function currentQuestion(){ return ELIGIBLE_SETS_BY_KEY[app.questionKey]; }
+
+function shuffleArray(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function initMcStateIfNeeded(){
+  if(app.mcState && app.mcState.forKey===app.questionKey) return;
+  const q = currentQuestion();
+  const qs = q.sections.mc.questions;
+  let order = qs.map(x=>x.id);
+  if(q.shuffleQuestions) order = shuffleArray(order);
+  const choiceOrder = {};
+  qs.forEach(qq=>{
+    let idxs = qq.choices.map((_,i)=>i);
+    if(q.shuffleChoices) idxs = shuffleArray(idxs);
+    choiceOrder[qq.id] = idxs;
+  });
+  app.mcState = { forKey: app.questionKey, order, choiceOrder, currentIndex: 0 };
+}
+
+/* ============ SESSION PERSISTENCE (localStorage, per-browser) ============ */
+const SESSION_KEY = 'examSession';
+let _saveDebounceHandle = null;
+let _serverSaveHandle = null;
+let _serverSaveInFlight = false;
+let _pendingServerPayload = null;
+let pageIsLeaving = false;
+let tabSwitchCheckTimer = null;
+function saveSession(){
+  if(!app.questionKey) return;
+  const payload = {
+    studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
+    questionKey: app.questionKey, section: app.section, lateCode: app.lateCode || null,
+    submittedSections: app.submittedSections, mcState: app.mcState,
+    examEndTime: app.examEndTime, examEnded: app.examEnded,
+    reloadCount: app.reloadCount, tabSwitches: state.tabSwitches, tabWarningAcknowledged: state.tabWarningAcknowledged,
+    fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    integrityEvents: state.integrityEvents,
+    draftAnswers: draftAnswers, eligibleSets: ELIGIBLE_SETS, draftRevision:app.draftRevision||0
+  };
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); updateAutosaveTag('saved'); }
+  catch(e){ updateAutosaveTag('error'); }
+  queueServerSave(payload);
+}
+function queueServerSave(payload){
+  if(!navigator.onLine || !app.studentToken || app.examEnded) return;
+  clearTimeout(_serverSaveHandle);
+  _pendingServerPayload=payload;
+  _serverSaveHandle=setTimeout(flushServerSave,1200);
+}
+async function flushServerSave(){
+  if(_serverSaveInFlight || !_pendingServerPayload || app.examEnded) return;
+  const payload=_pendingServerPayload; _pendingServerPayload=null; _serverSaveInFlight=true;
+  const draft={questionKey:payload.questionKey,resitAccessId:app.resitAccessId||null,deviceId:EXAM_DEVICE_ID,revision:app.draftRevision||0,section:payload.section,lateCode:payload.lateCode,submittedSections:payload.submittedSections,mcState:payload.mcState,examEndTime:payload.examEndTime,reloadCount:payload.reloadCount,tabSwitches:payload.tabSwitches,tabWarningAcknowledged:payload.tabWarningAcknowledged,fullscreenExitAttempts:payload.fullscreenExitAttempts,rightClickAttempts:payload.rightClickAttempts,copyAttempts:payload.copyAttempts,integrityEvents:payload.integrityEvents,draftAnswers:payload.draftAnswers};
+  try{
+    let saved;
+    try{saved=await apiSaveExamDraft(payload.questionKey,draft);}
+    catch(error){if(error.payload?.error!=='draft_conflict') throw error; app.draftRevision=Number(error.payload.currentRevision)||0; draft.revision=app.draftRevision; saved=await apiSaveExamDraft(payload.questionKey,draft);}
+    app.draftRevision=Number(saved.revision)||app.draftRevision; updateAutosaveTag('saved');
+  }catch(error){updateAutosaveTag('error');}
+  finally{_serverSaveInFlight=false;if(_pendingServerPayload) flushServerSave();}
+}
+function updateAutosaveTag(status){
+  const tag = document.getElementById('autosaveTag');
+  if(!tag) return;
+  if(status==='saving'){
+    tag.textContent='💾 กำลังบันทึกอัตโนมัติ...'; tag.classList.add('saving'); return;
+  }
+  if(status==='error'){
+    tag.textContent='⚠ บันทึกอัตโนมัติไม่สำเร็จ'; tag.classList.remove('saving'); tag.classList.add('badge-warn'); return;
+  }
+  const time = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  tag.textContent='💾 บันทึกอัตโนมัติแล้ว '+time; tag.classList.remove('saving','badge-warn');
+}
+function scheduleSave(){ updateAutosaveTag('saving'); clearTimeout(_saveDebounceHandle); _saveDebounceHandle = setTimeout(saveSession, 500); }
+function loadSessionData(){
+  try{ const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function clearSessionData(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
+window.addEventListener('beforeunload', ()=>{ pageIsLeaving = true; if(app.questionKey && !app.examEnded) saveSession(); });
+function requestExamFullscreen(){
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
+}
+function recordIntegrityEvent(type){
+  state.integrityEvents.push({type, at:new Date().toISOString()});
+  if(state.integrityEvents.length>50) state.integrityEvents.shift();
+}
+
+/* ============ ANTI-CHEAT: block right-click & copy while exam is in progress ============ */
+document.addEventListener('contextmenu', (e)=>{
+  if(app.examInProgress){ e.preventDefault(); state.rightClickAttempts++; recordIntegrityEvent('right_click'); updateCheatTags(); scheduleSave(); }
+});
+document.addEventListener('copy', (e)=>{
+  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; recordIntegrityEvent('copy'); updateCheatTags(); scheduleSave(); }
+});
+document.addEventListener('cut', (e)=>{
+  if(app.examInProgress){ e.preventDefault(); state.copyAttempts++; recordIntegrityEvent('copy'); updateCheatTags(); scheduleSave(); }
+});
+function updateCheatTags(){
+  const fs = document.getElementById('fullscreenExitTag');
+  const rc = document.getElementById('rightClickTag');
+  const cp = document.getElementById('copyTag');
+  if(fs){ fs.textContent = 'ออกจากเต็มจอ: '+state.fullscreenExitAttempts+' ครั้ง'; fs.classList.toggle('badge-warn', state.fullscreenExitAttempts>0); }
+  if(rc){ rc.textContent = 'คลิกขวา: '+state.rightClickAttempts+' ครั้ง'; rc.classList.toggle('badge-warn', state.rightClickAttempts>0); }
+  if(cp){ cp.textContent = 'คัดลอก: '+state.copyAttempts+' ครั้ง'; cp.classList.toggle('badge-warn', state.copyAttempts>0); }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    clearTimeout(tabSwitchCheckTimer);
+    tabSwitchCheckTimer = setTimeout(()=>{
+      if(pageIsLeaving || !document.hidden || !app.examInProgress || app.examEnded) return;
+      state.tabSwitches++;
+      recordIntegrityEvent('tab_switch');
+      const tag = document.getElementById('tabSwitchTag');
+      tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+      tag.classList.add('badge-warn');
+      scheduleSave();
+      if(state.tabSwitches>=4){
+        document.getElementById('tabWarningModal').classList.add('hidden');
+        finalizeExam('tabswitch');
+      }
+    }, 80);
+  } else {
+    clearTimeout(tabSwitchCheckTimer);
+    if(state.tabSwitches>state.tabWarningAcknowledged && state.tabSwitches<=3 && !app.examEnded){
+      document.getElementById('tabWarningModal').classList.remove('hidden');
+    }
+  }
+});
+document.getElementById('tabWarningAckBtn').addEventListener('click', ()=>{
+  state.tabWarningAcknowledged = state.tabSwitches;
+  saveSession();
+  document.getElementById('tabWarningModal').classList.add('hidden');
+});
+let fullscreenWasActive = false;
+document.addEventListener('fullscreenchange', ()=>{
+  if(document.fullscreenElement){ fullscreenWasActive = true; return; }
+  if(!fullscreenWasActive || !app.examInProgress || app.examEnded) return;
+  state.fullscreenExitAttempts++;
+  recordIntegrityEvent('fullscreen_exit');
+  updateCheatTags(); scheduleSave();
+  showToast('ตรวจพบการออกจากโหมดเต็มจอ กรุณากลับเข้าสู่โหมดเต็มจอเพื่อทำข้อสอบต่อ');
+});
+
+/* ============ SCREEN REFS ============ */
+const startScreen = document.getElementById('startScreen');
+const loginScreen = document.getElementById('loginScreen');
+const checkScoreScreen = document.getElementById('checkScoreScreen');
+const selectScreen = document.getElementById('selectScreen');
+const pinSetupScreen = document.getElementById('pinSetupScreen');
+const pinVerifyScreen = document.getElementById('pinVerifyScreen');
+const countdownOverlay = document.getElementById('countdownOverlay');
+const examScreen = document.getElementById('examScreen');
+const finalScreen = document.getElementById('finalScreen');
+const hubView = document.getElementById('hubView');
+const sectionView = document.getElementById('sectionView');
+const hubActions = document.getElementById('hubActions');
+const sectionActions = document.getElementById('sectionActions');
+function hideAllTopScreens(){ [startScreen,loginScreen,checkScoreScreen,selectScreen,examScreen,finalScreen,pinSetupScreen,pinVerifyScreen].forEach(s=>s.classList.add('hidden')); }
+
+/* ============ START -> LOGIN / CHECK SCORE ============ */
+document.getElementById('goLoginBtn').addEventListener('click', ()=>{
+  hideAllTopScreens(); loginScreen.classList.remove('hidden');
+  document.getElementById('studentIdInput').value=''; document.getElementById('loginError').style.display='none';
+  document.getElementById('studentIdInput').focus();
+});
+document.getElementById('backToStartBtn').addEventListener('click', ()=>{ hideAllTopScreens(); startScreen.classList.remove('hidden'); });
+document.getElementById('backToLoginBtn').addEventListener('click', ()=>{ hideAllTopScreens(); loginScreen.classList.remove('hidden'); });
+
+document.getElementById('goCheckScoreBtn').addEventListener('click', ()=>{
+  hideAllTopScreens(); checkScoreScreen.classList.remove('hidden');
+  document.getElementById('checkIdInput').value=''; document.getElementById('checkError').style.display='none';
+  document.getElementById('scoreListWrap').innerHTML='';
+});
+document.getElementById('backFromCheckBtn').addEventListener('click', ()=>{ hideAllTopScreens(); startScreen.classList.remove('hidden'); });
+async function doCheckScore(){
+  const val = document.getElementById('checkIdInput').value.trim();
+  const errBox = document.getElementById('checkError');
+  if(!val){ errBox.textContent='กรุณากรอกรหัสนักเรียน'; errBox.style.display='block'; return; }
+  const btn = document.getElementById('doCheckScoreBtn');
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  try{
+    await apiLookupStudent(val); // validate the id exists
+    const results = await apiGetMyResults(val);
+    errBox.style.display='none';
+    const wrap = document.getElementById('scoreListWrap');
+    if(!results.length){ wrap.innerHTML = '<div class="empty-note">ยังไม่พบประวัติการสอบของรหัสนี้</div>'; }
+    else{
+      wrap.innerHTML = `<table class="score-table"><thead><tr><th>รายวิชา</th><th>ประเภท</th><th>วันที่สอบ</th><th>สถานะ</th><th>คะแนน (/20)</th></tr></thead><tbody>` +
+        results.map(r=>`<tr>
+          <td>${escapeHtml(r.questionTitle)}${r.attemptType==='resit'?'<br><span class="status-pill pending">สอบซ่อม</span>':''}</td>
+          <td>${escapeHtml(r.examType||'-')}</td>
+          <td>${new Date(r.submittedAt).toLocaleDateString('th-TH')}</td>
+          <td><span class="status-pill ${r.published?'pub':'pending'}">${r.published?'ประกาศแล้ว':'รอประกาศผล'}</span></td>
+          <td><b>${r.published ? (r.attemptType==='resit' ? `${r.overallScore20} → ${r.convertedScore}/${r.resitScoreMax}` : r.overallScore20) : '—'}</b></td>
+        </tr>`).join('') + `</tbody></table>`;
+    }
+  }catch(e){ errBox.textContent = e.message; errBox.style.display='block'; }
+  btn.disabled = false; btn.textContent = 'ตรวจสอบ →';
+}
+document.getElementById('doCheckScoreBtn').addEventListener('click', doCheckScore);
+document.getElementById('checkIdInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') doCheckScore(); });
+
+async function tryLogin(){
+  const val = document.getElementById('studentIdInput').value.trim();
+  const errBox = document.getElementById('loginError');
+  if(!val){ errBox.textContent='กรุณากรอกรหัสนักเรียน'; errBox.style.display='block'; return; }
+  const btn = document.getElementById('checkIdBtn');
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  try{
+    const student = await apiLookupStudent(val);
+    app.studentId = student.studentId;
+    hideAllTopScreens();
+    const screen = student.hasPin ? pinVerifyScreen : pinSetupScreen;
+    screen.classList.remove('hidden');
+    const input = document.getElementById(student.hasPin ? 'pinVerifyInput' : 'pinSetupInput');
+    input.value = '';
+    document.getElementById(student.hasPin ? 'pinVerifyError' : 'pinSetupError').style.display = 'none';
+    input.focus();
+  }catch(e){ errBox.textContent = e.message; errBox.style.display='block'; }
+  btn.disabled = false; btn.textContent = 'ตรวจสอบสิทธิ์ →';
+}
+document.getElementById('checkIdBtn').addEventListener('click', tryLogin);
+document.getElementById('studentIdInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
+
+async function proceedToSelectScreen(){
+  hideAllTopScreens(); selectScreen.classList.remove('hidden');
+  document.getElementById('identityBox').innerHTML = `ยืนยันตัวตน: <b>${escapeHtml(app.studentName)}</b> &nbsp;|&nbsp; รหัส ${escapeHtml(app.studentId)} &nbsp;|&nbsp; ห้อง ${escapeHtml(app.classRoom)}`;
+  await refreshSelectScreen();
+}
+document.getElementById('pinSetupBackBtn').addEventListener('click', ()=>{ hideAllTopScreens(); loginScreen.classList.remove('hidden'); });
+document.getElementById('pinSetupConfirmBtn').addEventListener('click', async ()=>{
+  const pin = document.getElementById('pinSetupInput').value.trim();
+  const confirmPin = document.getElementById('pinSetupConfirmInput').value.trim();
+  const error = document.getElementById('pinSetupError');
+  if(!/^\d{4,6}$/.test(pin)){ error.textContent='PIN ต้องเป็นตัวเลข 4-6 หลัก'; error.style.display='block'; return; }
+  if(pin !== confirmPin){ error.textContent='PIN ทั้งสองช่องไม่ตรงกัน'; error.style.display='block'; return; }
+  const button = document.getElementById('pinSetupConfirmBtn'); button.disabled=true;
+  try{ setStudentSession(await apiSetPin(app.studentId, pin)); error.style.display='none'; await proceedToSelectScreen(); }
+  catch(e){ error.textContent=e.message; error.style.display='block'; }
+  button.disabled=false;
+});
+document.getElementById('pinSetupConfirmInput').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('pinSetupConfirmBtn').click(); });
+document.getElementById('pinVerifyBackBtn').addEventListener('click', ()=>{ hideAllTopScreens(); loginScreen.classList.remove('hidden'); });
+document.getElementById('pinVerifyConfirmBtn').addEventListener('click', async ()=>{
+  const pin = document.getElementById('pinVerifyInput').value.trim();
+  const error = document.getElementById('pinVerifyError');
+  if(!pin){ error.textContent='กรุณากรอก PIN'; error.style.display='block'; return; }
+  const button = document.getElementById('pinVerifyConfirmBtn'); button.disabled=true;
+  try{
+    const result = await apiVerifyPin(app.studentId, pin);
+    if(result.ok){ setStudentSession(result); error.style.display='none'; await proceedToSelectScreen(); }
+    else { error.textContent=result.locked ? 'PIN ถูกล็อก กรุณากด “ลืม PIN” เพื่อตั้งใหม่' : `PIN ไม่ถูกต้อง (เหลือ ${result.remainingAttempts} ครั้ง)`; error.style.display='block'; }
+  }catch(e){ error.textContent=e.message; error.style.display='block'; }
+  button.disabled=false;
+});
+document.getElementById('pinVerifyInput').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('pinVerifyConfirmBtn').click(); });
+document.getElementById('forgotPinBtn').addEventListener('click', ()=>{
+  const form=document.getElementById('forgotPinForm');
+  form.classList.toggle('hidden');
+  const recovering=!form.classList.contains('hidden');
+  document.getElementById('pinVerifyLead').classList.toggle('hidden', recovering);
+  document.getElementById('pinVerifyInput').classList.toggle('hidden', recovering);
+  document.getElementById('pinVerifyConfirmBtn').classList.toggle('hidden', recovering);
+  document.getElementById('forgotPinBtn').textContent=recovering?'← กลับไปกรอก PIN':'ลืม PIN? ยืนยันตัวตนเพื่อตั้งใหม่';
+  if(recovering) document.getElementById('forgotPinFirstName').focus();
+});
+document.getElementById('forgotPinBtn').addEventListener('keydown', event=>{ if(event.key==='Enter' || event.key===' '){ event.preventDefault(); event.currentTarget.click(); } });
+document.getElementById('forgotPinConfirmBtn').addEventListener('click', async ()=>{
+  const firstName=document.getElementById('forgotPinFirstName').value.trim();
+  const lastName=document.getElementById('forgotPinLastName').value.trim();
+  const pin=document.getElementById('forgotPinNew').value.trim();
+  const confirmPin=document.getElementById('forgotPinConfirm').value.trim();
+  const error=document.getElementById('pinVerifyError');
+  if(!firstName || !lastName){ error.textContent='กรุณากรอกชื่อและนามสกุล'; error.style.display='block'; return; }
+  if(!/^\d{4,6}$/.test(pin)){ error.textContent='PIN ต้องเป็นตัวเลข 4-6 หลัก'; error.style.display='block'; return; }
+  if(pin!==confirmPin){ error.textContent='PIN ทั้งสองช่องไม่ตรงกัน'; error.style.display='block'; return; }
+  const button=document.getElementById('forgotPinConfirmBtn'); button.disabled=true; button.textContent='กำลังยืนยัน...';
+  try{ setStudentSession(await apiRecoverPin(app.studentId,firstName,lastName,pin)); error.style.display='none'; await proceedToSelectScreen(); }
+  catch(e){ error.textContent=e.message; error.style.display='block'; }
+  finally{ button.disabled=false; button.textContent='ยืนยันและตั้ง PIN ใหม่'; }
+});
+
+let pickedKey = null;
+let COMPLETED_KEYS = new Set();
+async function refreshSelectScreen(){
+  document.getElementById('qgridWrap').innerHTML = '<div class="loading-note">กำลังโหลดรายวิชา...</div>';
+  try{ ELIGIBLE_SETS = await apiGetEligibleSets(); }
+  catch(e){ document.getElementById('qgridWrap').innerHTML = '<div class="empty-note">'+escapeHtml(e.message)+'</div>'; return; }
+  ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
+  try{
+    const mine = await apiGetMyResults(app.studentId);
+    COMPLETED_KEYS = new Set(mine.filter(r=>r.attemptType!=='resit').map(r=>r.questionKey));
+  }catch(e){ COMPLETED_KEYS = new Set(); }
+  renderQGrid();
+}
+let lateCodeVerified = {}; // {questionKey: code} once verified this session
+async function apiVerifyLateCode(key, code){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/verify-late-code', { method:'POST', body:{code} }); }
+
+function renderQGrid(){
+  const wrap = document.getElementById('qgridWrap');
+  if(!ELIGIBLE_SETS.length){
+    wrap.innerHTML = '<div class="empty-note">ขณะนี้ยังไม่มีรายวิชาที่คุณมีสิทธิสอบ กรุณาติดต่ออาจารย์ผู้สอนหรือผู้ดูแลระบบ</div>';
+    return;
+  }
+  wrap.innerHTML = `<div class="qgrid">` + ELIGIBLE_SETS.map(q=>{
+    const isResit = q.accessMode==='resit';
+    const done = !isResit && COMPLETED_KEYS.has(q.key);
+    const locked = q.lateAccessRequired && !lateCodeVerified[q.key];
+    const disabled = done || locked;
+    return `<div class="qcard" data-key="${q.key}" ${disabled?'style="opacity:.7;cursor:default;"':''}>
+      <h3>${escapeHtml(q.title)}</h3>
+      <p>${escapeHtml(q.desc||'')}</p>
+      <div class="lvbadges">
+        ${done ? `<span class="lvbadge" style="background:var(--green);color:#fff;border-color:var(--green);">✅ ทำข้อสอบแล้ว</span>` : ''}
+        ${isResit ? `<span class="lvbadge" style="background:#F59E0B;color:#fff;border-color:#F59E0B;">🛠️ สิทธิ์สอบซ่อม · คะแนนเต็มหลังแปลง ${q.resitScoreMax}</span>` : ''}
+        ${locked ? `<span class="lvbadge" style="background:var(--red);color:#fff;border-color:var(--red);">🔒 หมดเวลาลงทะเบียนสอบ</span>` : ''}
+        ${q.examType ? `<span class="lvbadge examtype">${escapeHtml(q.examType)}</span>` : ''}
+        ${q.delivery==='object-analysis-design' ? `<span class="lvbadge" style="background:#EEF2FF;color:#4338CA;border-color:#C7D2FE;">🧩 วาด Data Flow Diagram · Level 0–2</span>` : `<span class="lvbadge">${SECTION_ICON.mc} ปรนัย ${q.sections.mc.questions.length} ข้อ</span>`}
+        ${!q.delivery && q.sections.matching.left.length>0 ? `<span class="lvbadge">${SECTION_ICON.matching} จับคู่ ${q.sections.matching.left.length} คู่</span>` : ''}
+        ${!q.delivery && q.sections.written.questions.length>0 ? `<span class="lvbadge">${SECTION_ICON.written} อัตนัย ${q.sections.written.questions.length} ข้อ</span>` : ''}
+        ${q.subjectTeacherName ? `<span class="lvbadge">👤 ${escapeHtml(q.subjectTeacherName)}</span>` : ''}
+      </div>
+      ${locked ? `
+        <div class="late-code-box" data-latebox="${q.key}" style="margin-top:10px;">
+          <p style="font-size:11.5px;color:var(--sub);margin:0 0 6px;">หมดเวลาลงทะเบียนสอบตามปกติแล้ว (${q.availableUntil?new Date(q.availableUntil).toLocaleString('th-TH'):''}) กรุณาขอรหัสพิเศษจากอาจารย์ผู้สอนเพื่อเข้าสอบย้อนหลัง</p>
+          <div style="display:flex;gap:6px;">
+            <input type="text" class="name-input" style="margin:0;padding:8px 10px;font-size:13px;" placeholder="รหัสพิเศษ" data-latecode-input="${q.key}">
+            <button class="btn btn-ghost btn-sm" data-verify-late="${q.key}" type="button">ยืนยัน</button>
+          </div>
+          <div class="id-error" data-lateerr="${q.key}" style="margin:6px 0 0;"></div>
+        </div>` : ''}
+    </div>`;
+  }).join('') + `</div>`;
+
+  wrap.querySelectorAll('.qcard').forEach(card=>{
+    const key = card.dataset.key;
+    const done = ELIGIBLE_SETS_BY_KEY[key].accessMode!=='resit' && COMPLETED_KEYS.has(key);
+    const locked = ELIGIBLE_SETS_BY_KEY[key].lateAccessRequired && !lateCodeVerified[key];
+    if(done || locked) return; // not directly selectable
+    card.addEventListener('click', ()=>{
+      wrap.querySelectorAll('.qcard').forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+      pickedKey = key;
+      document.getElementById('confirmQBtn').disabled = false;
+    });
+  });
+  wrap.querySelectorAll('[data-verify-late]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const key = btn.dataset.verifyLate;
+      const input = wrap.querySelector(`[data-latecode-input="${key}"]`);
+      const errBox = wrap.querySelector(`[data-lateerr="${key}"]`);
+      const code = input.value.trim();
+      if(!code){ errBox.textContent='กรุณากรอกรหัส'; errBox.style.display='block'; return; }
+      btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+      try{
+        const res = await apiVerifyLateCode(key, code);
+        if(res.ok){ lateCodeVerified[key] = code; renderQGrid(); }
+        else { errBox.textContent = 'รหัสไม่ถูกต้อง กรุณาตรวจสอบกับอาจารย์ผู้สอนอีกครั้ง'; errBox.style.display='block'; }
+      }catch(err){ errBox.textContent = err.message; errBox.style.display='block'; }
+      btn.disabled = false; btn.textContent = 'ยืนยัน';
+    });
+  });
+}
+function applyServerDraft(draft){
+  if(!draft?.examEndTime || new Date(draft.examEndTime).getTime()<=Date.now()) return false;
+  app.section=draft.section||null; app.lateCode=draft.lateCode||null; app.submittedSections=draft.submittedSections||{mc:false,matching:false,written:false};
+  app.mcState=draft.mcState||null; app.examEndTime=draft.examEndTime; app.timeLeft=Math.max(0,Math.round((new Date(draft.examEndTime).getTime()-Date.now())/1000));
+  app.reloadCount=(Number(draft.reloadCount)||0)+1; state={tabSwitches:Number(draft.tabSwitches)||0,tabWarningAcknowledged:Number(draft.tabWarningAcknowledged)||0,fullscreenExitAttempts:Number(draft.fullscreenExitAttempts)||0,rightClickAttempts:Number(draft.rightClickAttempts)||0,copyAttempts:Number(draft.copyAttempts)||0,integrityEvents:Array.isArray(draft.integrityEvents)?draft.integrityEvents:[]};
+  app.draftRevision=Number(draft.revision)||0; draftAnswers=draft.draftAnswers||{mc:{},matching:{},written:{}}; return true;
+}
+document.getElementById('confirmQBtn').addEventListener('click', async ()=>{
+  if(!pickedKey) return;
+  if(COMPLETED_KEYS.has(pickedKey) && ELIGIBLE_SETS_BY_KEY[pickedKey].accessMode!=='resit'){ showToast('คุณได้ทำข้อสอบวิชานี้ไปแล้ว ไม่สามารถทำซ้ำได้'); return; }
+  const pickedSet = ELIGIBLE_SETS_BY_KEY[pickedKey];
+  if(pickedSet.delivery==='object-analysis-design'){ location.href='/object-analysis-design'; return; }
+  app.questionKey = pickedKey;
+  app.resitAccessId = ELIGIBLE_SETS_BY_KEY[pickedKey].resitAccessId || null;
+  app.lateCode = lateCodeVerified[pickedKey] || null;
+  try{const claim=await apiClaimExamDevice(pickedKey,app.resitAccessId);app.draftRevision=Number(claim.draft?.revision)||0;}catch(error){showToast(error.message);return;}
+  try{ const remote=await apiGetExamDraft(pickedKey,app.resitAccessId); if(applyServerDraft(remote.draft)) showToast('กู้คืนคำตอบที่บันทึกไว้จากเซิร์ฟเวอร์แล้ว'); }catch(error){}
+  requestExamFullscreen();
+  selectScreen.classList.add('hidden');
+  runCountdown();
+});
+
+/* ============ COUNTDOWN -> EXAM ============ */
+function runCountdown(){
+  countdownOverlay.classList.remove('hidden');
+  let n = 3;
+  const numEl = document.getElementById('countdownNumber');
+  numEl.textContent = n;
+  const handle = setInterval(()=>{
+    n--;
+    if(n<=0){ clearInterval(handle); countdownOverlay.classList.add('hidden'); beginExam(); }
+    else { numEl.textContent = n; numEl.style.animation='none'; void numEl.offsetWidth; numEl.style.animation='pop .9s ease'; }
+  }, 900);
+}
+function beginExam(){
+  requestExamFullscreen();
+  examScreen.classList.remove('hidden');
+  setFloatingThemeButtonVisible(false);
+  app.examInProgress = true;
+  fullscreenWasActive = !!document.fullscreenElement;
+  updateCheatTags();
+  document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
+  document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
+  document.getElementById('hubQTagline').textContent = (currentQuestion().examType ? '['+currentQuestion().examType+'] ' : '') + (currentQuestion().tagline||'');
+  if(!app.examEndTime){ app.timeLeft = 60*60; app.examEndTime = Date.now() + app.timeLeft*1000; }
+  updateReloadTag();
+  updateGlobalTimerDisplay();
+  showHub();
+  saveSession();
+  runGlobalTimer();
+}
+function runGlobalTimer(){
+  clearInterval(app.globalTimerHandle);
+  app.globalTimerHandle = setInterval(()=>{
+    app.timeLeft = Math.max(0, Math.round((app.examEndTime - Date.now())/1000));
+    updateGlobalTimerDisplay();
+    if(app.timeLeft % 15 === 0) saveSession();
+    if(app.timeLeft<=0){ clearInterval(app.globalTimerHandle); forceTimeUp(); }
+  }, 1000);
+}
+function updateGlobalTimerDisplay(){
+  const m = Math.floor(app.timeLeft/60).toString().padStart(2,'0');
+  const s = (app.timeLeft%60).toString().padStart(2,'0');
+  const el = document.getElementById('timerDisplay');
+  el.textContent = m+':'+s;
+  el.classList.toggle('warn', app.timeLeft<=600 && app.timeLeft>120);
+  el.classList.toggle('danger', app.timeLeft<=120);
+}
+function updateReloadTag(){
+  const tag = document.getElementById('reloadTag');
+  if(app.reloadCount>0){ tag.style.display=''; tag.textContent = '🔄 ทำต่อ (โหลดหน้าใหม่ครั้งที่ ' + app.reloadCount + ')'; }
+  else tag.style.display='none';
+}
+
+/* ============ HUB ============ */
+function showHub(){
+  app.section = null;
+  document.getElementById('topTitle').textContent = 'รายการส่วนข้อสอบ';
+  hubActions.classList.remove('hidden');
+  sectionActions.classList.add('hidden');
+  sectionView.classList.add('hidden');
+  hubView.classList.remove('hidden');
+  renderHubCards();
+  saveSession();
+}
+function getActiveSections(){
+  const q = currentQuestion();
+  const active = [];
+  if(q.sections.mc.questions.length>0) active.push('mc');
+  if(q.sections.matching.left.length>0) active.push('matching');
+  if(q.sections.written.questions.length>0) active.push('written');
+  return active;
+}
+function renderHubCards(){
+  const grid = document.getElementById('lvGrid');
+  const descBy = {mc:'เลือกคำตอบที่ถูกต้องที่สุดในแต่ละข้อ', matching:'จับคู่รายการซ้าย-ขวาให้สัมพันธ์กัน', written:'เขียนตอบด้วยคำพูดของตนเอง'};
+  const active = getActiveSections();
+  grid.innerHTML = active.map(sec=>{
+    const done = app.submittedSections[sec];
+    const statusHtml = done ? `<span class="lv-status done">บันทึกคำตอบแล้ว</span>` : `<span class="lv-status todo">ยังไม่ทำ</span>`;
+    const btnLabel = done ? 'แก้ไขคำตอบต่อ' : 'เข้าทำส่วนนี้';
+    return `<div class="lv-card">
+      <h3>${SECTION_ICON[sec]} ${SECTION_TITLES[sec]}</h3>
+      <div class="lv-desc">${descBy[sec]}</div>
+      ${statusHtml}
+      <button class="btn btn-primary" data-enter="${sec}" ${app.examEnded?'disabled':''}>${btnLabel}</button>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('[data-enter]').forEach(btn=>{ btn.addEventListener('click', ()=> enterSection(btn.dataset.enter)); });
+  const anyDone = active.some(sec=>app.submittedSections[sec]);
+  document.getElementById('endExamBtn').disabled = !anyDone;
+}
+function attemptEndExam(){
+  const incomplete = findFirstIncomplete();
+  if(incomplete){
+    showToast('กรุณาตอบให้ครบทุกข้อก่อนส่งคำตอบ กำลังพาไปยังข้อที่ยังไม่ได้ตอบ...');
+    jumpToIncomplete(incomplete);
+    return;
+  }
+  if(confirm('ยืนยันจบการสอบและส่งคำตอบ? หลังจากนี้จะไม่สามารถแก้ไขคำตอบได้อีก')){
+    clearInterval(app.globalTimerHandle);
+    finalizeExam('manual');
+  }
+}
+document.getElementById('endExamBtn').addEventListener('click', attemptEndExam);
+document.getElementById('backToHubBtn').addEventListener('click', showHub);
+function isOnlyMcSection(){
+  return getActiveSections().length===1;
+}
+
+/* ============ COMPLETENESS CHECK ============ */
+function findFirstIncomplete(){
+  const q = currentQuestion();
+  for(const qq of q.sections.mc.questions){
+    if(draftAnswers.mc[qq.id]===undefined) return {section:'mc', qid:qq.id};
+  }
+  for(const item of q.sections.matching.left){
+    if(!draftAnswers.matching[item.id]) return {section:'matching', qid:item.id};
+  }
+  for(const qq of q.sections.written.questions){
+    if(!draftAnswers.written[qq.id] || !draftAnswers.written[qq.id].trim()) return {section:'written', qid:qq.id};
+  }
+  return null;
+}
+function jumpToIncomplete(inc){
+  enterSection(inc.section);
+  if(inc.section==='mc'){
+    initMcStateIfNeeded();
+    const idx = app.mcState.order.indexOf(inc.qid);
+    if(idx>=0) app.mcState.currentIndex = idx;
+    renderSection();
+  } else if(inc.section==='written'){
+    renderSection();
+    setTimeout(()=>{
+      const ta = document.querySelector(`.written-textarea[data-qid="${inc.qid}"],.code-answer[data-qid="${inc.qid}"]`);
+      if(ta){ ta.scrollIntoView({behavior:'smooth', block:'center'}); ta.focus(); ta.classList.add('flag-missing'); }
+    }, 60);
+  } else if(inc.section==='matching'){
+    renderSection();
+    setTimeout(()=>{
+      const el = document.querySelector(`.match-item[data-side="left"][data-id="${inc.qid}"]`);
+      if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); el.classList.add('flag-missing'); }
+    }, 60);
+  }
+}
+
+/* ============ ENTER SECTION ============ */
+let matchPendingLeft = null;
+function enterSection(sec){
+  app.section = sec;
+  hubActions.classList.add('hidden');
+  sectionActions.classList.remove('hidden');
+  hubView.classList.add('hidden');
+  sectionView.classList.remove('hidden');
+  document.getElementById('topTitle').textContent = SECTION_TITLES[sec] + ' — ' + currentQuestion().title;
+  matchPendingLeft = null;
+  if(sec==='mc') initMcStateIfNeeded();
+  renderSection();
+}
+function renderSection(){
+  const sec = app.section;
+  if(sec==='mc') return renderMcSection();
+  const q = currentQuestion();
+  const s = q.sections[sec];
+  const inner = document.getElementById('sectionInner');
+  if(!draftAnswers[sec]) draftAnswers[sec] = {};
+  let html = `<div class="section-head"><h2>${SECTION_ICON[sec]} ${escapeHtml(s.title)}</h2><p>${escapeHtml(s.desc||'')}</p></div>`;
+
+  if(sec==='matching'){
+    const matched = draftAnswers.matching;
+    const answeredCount = Object.keys(matched).length;
+    const total = s.left.length;
+    html += `<div class="progress-badge ${answeredCount===total?'complete':''}">จับคู่แล้ว ${answeredCount}/${total} คู่</div>`;
+    const badgeFor = {}; let bi=1;
+    Object.keys(matched).forEach(lid=>{ badgeFor[lid+'|'+matched[lid]] = bi++; });
+    html += `<div class="match-hint">คลิกรายการทางซ้าย 1 รายการ แล้วคลิกรายการทางขวาที่สัมพันธ์กันเพื่อจับคู่</div>`;
+    html += `<div class="match-wrap"><div class="match-col" id="matchLeftCol"><h4>รายการ ก</h4>`;
+    html += s.left.map(item=>{
+      const r = matched[item.id];
+      const isPending = matchPendingLeft===item.id;
+      const badge = r ? (badgeFor[item.id+'|'+r] || '') : '';
+      return `<div class="match-item ${isPending?'pending':''} ${r?'matched':''}" data-side="left" data-id="${item.id}">
+        ${r?`<span class="match-badge">${badge}</span>`:`<span class="noBadge"></span>`}<span>${escapeHtml(item.text)}</span></div>`;
+    }).join('');
+    html += `</div><div class="match-col" id="matchRightCol"><h4>รายการ ข</h4>`;
+    html += s.right.map(item=>{
+      let matchedLeft = null;
+      Object.entries(matched).forEach(([lid,rid])=>{ if(rid===item.id) matchedLeft = lid; });
+      const badge = matchedLeft ? (badgeFor[matchedLeft+'|'+item.id] || '') : '';
+      return `<div class="match-item ${matchedLeft?'matched':''}" data-side="right" data-id="${item.id}">
+        ${matchedLeft?`<span class="match-badge">${badge}</span>`:`<span class="noBadge"></span>`}<span>${escapeHtml(item.text)}</span></div>`;
+    }).join('');
+    html += `</div></div>
+      <div class="section-actions" style="margin-top:14px;"><button class="btn btn-ghost" id="clearMatchBtn">ล้างการจับคู่ทั้งหมด</button></div>`;
+  } else if(sec==='written'){
+    const answeredCount = s.questions.filter(qq=>draftAnswers.written[qq.id] && draftAnswers.written[qq.id].trim()).length;
+    html += `<div class="progress-badge ${answeredCount===s.questions.length?'complete':''}">ตอบแล้ว ${answeredCount}/${s.questions.length} ข้อ</div>`;
+    html += s.questions.map((qq,i)=>{
+      const val = draftAnswers.written[qq.id] || '';
+      const isCode = qq.answerType === 'code';
+      const language = ({c:'C',cpp:'C++',java:'Java'})[qq.language] || 'Code';
+      const editor = isCode ? `<div class="code-editor"><div class="code-editor-head"><span>main.${qq.language==='java'?'java':qq.language==='cpp'?'cpp':'c'}</span><span>${language} · แก้ไขโค้ด</span></div><div class="code-editor-body"><pre class="code-line-numbers" data-lines-for="${qq.id}">1</pre><textarea class="code-answer" spellcheck="false" autocapitalize="off" autocomplete="off" data-qid="${qq.id}" placeholder="พิมพ์โค้ดที่แก้ไขแล้ว...">${escapeHtml(val)}</textarea></div></div>` : `<textarea class="written-textarea" data-qid="${qq.id}" placeholder="พิมพ์คำตอบที่นี่...">${escapeHtml(val)}</textarea>`;
+      return `<div class="qblock"><div class="qnum">ข้อ ${i+1}${isCode?' · เขียนโค้ด':''}</div><div class="qtext">${escapeHtml(qq.text)}</div>${renderQuestionResources(qq)}${editor}</div>`;
+    }).join('');
+  }
+
+  html += `<div class="section-actions"><button class="btn btn-primary" id="submitSectionBtn">บันทึกคำตอบส่วนนี้</button></div>`;
+  inner.innerHTML = html;
+  bindSectionEvents();
+}
+
+function renderMcSection(){
+  const q = currentQuestion();
+  const s = q.sections.mc;
+  const byId = {}; s.questions.forEach(x=>byId[x.id]=x);
+  const idx = app.mcState.currentIndex;
+  const qid = app.mcState.order[idx];
+  const qq = byId[qid];
+  const dispOrder = app.mcState.choiceOrder[qid];
+  const picked = draftAnswers.mc[qid];
+  const answeredCount = s.questions.filter(x=>draftAnswers.mc[x.id]!==undefined).length;
+  const total = s.questions.length;
+  const isLast = idx === total-1;
+
+  const paletteHtml = app.mcState.order.map((oid,i)=>{
+    const answered = draftAnswers.mc[oid]!==undefined;
+    const cur = i===idx;
+    return `<button class="mc-pal-btn ${answered?'answered':''} ${cur?'current':''}" data-jump="${i}" title="ข้อ ${i+1}">${i+1}</button>`;
+  }).join('');
+
+  const choicesHtml = dispOrder.map(origIdx=>{
+    const c = qq.choices[origIdx];
+    const isPicked = picked===origIdx;
+    return `<label class="choice-item ${isPicked?'picked':''}" data-origidx="${origIdx}">
+      <input type="radio" name="mcCurrent" ${isPicked?'checked':''}> <span>${escapeHtml(c)}</span>
+      ${isPicked?'<button type="button" class="choice-clear-btn" data-clear="1" title="ยกเลิกคำตอบข้อนี้">✕</button>':''}
+    </label>`;
+  }).join('');
+
+  const inner = document.getElementById('sectionInner');
+  inner.innerHTML = `
+    <div class="section-head"><h2>${SECTION_ICON.mc} ${escapeHtml(s.title)}</h2><p>${escapeHtml(s.desc||'')}</p></div>
+    <div class="mc-map-card">
+      <div class="mc-map-head">
+        <span class="title">🗺️ แผนที่ข้อสอบ</span>
+        <span class="count">ตอบแล้ว ${answeredCount} / ${total} ข้อ</span>
+      </div>
+      <div class="mc-progress-bar"><div class="mc-progress-fill" style="width:${total?Math.round(answeredCount/total*100):0}%;"></div></div>
+      <div class="mc-palette">${paletteHtml}</div>
+      <div class="mc-legend">
+        <span><i class="dot answered"></i> ตอบแล้ว</span>
+        <span><i class="dot todo"></i> ยังไม่ตอบ</span>
+        <span><i class="dot current"></i> ข้อที่กำลังทำ</span>
+      </div>
+    </div>
+    <div class="qblock">
+      <div class="qnum">ข้อ ${idx+1} จาก ${total}</div>
+      <div class="qtext">${escapeHtml(qq.text)}</div>
+      ${renderQuestionResources(qq)}
+      <div class="choice-list">${choicesHtml}</div>
+    </div>
+    ${idx>0 ? `<div class="mc-nav-row"><button class="btn btn-ghost" id="mcPrevBtn">← ข้อก่อนหน้า</button></div>` : ''}
+    ${isLast ? `<div class="section-actions mc-submit-row"><button class="btn btn-primary" id="submitSectionBtn">${isOnlyMcSection()?'ส่งข้อสอบ':'บันทึกคำตอบส่วนนี้'}</button></div>` : ''}
+  `;
+
+  inner.querySelectorAll('.choice-item').forEach(item=>{
+    item.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-clear]')){
+        e.preventDefault(); e.stopPropagation();
+        delete draftAnswers.mc[qid];
+        scheduleSave();
+        renderMcSection();
+        return;
+      }
+      // A click on a label also triggers its radio input. Prevent the second click from advancing twice.
+      e.preventDefault();
+      draftAnswers.mc[qid] = parseInt(item.dataset.origidx,10);
+      scheduleSave();
+      if(app.mcState.currentIndex < s.questions.length-1) app.mcState.currentIndex++;
+      renderMcSection();
+    });
+  });
+  inner.querySelectorAll('.mc-pal-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ app.mcState.currentIndex = parseInt(btn.dataset.jump,10); scheduleSave(); renderMcSection(); });
+  });
+  const prevBtn = document.getElementById('mcPrevBtn');
+  if(prevBtn) prevBtn.addEventListener('click', ()=>{ if(app.mcState.currentIndex>0){ app.mcState.currentIndex--; scheduleSave(); renderMcSection(); } });
+  const mcSubmitBtn = document.getElementById('submitSectionBtn');
+  if(mcSubmitBtn) mcSubmitBtn.addEventListener('click', submitSection);
+}
+
+function bindSectionEvents(){
+  const sec = app.section;
+  if(sec==='matching'){
+    document.querySelectorAll('.match-item[data-side="left"]').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        matchPendingLeft = (matchPendingLeft===item.dataset.id) ? null : item.dataset.id;
+        renderSection();
+      });
+    });
+    document.querySelectorAll('.match-item[data-side="right"]').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        if(!matchPendingLeft) return;
+        const rid = item.dataset.id;
+        Object.keys(draftAnswers.matching).forEach(lid=>{ if(draftAnswers.matching[lid]===rid) delete draftAnswers.matching[lid]; });
+        draftAnswers.matching[matchPendingLeft] = rid;
+        matchPendingLeft = null;
+        scheduleSave();
+        renderSection();
+      });
+    });
+    const clearBtn = document.getElementById('clearMatchBtn');
+    if(clearBtn) clearBtn.addEventListener('click', ()=>{ draftAnswers.matching = {}; matchPendingLeft = null; scheduleSave(); renderSection(); });
+  } else if(sec==='written'){
+    document.querySelectorAll('.written-textarea,.code-answer').forEach(ta=>{
+      const updateLines=()=>{ const lines=document.querySelector(`[data-lines-for="${ta.dataset.qid}"]`); if(lines) lines.textContent=Array.from({length:Math.max(1,ta.value.split('\n').length)},(_,i)=>i+1).join('\n'); };
+      updateLines();
+      ta.addEventListener('input', ()=>{ draftAnswers.written[ta.dataset.qid] = ta.value; ta.classList.remove('flag-missing'); updateLines(); scheduleSave(); });
+      if(ta.classList.contains('code-answer')) ta.addEventListener('keydown',event=>{ if(event.key==='Tab'){ event.preventDefault(); const start=ta.selectionStart,end=ta.selectionEnd; ta.value=ta.value.slice(0,start)+'  '+ta.value.slice(end); ta.selectionStart=ta.selectionEnd=start+2; ta.dispatchEvent(new Event('input')); } });
+    });
+  }
+  const submitBtn = document.getElementById('submitSectionBtn');
+  if(submitBtn) submitBtn.addEventListener('click', submitSection);
+}
+
+/* ============ SUBMIT SECTION (local only — no score is computed or shown here) ============ */
+function submitSection(){
+  app.submittedSections[app.section] = true;
+  saveSession();
+  if(app.section==='mc' && isOnlyMcSection()){
+    // this exam only has a multiple-choice section — go straight to the final submit prompt
+    attemptEndExam();
+    return;
+  }
+  document.getElementById('levelResultModal').classList.remove('hidden');
+}
+document.getElementById('modalStayBtn').addEventListener('click', ()=>{ document.getElementById('levelResultModal').classList.add('hidden'); });
+document.getElementById('modalHubBtn').addEventListener('click', ()=>{ document.getElementById('levelResultModal').classList.add('hidden'); showHub(); });
+
+/* ============ SUBMIT RESULT TO BACKEND (server grades; score is never sent back) ============ */
+async function submitFinalAnswers(autoSubmit){
+  const record = {
+    studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
+    questionKey: app.questionKey, resitAccessId: app.resitAccessId || null, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
+    tabSwitches: state.tabSwitches, reloadCount: app.reloadCount,
+    fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
+    integrityEvents: state.integrityEvents,
+    answers: { mc: draftAnswers.mc, matching: draftAnswers.matching, written: draftAnswers.written }
+  };
+  const MAX_TRIES = 3;
+  let lastErr = null;
+  for(let attempt=1; attempt<=MAX_TRIES; attempt++){
+    try{ return await apiSubmitResult(record); }
+    catch(e){
+      lastErr = e;
+      // "already submitted" is not something a retry will fix — stop immediately
+      if(e.payload && e.payload.error==='already_submitted') break;
+      if(attempt<MAX_TRIES) await new Promise(r=>setTimeout(r, e.retryAfterMs || 800));
+    }
+  }
+  console.error('ส่งคำตอบเข้าเซิร์ฟเวอร์ไม่สำเร็จ', lastErr);
+  if(lastErr && lastErr.payload && lastErr.payload.error==='already_submitted'){
+    // Another device completed this attempt. Treat this device as completed too,
+    // then remove its local/server draft instead of trapping the student here.
+    showToast('ข้อสอบชุดนี้ส่งจากอุปกรณ์อื่นเรียบร้อยแล้ว กำลังปิดข้อสอบบนเครื่องนี้');
+    return {alreadySubmitted:true};
+  }
+  showToast(lastErr && lastErr.payload && lastErr.payload.error==='already_submitted'
+    ? 'รหัสนักเรียนนี้ได้ทำข้อสอบวิชานี้ไปแล้ว ระบบไม่รับคำตอบซ้ำ'
+    : 'เกิดปัญหาในการส่งคำตอบ กรุณาลองใหม่ หรือแจ้งอาจารย์/ผู้ดูแลระบบ');
+  throw lastErr;
+}
+
+/* ============ END OF EXAM ============ */
+let finalSubmissionInProgress=false;
+function setSubmissionBusy(active,message='กำลังส่งข้อสอบ...'){
+  let overlay=document.getElementById('submitOverlay');
+  if(active){
+    if(!overlay){overlay=document.createElement('div');overlay.id='submitOverlay';overlay.className='submit-overlay';overlay.setAttribute('role','status');overlay.setAttribute('aria-live','assertive');overlay.innerHTML='<div class="submit-overlay-card"><i class="submit-spinner"></i><b data-submit-message></b><span>กรุณารอสักครู่ และอย่าปิดหน้านี้</span></div>';document.body.appendChild(overlay);}
+    overlay.querySelector('[data-submit-message]').textContent=message;
+  }else overlay?.remove();
+  const button=document.getElementById('endExamBtn');
+  if(button){if(active&&!button.dataset.originalText)button.dataset.originalText=button.textContent;button.disabled=active;button.textContent=active?'⏳ กำลังส่งข้อสอบ...':(button.dataset.originalText||button.textContent);}
+}
+function forceTimeUp(){ finalizeExam('timeup'); }
+async function finalizeExam(reason){
+  if(finalSubmissionInProgress) return;
+  finalSubmissionInProgress=true;
+  setSubmissionBusy(true,reason==='manual'?'กำลังส่งข้อสอบ...':'กำลังบันทึกคำตอบอัตโนมัติ...');
+  const auto = reason !== 'manual';
+  const activeSections = getActiveSections();
+  app.examEnded = true;
+  app.examInProgress = false;
+  clearInterval(app.globalTimerHandle);
+  saveSession();
+  let submission;
+  try{ submission = await submitFinalAnswers(auto); }
+  catch(e){ app.examEnded=false; app.examInProgress=true; finalSubmissionInProgress=false; setSubmissionBusy(false); runGlobalTimer(); return; }
+  try{ await apiClearExamDraft(app.questionKey,app.resitAccessId); }catch(error){}
+  clearSessionData();
+  // Once this subject's exam has ended, the anti-cheat counters for it are done being tracked —
+  // clear them immediately so they never carry over into a different subject or a shared device.
+  state = { tabSwitches: 0, tabWarningAcknowledged: 0, fullscreenExitAttempts: 0, rightClickAttempts: 0, copyAttempts: 0, integrityEvents: [] };
+  examScreen.classList.add('hidden');
+  setSubmissionBusy(false);
+  setFloatingThemeButtonVisible(true);
+  finalScreen.classList.remove('hidden');
+  const headlines = {
+    manual: 'ส่งคำตอบเรียบร้อยแล้ว',
+    timeup: 'หมดเวลาสอบ — ส่งคำตอบอัตโนมัติแล้ว',
+    tabswitch: 'ตรวจพบการสลับหน้าจอซ้ำ — ส่งคำตอบอัตโนมัติแล้ว'
+  };
+  const summaries = {
+    manual: 'ระบบได้บันทึกคำตอบทุกส่วนที่คุณทำไว้ และส่งเข้าสู่ระบบเรียบร้อยแล้ว',
+    timeup: 'ครบเวลา 60 นาทีแล้ว ระบบปิดการทำข้อสอบและส่งคำตอบของคุณเข้าสู่ระบบให้อัตโนมัติ (แม้จะยังตอบไม่ครบทุกข้อ)',
+    tabswitch: 'คุณสลับหน้าจอ/แท็บหลังจากได้รับคำเตือนแล้ว ระบบจึงปิดการทำข้อสอบและส่งคำตอบที่มีอยู่ให้อัตโนมัติ'
+  };
+  document.getElementById('finalHeadline').textContent = submission?.alreadySubmitted ? 'ข้อสอบชุดนี้ส่งเรียบร้อยแล้ว' : (headlines[reason] || headlines.manual);
+  document.getElementById('finalSummaryText').textContent = submission?.alreadySubmitted
+    ? 'ตรวจพบว่าคำตอบของชุดนี้ถูกส่งจากอุปกรณ์อื่นแล้ว ระบบจึงปิดข้อสอบบนเครื่องนี้และล้างร่างที่ค้างไว้ให้เรียบร้อย'
+    : (summaries[reason] || summaries.manual);
+  const list = document.getElementById('finalList');
+  list.innerHTML = activeSections.map(sec=>{
+    const done = app.submittedSections[sec];
+    return `<div class="final-row"><span>${SECTION_TITLES[sec]}</span><b>${done ? 'ส่งคำตอบแล้ว' : 'ไม่ได้ทำ'}</b></div>`;
+  }).join('');
+}
+document.getElementById('restartAllBtn').addEventListener('click', ()=>{
+  finalSubmissionInProgress=false;
+  clearSessionData();
+  app = {studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, studentToken:app.studentToken, questionKey:null, section:null, lateCode:null, draftRevision:0, submittedSections:{mc:false,matching:false,written:false}, mcState:null, timeLeft:60*60, examEndTime:null, globalTimerHandle:null, examEnded:false, examInProgress:false, reloadCount:0};
+  state = {tabSwitches:0, tabWarningAcknowledged:0, fullscreenExitAttempts:0, rightClickAttempts:0, copyAttempts:0, integrityEvents:[]};
+  draftAnswers = {mc:{}, matching:{}, written:{}};
+  proceedToSelectScreen();
+});
+
+/* ============ RESUME AFTER REFRESH ============ */
+function attemptResumeSession(){
+  const saved = loadSessionData();
+  if(!saved || !saved.questionKey) return false;
+  ELIGIBLE_SETS = saved.eligibleSets || [];
+  ELIGIBLE_SETS_BY_KEY = {}; ELIGIBLE_SETS.forEach(s=>ELIGIBLE_SETS_BY_KEY[s.key]=s);
+  if(!ELIGIBLE_SETS_BY_KEY[saved.questionKey]) return false;
+  if(saved.examEnded) return false; // already submitted — start fresh rather than showing a stale confirmation
+
+  app.studentId = saved.studentId; app.studentName = saved.studentName || ''; app.classRoom = saved.classRoom || '';
+  app.questionKey = saved.questionKey; app.lateCode = saved.lateCode || null;
+  app.draftRevision = Number(saved.draftRevision)||0;
+  app.submittedSections = saved.submittedSections || {mc:false, matching:false, written:false};
+  app.mcState = saved.mcState || null;
+  app.examEndTime = saved.examEndTime;
+  app.reloadCount = (saved.reloadCount||0) + 1;
+  state.tabSwitches = saved.tabSwitches || 0;
+  state.tabWarningAcknowledged = saved.tabWarningAcknowledged || 0;
+  state.fullscreenExitAttempts = saved.fullscreenExitAttempts || 0;
+  state.rightClickAttempts = saved.rightClickAttempts || 0;
+  state.copyAttempts = saved.copyAttempts || 0;
+  state.integrityEvents = Array.isArray(saved.integrityEvents) ? saved.integrityEvents : [];
+  recordIntegrityEvent('reload');
+  draftAnswers = saved.draftAnswers || {mc:{}, matching:{}, written:{}};
+
+  hideAllTopScreens();
+  examScreen.classList.remove('hidden');
+  setFloatingThemeButtonVisible(false);
+  app.examInProgress = true;
+  document.getElementById('nameTag').textContent = '👤 ' + app.studentName + ' (' + app.classRoom + ')';
+  document.getElementById('hubQTitle').textContent = 'ชุดข้อสอบ: ' + currentQuestion().title;
+  document.getElementById('hubQTagline').textContent = currentQuestion().tagline||'';
+  document.getElementById('tabSwitchTag').textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
+  if(state.tabSwitches>0) document.getElementById('tabSwitchTag').classList.add('badge-warn');
+  updateCheatTags();
+  updateReloadTag();
+
+  const remaining = app.examEndTime ? Math.max(0, Math.round((app.examEndTime - Date.now())/1000)) : 0;
+  app.timeLeft = remaining;
+  if(remaining<=0){ showHub(); saveSession(); forceTimeUp(); return true; }
+  if(app.section) enterSection(app.section); else showHub();
+  updateGlobalTimerDisplay();
+  runGlobalTimer();
+  saveSession();
+  return true;
+}
+
+function renderQuestionResources(question){
+  const resources=question?.resources;
+  if(!resources || typeof resources!=='object') return '';
+  const parts=[];
+  if(resources.code) parts.push(`<pre class="question-code"><code>${escapeHtml(resources.code)}</code></pre>`);
+  const assets=(resources.attachments||[]).filter(item=>{
+    try { const url=new URL(item?.url); return url.protocol==='https:'; } catch(_) { return false; }
+  });
+  if(assets.length) parts.push(`<div class="question-assets">${assets.map(item=>String(item.type||'').startsWith('image/')
+    ? `<img class="question-asset-image" src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name||'รูปภาพประกอบโจทย์')}" loading="lazy">`
+    : `<a class="question-asset-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(item.name||'เปิดไฟล์แนบ')}</a>`).join('')}</div>`);
+  return parts.length ? `<div class="question-resources">${parts.join('')}</div>` : '';
+}
+
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function showToast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2800);
+}
+
+async function continueVerifiedStudent(){
+  if(!app.studentToken) return false;
+  try{
+    const result = await apiFetch('/api/student/session');
+    app.studentId = result.student.studentId;
+    app.studentName = result.student.firstName+' '+result.student.lastName;
+    app.classRoom = result.student.classRoom;
+    if(new URLSearchParams(location.search).get('continue')==='1') history.replaceState({},'',location.pathname);
+    await proceedToSelectScreen();
+    document.documentElement.classList.remove('restoring-session');
+    return true;
+  }catch(e){
+    sessionStorage.removeItem('examStudentToken');
+    app.studentToken = '';
+    document.documentElement.classList.remove('restoring-session');
+    return false;
+  }
+}
+
+/* ============ INIT ============ */
+if(!attemptResumeSession()){
+  continueVerifiedStudent().then(continued=>{ if(!continued) startScreen.classList.remove('hidden'); });
+}else document.documentElement.classList.remove('restoring-session');
+
+})();

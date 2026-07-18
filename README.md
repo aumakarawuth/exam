@@ -94,6 +94,8 @@ npm test
 
 ## Production readiness, backup และ alerts
 
+Frontend หลักถูกแยกเป็น HTML สำหรับโครงสร้าง และไฟล์ CSS/JavaScript รายหน้าภายใต้ `public/assets/` เพื่อลดขนาดไฟล์ HTML และทำให้แก้ไข ทดสอบ และ cache asset ได้ง่ายขึ้น
+
 - `GET /health` ใช้ตรวจว่า process ยังทำงาน (liveness)
 - `GET /ready` probe ฐานข้อมูลจริงทุกครั้งและคืน HTTP 503 เมื่อฐานข้อมูลไม่ตอบภายใน `DATABASE_READINESS_TIMEOUT_MS`
 - หน้า Admin > Operations แสดงสถานะฐานข้อมูลแบบ live, latency, backup และ external alerts

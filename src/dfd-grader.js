@@ -3,7 +3,7 @@ const path = require('path');
 const vm = require('vm');
 
 function loadQuestionBank() {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'object-analysis-design.html'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'assets', 'object-analysis-design-main.js'), 'utf8');
   const start = source.indexOf('const QUESTIONS =');
   const end = source.indexOf('const LEVEL_TITLES');
   if (start < 0 || end < 0) throw new Error('Unable to load DFD answer key');
