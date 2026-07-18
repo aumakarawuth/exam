@@ -1,6 +1,11 @@
 const path = require('path');
 
 function registerPages(app, publicDir, express) {
+  app.get('/service-worker.js', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.sendFile(path.join(publicDir, 'service-worker.js'));
+  });
   app.get('/admin', (req, res) => res.sendFile(path.join(publicDir, 'admin.html')));
   app.get('/teacher', (req, res) => res.sendFile(path.join(publicDir, 'teacher.html')));
   app.get('/object-analysis-design', (req, res) => res.sendFile(path.join(publicDir, 'object-analysis-design.html')));
