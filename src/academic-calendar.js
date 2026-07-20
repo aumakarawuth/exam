@@ -1,6 +1,8 @@
 function dateKey(value) {
-  const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})/);
-  return match ? match[1] : '';
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  const year = Number(match[1]);
+  return `${String(year >= 2400 ? year - 543 : year).padStart(4, '0')}-${match[2]}-${match[3]}`;
 }
 
 function normalizeAcademicCalendar(value) {
@@ -37,7 +39,10 @@ function examStartDate(set) {
 
 function applyAcademicPeriod(set, settings) {
   const period = resolveAcademicPeriod(settings, examStartDate(set));
-  if (!period) return null;
+  if (!period) {
+    Object.assign(set, { academicYear: null, semester: null, semesterLabel: null });
+    return null;
+  }
   Object.assign(set, period);
   return period;
 }

@@ -1275,6 +1275,7 @@ async function saveEditingSet(){
   try{
     const response = editingIsNew ? await apiCreateSet(s) : await apiUpdateSet(s.key, s);
     if(editingIsNew && response?.key) s.key = response.key;
+    if(response) Object.assign(s,{academicYear:response.academicYear||null,semester:response.semester||null,semesterLabel:response.semesterLabel||null});
     const savedSet = JSON.parse(JSON.stringify(s));
     const existingIndex = ADMIN_SETS.findIndex(item=>item.key===savedSet.key);
     if(existingIndex >= 0) ADMIN_SETS.splice(existingIndex, 1, savedSet); else ADMIN_SETS.unshift(savedSet);

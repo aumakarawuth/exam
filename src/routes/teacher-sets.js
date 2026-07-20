@@ -12,7 +12,7 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
     const teacher = db.teachers.find(item => item.id === req.teacherId);
     const subjectTeacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '';
     const set = { ...body, key, educationLevel: body.educationLevel, teacherId: req.teacherId, subjectTeacherName, subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(body.examType) ? body.examType : examTypes[0], assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [], publishMode: body.publishMode === 'auto' ? 'auto' : 'manual', delivery: body.delivery === 'object-analysis-design' ? 'object-analysis-design' : null, createdAt: now, updatedAt: now };
-    applyAcademicPeriod(set, db.settings); db.sets.push(set); await writeDB(db); res.status(201).json({ key });
+    applyAcademicPeriod(set, db.settings); db.sets.push(set); await writeDB(db); res.status(201).json({ key, academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null });
   });
   app.put('/api/teacher/sets/:key', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' });
@@ -21,7 +21,7 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
     const teacher = db.teachers.find(item => item.id === req.teacherId);
     const subjectTeacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : set.subjectTeacherName;
     Object.assign(set, { ...req.body, key: set.key, teacherId: set.teacherId, subjectTeacherName, subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(req.body.examType) ? req.body.examType : set.examType, assignedClasses: Array.isArray(req.body.assignedClasses) ? req.body.assignedClasses : [], updatedAt: new Date().toISOString() });
-    applyAcademicPeriod(set, db.settings); await writeDB(db); res.json({ ok: true });
+    applyAcademicPeriod(set, db.settings); await writeDB(db); res.json({ ok: true, academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null });
   });
   app.post('/api/teacher/sets/:key/duplicate', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' });

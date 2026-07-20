@@ -176,8 +176,8 @@ function organizeAdminSettings(){
 organizeAdminSettings();
 
 let academicCalendar=[], academicCalendarLocked=false, calendarEditPassword='';
-function calendarDateDisplay(value){ const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?`${m[3]}/${m[2]}/${m[1]}`:''; }
-function calendarDateValue(value){ const text=String(value||'').trim(); const thai=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(thai) return `${thai[3]}-${thai[2].padStart(2,'0')}-${thai[1].padStart(2,'0')}`; return /^\d{4}-\d{2}-\d{2}$/.test(text)?text:''; }
+function calendarDateDisplay(value){ const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m)return '';const year=Number(m[1]);return `${m[3]}/${m[2]}/${year>=2400?year:year+543}`; }
+function calendarDateValue(value){ const text=String(value||'').trim(),thai=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(thai){const inputYear=Number(thai[3]),year=inputYear>=2400?inputYear-543:inputYear;return `${String(year).padStart(4,'0')}-${thai[2].padStart(2,'0')}-${thai[1].padStart(2,'0')}`;}const iso=text.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!iso)return '';const inputYear=Number(iso[1]),year=inputYear>=2400?inputYear-543:inputYear;return `${String(year).padStart(4,'0')}-${iso[2]}-${iso[3]}`; }
 const ACADEMIC_TERM_DEFAULTS={1:'เทอม 1',2:'เทอม 2',summer:'ซัมเมอร์'};
 function newAcademicTerm(id){ return {id,label:ACADEMIC_TERM_DEFAULTS[id]||id,startsOn:'',endsOn:''}; }
 function newAcademicYear(){ const year=String(new Date().getFullYear()+543); return {academicYear:year,terms:[newAcademicTerm('1'),newAcademicTerm('2')]}; }
