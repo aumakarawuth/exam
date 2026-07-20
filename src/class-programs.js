@@ -753,9 +753,14 @@ function normalizeClassRoom(value) {
 }
 
 const PROGRAM_BY_CLASS = new Map(CLASS_PROGRAMS.map(item => [normalizeClassRoom(item.classRoom), item.program]));
+const LEVEL_BY_CLASS = new Map(CLASS_PROGRAMS.map(item => [normalizeClassRoom(item.classRoom), item.level]));
 
 function programForClassRoom(classRoom) {
   return PROGRAM_BY_CLASS.get(normalizeClassRoom(classRoom)) || '';
 }
 
-module.exports = { CLASS_PROGRAMS, normalizeClassRoom, programForClassRoom };
+function levelForClassRoom(classRoom) {
+  return LEVEL_BY_CLASS.get(normalizeClassRoom(classRoom)) || '';
+}
+
+module.exports = { CLASS_PROGRAMS, normalizeClassRoom, programForClassRoom, levelForClassRoom };

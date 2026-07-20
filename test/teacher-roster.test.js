@@ -39,6 +39,7 @@ test('teacher exam roster returns owned exam metadata and sorted room students',
   assert.equal(res.body.exam.teacherName, 'อาจารย์ทดสอบ');
   assert.equal(res.body.examPeriod, 'เช้า');
   assert.equal(res.body.program, 'เทคโนโลยีธุรกิจดิจิทัล');
+  assert.equal(res.body.educationLevel, 'ปวช');
 });
 
 test('teacher exam roster cannot read another teacher exam', () => {

@@ -1,4 +1,4 @@
-const { programForClassRoom } = require('../class-programs');
+const { programForClassRoom, levelForClassRoom } = require('../class-programs');
 
 function registerTeacherClassRoutes(app, { readDB, requireTeacher, getExamSchedule }) {
   app.get('/api/teacher/classes', requireTeacher, (req, res) => {
@@ -36,6 +36,7 @@ function registerTeacherClassRoutes(app, { readDB, requireTeacher, getExamSchedu
     res.json({
       classRoom,
       program: programForClassRoom(classRoom),
+      educationLevel: levelForClassRoom(classRoom).replace(/\.\d+$/, ''),
       examPeriod: students.find(student => student.examPeriod)?.examPeriod || '',
       exam: {
         key: set.key,
