@@ -118,10 +118,10 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 .toolbar-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
 .operations-status-grid,.operations-count-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;}
 .operations-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;}
-.score-verification-detail-btn{appearance:none;width:100%;cursor:pointer;text-align:left;font:inherit;color:inherit;position:relative;z-index:1;pointer-events:auto;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
-.score-verification-detail-btn:hover{border-color:var(--blue);box-shadow:0 5px 18px rgba(37,99,235,.12);}
-.score-verification-detail-btn:active{transform:translateY(1px);}
-.score-verification-detail-btn:focus-visible{outline:3px solid rgba(37,99,235,.25);outline-offset:2px;}
+.score-verification-detail-btn,.exam-readiness-detail-btn{appearance:none;width:100%;cursor:pointer;text-align:left;font:inherit;color:inherit;position:relative;z-index:1;pointer-events:auto;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+.score-verification-detail-btn:hover,.exam-readiness-detail-btn:hover{border-color:var(--blue);box-shadow:0 5px 18px rgba(37,99,235,.12);}
+.score-verification-detail-btn:active,.exam-readiness-detail-btn:active{transform:translateY(1px);}
+.score-verification-detail-btn:focus-visible,.exam-readiness-detail-btn:focus-visible{outline:3px solid rgba(37,99,235,.25);outline-offset:2px;}
 .operations-card .label{font-size:12px;color:var(--sub);margin-bottom:7px;}.operations-card .value{font-family:'Prompt',sans-serif;font-size:22px;font-weight:700;}.operations-card .note{font-size:11.5px;color:var(--sub);margin-top:5px;}
 .operations-ok{color:var(--green);}.operations-warn{color:var(--amber);}.operations-meta{font-size:12px;color:var(--sub);margin-top:12px;text-align:right;}
 .filter-select{padding:9px 12px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;background:var(--surface);}

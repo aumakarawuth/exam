@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { checkExamReadiness } = require('../src/exam-readiness');
+const { checkExamReadiness, readinessSummary } = require('../src/exam-readiness');
 
 function validExam() {
   return { sections: { mc: { questions: [{ id: 'm1', choices: ['A', 'B'], answer: 0, points: 5 }] }, matching: { left: [{ id: 'l1' }], right: [{ id: 'r1' }], correctMap: { l1: 'r1' }, pointsEach: 5 }, written: { questions: [{ id: 'w1', keywords: ['หลักการ'], maxPoints: 10 }] } }, availableFrom: '2026-07-18T01:00:00.000Z', availableUntil: '2026-07-18T02:00:00.000Z' };
@@ -23,4 +23,13 @@ test('exam readiness rejects duplicate ids, missing answers, and invalid schedul
   assert.ok(check.errors.some(error => error.code === 'duplicate_question_id'));
   assert.ok(check.errors.some(error => error.code === 'invalid_answer'));
   assert.ok(check.errors.some(error => error.code === 'invalid_schedule'));
+});
+
+test('readiness summary includes blocked exam names and reasons', () => {
+  const blocked = validExam(); blocked.key = 'blocked-1'; blocked.title = 'ข้อสอบที่ต้องแก้'; blocked.sections.mc.questions[0].answer = 9;
+  const summary = readinessSummary([{ ...validExam(), key: 'ready-1', title: 'พร้อมสอบ' }, blocked]);
+  assert.equal(summary.ready, 1);
+  assert.equal(summary.blocked, 1);
+  assert.equal(summary.blockedSets[0].title, 'ข้อสอบที่ต้องแก้');
+  assert.ok(summary.blockedSets[0].errors.some(error => error.code === 'invalid_answer'));
 });

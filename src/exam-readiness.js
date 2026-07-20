@@ -58,9 +58,14 @@ function checkExamReadiness(set) {
 }
 
 function readinessSummary(sets) {
-  let ready = 0, blocked = 0;
-  for (const set of sets.filter(item => !item.archived)) checkExamReadiness(set).ready ? ready++ : blocked++;
-  return { ready, blocked };
+  let ready = 0;
+  const blockedSets = [];
+  for (const set of sets.filter(item => !item.archived)) {
+    const check = checkExamReadiness(set);
+    if (check.ready) ready++;
+    else blockedSets.push({ key: set.key, title: set.title || set.courseName || set.key, courseName: set.courseName || '', errors: check.errors });
+  }
+  return { ready, blocked: blockedSets.length, blockedSets };
 }
 
 module.exports = { checkExamReadiness, readinessSummary };
