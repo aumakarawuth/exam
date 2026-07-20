@@ -110,6 +110,7 @@ let _serverSaveInFlight = false;
 let _pendingServerPayload = null;
 let pageIsLeaving = false;
 let tabSwitchCheckTimer = null;
+let lastTabSwitchAt = 0;
 function saveSession(){
   if(!app.questionKey) return;
   const payload = {
@@ -188,29 +189,37 @@ function updateCheatTags(){
   if(rc){ rc.textContent = 'คลิกขวา: '+state.rightClickAttempts+' ครั้ง'; rc.classList.toggle('badge-warn', state.rightClickAttempts>0); }
   if(cp){ cp.textContent = 'คัดลอก: '+state.copyAttempts+' ครั้ง'; cp.classList.toggle('badge-warn', state.copyAttempts>0); }
 }
-document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden){
-    clearTimeout(tabSwitchCheckTimer);
-    tabSwitchCheckTimer = setTimeout(()=>{
-      if(pageIsLeaving || !document.hidden || !app.examInProgress || app.examEnded) return;
-      state.tabSwitches++;
-      recordIntegrityEvent('tab_switch');
-      const tag = document.getElementById('tabSwitchTag');
-      tag.textContent = 'สลับแท็บ: '+state.tabSwitches+' ครั้ง';
-      tag.classList.add('badge-warn');
-      scheduleSave();
-      if(state.tabSwitches>=4){
-        document.getElementById('tabWarningModal').classList.add('hidden');
-        finalizeExam('tabswitch');
-      }
-    }, 80);
-  } else {
-    clearTimeout(tabSwitchCheckTimer);
-    if(state.tabSwitches>state.tabWarningAcknowledged && state.tabSwitches<=3 && !app.examEnded){
-      document.getElementById('tabWarningModal').classList.remove('hidden');
-    }
-  }
+function resetAllExamAnswers(){
+  draftAnswers={mc:{},matching:{},written:{}};
+  app.submittedSections={mc:false,matching:false,written:false};
+  matchPendingLeft=null;
+  recordIntegrityEvent('answers_reset');
+  if(app.section) renderSection(); else showHub();
+}
+function showTabSwitchWarning(){
+  if(app.examEnded||state.tabSwitches<=state.tabWarningAcknowledged||state.tabSwitches>=5)return;
+  const text=state.tabSwitches<3
+    ? `คุณสลับแท็บ/หน้าต่างแล้ว ${state.tabSwitches} ครั้ง หากครบ 3 ครั้ง ระบบจะล้างคำตอบทั้งหมด`
+    : `ระบบล้างคำตอบทั้งหมดแล้ว เนื่องจากสลับหน้าจอครบ 3 ครั้ง หากสลับเพิ่มอีก ${5-state.tabSwitches} ครั้ง ระบบจะส่งข้อสอบทันที`;
+  document.getElementById('tabWarningText').textContent=text;
+  document.getElementById('tabWarningModal').classList.remove('hidden');
+}
+function registerTabSwitch(){
+  const now=Date.now();
+  if(pageIsLeaving||!app.examInProgress||app.examEnded||now-lastTabSwitchAt<600)return;
+  lastTabSwitchAt=now;state.tabSwitches++;recordIntegrityEvent('tab_switch');
+  const tag=document.getElementById('tabSwitchTag');tag.textContent='สลับแท็บ/หน้าต่าง: '+state.tabSwitches+' ครั้ง';tag.classList.add('badge-warn');
+  if(state.tabSwitches===3)resetAllExamAnswers();
+  saveSession();flushServerSave();
+  if(state.tabSwitches>=5){document.getElementById('tabWarningModal').classList.add('hidden');finalizeExam('tabswitch');}
+}
+document.addEventListener('visibilitychange',()=>{
+  clearTimeout(tabSwitchCheckTimer);
+  if(document.hidden)tabSwitchCheckTimer=setTimeout(()=>{if(document.hidden)registerTabSwitch();},80);
+  else showTabSwitchWarning();
 });
+window.addEventListener('blur',()=>{clearTimeout(tabSwitchCheckTimer);tabSwitchCheckTimer=setTimeout(()=>{if(!document.hasFocus())registerTabSwitch();},250);});
+window.addEventListener('focus',()=>{clearTimeout(tabSwitchCheckTimer);showTabSwitchWarning();});
 document.getElementById('tabWarningAckBtn').addEventListener('click', ()=>{
   state.tabWarningAcknowledged = state.tabSwitches;
   saveSession();
@@ -225,6 +234,18 @@ document.addEventListener('fullscreenchange', ()=>{
   updateCheatTags(); scheduleSave();
   showToast('ตรวจพบการออกจากโหมดเต็มจอ กรุณากลับเข้าสู่โหมดเต็มจอเพื่อทำข้อสอบต่อ');
 });
+function hasSuspiciousSplitScreen(){
+  if(!app.examInProgress||app.examEnded||document.fullscreenElement||screen.availWidth<900)return false;
+  return window.outerWidth<screen.availWidth*.72||window.outerHeight<screen.availHeight*.72;
+}
+let splitScreenResizeTimer=null;
+function checkSplitScreen(){
+  const blocked=hasSuspiciousSplitScreen(),overlay=document.getElementById('splitScreenWarning');
+  if(blocked&&overlay.classList.contains('hidden'))recordIntegrityEvent('split_screen');
+  overlay.classList.toggle('hidden',!blocked);
+}
+window.addEventListener('resize',()=>{clearTimeout(splitScreenResizeTimer);splitScreenResizeTimer=setTimeout(checkSplitScreen,250);});
+document.getElementById('restoreFullscreenBtn').addEventListener('click',()=>{requestExamFullscreen();setTimeout(checkSplitScreen,250);});
 
 /* ============ SCREEN REFS ============ */
 const startScreen = document.getElementById('startScreen');
@@ -509,6 +530,7 @@ function beginExam(){
   showHub();
   saveSession();
   runGlobalTimer();
+  setTimeout(checkSplitScreen,300);
 }
 function runGlobalTimer(){
   clearInterval(app.globalTimerHandle);

@@ -192,10 +192,18 @@
     <div class="modal-card" style="text-align:center;border:2px solid var(--red);">
       <div class="modal-check" style="color:var(--amber);">⚠️</div>
       <h3>ตรวจพบการสลับหน้าจอ</h3>
-      <p>คุณเพิ่งสลับแท็บหรือสลับหน้าต่างออกจากข้อสอบ <b>หากสลับอีกครั้ง ระบบจะส่งคำตอบและจบการสอบทันที</b> (ได้คะแนนตามคำตอบที่มีอยู่ ณ ขณะนั้นเท่านั้น) กรุณาทำข้อสอบในแท็บนี้ต่อเนื่องจนจบ</p>
+      <p id="tabWarningText">ระบบจะล้างคำตอบเมื่อสลับหน้าจอครบ 3 ครั้ง และส่งข้อสอบอัตโนมัติเมื่อครบ 5 ครั้ง</p>
       <div class="modal-actions">
         <button class="btn btn-primary" id="tabWarningAckBtn" style="flex:1;">เข้าใจแล้ว กลับไปทำข้อสอบต่อ</button>
       </div>
+    </div>
+  </div>
+  <div id="splitScreenWarning" class="hidden">
+    <div class="modal-card" style="text-align:center;border:2px solid var(--red);">
+      <div class="modal-check" style="color:var(--amber);">⚠️</div>
+      <h3>ตรวจพบหน้าต่างสอบมีขนาดเล็กผิดปกติ</h3>
+      <p>ไม่อนุญาตให้แบ่งหน้าจอระหว่างทำข้อสอบ กรุณาขยายหน้าต่างให้เต็มพื้นที่ หรือกดกลับเข้าสู่โหมดเต็มจอ</p>
+      <button class="btn btn-primary" id="restoreFullscreenBtn" type="button">กลับเข้าเต็มจอ</button>
     </div>
   </div>
 </div>

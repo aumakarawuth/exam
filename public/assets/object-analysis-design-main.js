@@ -462,8 +462,8 @@ document.getElementById('backToHubBtn').addEventListener('click', showHub);
 document.addEventListener('visibilitychange', ()=>{
   if(!document.hidden){
     clearTimeout(dfdTabSwitchCheckTimer);
-    if(app.tabSwitches>app.tabWarningAcknowledged && app.tabSwitches<=3 && !app.examEnded){
-      const remaining = 4-app.tabSwitches;
+    if(app.tabSwitches>app.tabWarningAcknowledged && app.tabSwitches<=4 && !app.examEnded){
+      const remaining = 5-app.tabSwitches;
       document.getElementById('tabWarningText').textContent = `คุณสลับแท็บ/หน้าต่างแล้ว ${app.tabSwitches} ครั้ง หากสลับอีก ${remaining} ครั้ง ระบบจะส่งข้อสอบทันที`;
       document.getElementById('tabWarningModal').classList.remove('hidden');
     }
@@ -478,7 +478,7 @@ document.addEventListener('visibilitychange', ()=>{
     tag.textContent = 'สลับแท็บ: '+app.tabSwitches+' ครั้ง';
     tag.classList.add('badge-warn');
     saveDfdSession();
-    if(app.tabSwitches>=4){ document.getElementById('tabWarningModal').classList.add('hidden'); forceTimeUp(); }
+    if(app.tabSwitches>=5){ document.getElementById('tabWarningModal').classList.add('hidden'); forceTimeUp(); }
   }, 80);
 });
 document.getElementById('tabWarningAckBtn').addEventListener('click', ()=>{
