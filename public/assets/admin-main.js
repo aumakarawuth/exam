@@ -1524,7 +1524,7 @@ async function refreshStudents(){
         <td>${escapeHtml(s.lastName)}</td>
         <td>${escapeHtml(s.classRoom)}</td>
         <td>${escapeHtml(s.examPeriod||'ยังไม่กำหนด')}</td>
-        <td><button class="btn btn-danger btn-sm" data-delstu="${escapeAttr(s.studentId)}">ลบ</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-editstu="${escapeAttr(s.studentId)}">แก้ชื่อ</button> <button class="btn btn-danger btn-sm" data-delstu="${escapeAttr(s.studentId)}">ลบ</button></td>
       </tr>`).join('') + `</tbody></table>`;
   const header = document.createElement('th');
   header.textContent = 'PIN';
@@ -1547,6 +1547,15 @@ async function refreshStudents(){
   });
   wrap.insertAdjacentHTML('beforeend',`<div class="editor-actions"><span class="muted-note">แสดง ${matched.length?((studentPage-1)*STUDENT_PAGE_SIZE+1):0}–${Math.min(studentPage*STUDENT_PAGE_SIZE,matched.length)} จาก ${matched.length} คน</span><button class="btn btn-ghost btn-sm" id="studentPrevBtn" ${studentPage===1?'disabled':''}>← ก่อนหน้า</button><button class="btn btn-ghost btn-sm" id="studentNextBtn" ${studentPage===pageCount?'disabled':''}>ถัดไป →</button></div>`);
   wrap.querySelector('#studentPrevBtn').addEventListener('click',()=>{studentPage--;refreshStudents();}); wrap.querySelector('#studentNextBtn').addEventListener('click',()=>{studentPage++;refreshStudents();});
+  wrap.querySelectorAll('[data-editstu]').forEach(button=>button.addEventListener('click',async()=>{
+    const student=students.find(item=>item.studentId===button.dataset.editstu); if(!student)return;
+    const firstName=prompt('แก้ไขชื่อนักเรียน',student.firstName); if(firstName===null)return;
+    const lastName=prompt('แก้ไขนามสกุลนักเรียน',student.lastName); if(lastName===null)return;
+    if(!firstName.trim()||!lastName.trim()){showToast('ชื่อและนามสกุลต้องไม่ว่าง');return;}
+    button.disabled=true;
+    try{await apiUpdateStudent(student.studentId,{firstName:firstName.trim(),lastName:lastName.trim()});showToast('แก้ไขชื่อนักเรียนแล้ว');await refreshStudents();}
+    catch(error){showToast(error.message);button.disabled=false;}
+  }));
   wrap.querySelectorAll('[data-delstu]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบนักเรียนรหัส '+b.dataset.delstu+' ออกจากระบบ?')) return;
     try{ await apiDeleteStudent(b.dataset.delstu); refreshStudents(); showToast('ลบนักเรียนแล้ว'); }
