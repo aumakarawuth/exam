@@ -368,9 +368,14 @@ function parseManualDateTime(value){
   const date=new Date(text.replace(' ','T')); if(Number.isNaN(date.getTime())){ showToast('วันเวลาที่กรอกไม่ถูกต้อง'); return ''; }
   return date.toISOString();
 }
-function formatExamDate(iso){ if(!iso) return ''; const d=new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+function normalizedExamDate(value){
+  const date=new Date(value);
+  if(!Number.isNaN(date.getTime())&&date.getFullYear()>=2400) date.setFullYear(date.getFullYear()-543);
+  return date;
+}
+function formatExamDate(iso){ if(!iso) return ''; const d=normalizedExamDate(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()+543}`; }
 function formatExamTime(iso){ if(!iso) return ''; const d=new Date(iso); return `${String(d.getHours()).padStart(2,'0')}.${String(d.getMinutes()).padStart(2,'0')}`; }
-function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||'').trim(),time=String(timeValue||'').trim(); if(!date&&!time) return ''; const d=date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/),t=time.match(/^(\d{2})[.:](\d{2})$/); if(!d||!t){showToast('กรุณากรอกวัน dd/mm/yyyy และเวลา HH.MM');return '';} const value=new Date(`${d[3]}-${d[2]}-${d[1]}T${t[1]}:${t[2]}`); return Number.isNaN(value.getTime())?'':value.toISOString(); }
+function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||'').trim(),time=String(timeValue||'').trim(); if(!date&&!time) return ''; const d=date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/),t=time.match(/^(\d{2})[.:](\d{2})$/); if(!d||!t){showToast('กรุณากรอกวัน dd/mm/yyyy และเวลา HH.MM');return '';} const inputYear=Number(d[3]),year=inputYear>=2400?inputYear-543:inputYear; const value=new Date(year,Number(d[2])-1,Number(d[1]),Number(t[1]),Number(t[2])); const valid=value.getFullYear()===year&&value.getMonth()===Number(d[2])-1&&value.getDate()===Number(d[1])&&value.getHours()===Number(t[1])&&value.getMinutes()===Number(t[2]); return valid?value.toISOString():''; }
 
 function blankSet(){
   return {
@@ -1581,7 +1586,7 @@ function initRosterTab(){
 }
 function thaiRosterDate(value){
   if(!value) return 'ไม่กำหนดวันสอบ';
-  const date=new Date(value); if(Number.isNaN(date.getTime())) return 'ไม่กำหนดวันสอบ';
+  const date=normalizedExamDate(value); if(Number.isNaN(date.getTime())) return 'ไม่กำหนดวันสอบ';
   return new Intl.DateTimeFormat('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(date);
 }
 function rosterTime(value){

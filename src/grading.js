@@ -38,6 +38,14 @@ function filterWrittenQuestionsForClass(section, classRoom) {
   return section?.questions || [];
 }
 
+function normalizeExamDateTime(value) {
+  if (!value) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime()) || date.getUTCFullYear() < 2400) return value;
+  date.setUTCFullYear(date.getUTCFullYear() - 543);
+  return date.toISOString();
+}
+
 function gradeWritten(section, answers) {
   answers = answers || {};
   let total = 0;
@@ -54,8 +62,10 @@ function gradeWritten(section, answers) {
 
 function getExamSchedule(set, classRoom) {
   const schedules = Array.isArray(set.examSchedules) ? set.examSchedules.filter(item => item && Array.isArray(item.classes)) : [];
-  if (schedules.length) return schedules.find(item => (item.classes || []).includes(classRoom)) || schedules.find(item => !(item.classes || []).length) || null;
-  return { classes: set.assignedClasses || [], availableFrom: set.availableFrom, availableUntil: set.availableUntil, lateAccessCode: set.lateAccessCode || '' };
+  const schedule = schedules.length
+    ? schedules.find(item => (item.classes || []).includes(classRoom)) || schedules.find(item => !(item.classes || []).length) || null
+    : { classes: set.assignedClasses || [], availableFrom: set.availableFrom, availableUntil: set.availableUntil, lateAccessCode: set.lateAccessCode || '' };
+  return schedule ? { ...schedule, availableFrom: normalizeExamDateTime(schedule.availableFrom), availableUntil: normalizeExamDateTime(schedule.availableUntil) } : null;
 }
 function isPastDeadline(set, classRoom) {
   const schedule = getExamSchedule(set, classRoom);
@@ -91,4 +101,4 @@ function sanitizeSetForStudent(set, classRoom) {
   };
 }
 
-module.exports = { round2, gradeMC, gradeMatching, gradeWritten, normalizeCodeAnswer, filterWrittenQuestionsForClass, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, sanitizeSetForStudent };
+module.exports = { round2, gradeMC, gradeMatching, gradeWritten, normalizeCodeAnswer, filterWrittenQuestionsForClass, normalizeExamDateTime, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, sanitizeSetForStudent };
