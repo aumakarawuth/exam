@@ -42,6 +42,7 @@
     <button class="admin-tab-btn active" data-atab="sets">ชุดข้อสอบของฉัน</button>
     <button class="admin-tab-btn" data-atab="library">🗃️ คลังข้อสอบเก่า</button>
     <button class="admin-tab-btn" data-atab="results">ผลสอบนักเรียน</button>
+    <button class="admin-tab-btn" data-atab="roster">🖨️ พิมพ์รายชื่อสอบ</button>
     <button class="admin-tab-btn" data-atab="settings">⚙️ ตั้งค่า</button>
   </div>
   <div class="admin-body">
@@ -83,6 +84,21 @@
           </div>
         </div>
         <div id="resultsWrap"><div class="loading-note">กำลังโหลด...</div></div>
+      </div>
+
+      <div id="atab-roster" class="hidden">
+        <div class="toolbar-row"><div><h2>พิมพ์รายชื่อนักเรียนเข้าห้องสอบ</h2><p class="sub" style="margin:0;">เลือกชุดข้อสอบและห้อง ระบบจะจัดทำใบรายชื่อพร้อมวันสอบ ผู้สอน รายวิชา และลิงก์สอบ</p></div></div>
+        <div class="panel roster-controls">
+          <div class="roster-form-grid">
+            <div class="field"><label for="rosterSetSelect">ชุดข้อสอบ / รายวิชา</label><select id="rosterSetSelect"><option value="">เลือกชุดข้อสอบ</option></select></div>
+            <div class="field"><label for="rosterClassSelect">ชื่อห้อง</label><select id="rosterClassSelect" disabled><option value="">เลือกห้อง</option></select></div>
+            <div class="field"><label for="rosterExamRoomInput">ห้องสอบ</label><input id="rosterExamRoomInput" type="text" placeholder="เช่น COM.4"></div>
+            <div class="field"><label for="rosterExamLinkInput">ลิงก์สอบ</label><input id="rosterExamLinkInput" type="url" placeholder="https://example.com/"></div>
+            <div class="field roster-wide"><label for="rosterSchoolInput">หัวกระดาษ — ชื่อสถานศึกษา</label><input id="rosterSchoolInput" type="text" placeholder="ชื่อสถานศึกษา"></div>
+            <div class="field roster-wide"><label for="rosterAddressInput">หัวกระดาษ — ที่อยู่</label><input id="rosterAddressInput" type="text" placeholder="ที่อยู่สถานศึกษา"></div>
+          </div>
+          <div class="editor-actions" style="justify-content:flex-start;"><button class="btn btn-primary" id="printRosterBtn" type="button" disabled>🖨️ เปิดตัวอย่างและพิมพ์</button></div>
+        </div>
       </div>
 
       <!-- ============ SETTINGS TAB ============ -->

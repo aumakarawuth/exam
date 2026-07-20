@@ -76,6 +76,7 @@ async function apiGetResults(setKey, examType, academicYear, semester){
 async function apiGetQuestionAnalysis(setKey){ return apiFetch('/api/teacher/question-analysis?setKey='+encodeURIComponent(setKey), { auth:true }); }
 async function apiGetAuditLogs(setKey){ return apiFetch('/api/teacher/audit-logs'+(setKey?('?setKey='+encodeURIComponent(setKey)):''), { auth:true }); }
 async function apiGetClasses(period){ return apiFetch('/api/teacher/classes'+(period?('?period='+encodeURIComponent(period)):''), { auth:true }); }
+async function apiGetExamRoster(setKey,classRoom){ return apiFetch('/api/teacher/exam-roster?setKey='+encodeURIComponent(setKey)+'&classRoom='+encodeURIComponent(classRoom), { auth:true }); }
 async function apiGetExamTypes(){ return apiFetch('/api/exam-types'); }
 async function apiSetPublished(id, published){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{published}, auth:true }); }
 async function apiUpdateDfdScores(id, dfdLevelScores, reason){ return apiFetch('/api/teacher/results/'+encodeURIComponent(id), { method:'PATCH', body:{dfdLevelScores,reason}, auth:true }); }
@@ -191,7 +192,9 @@ restoreTeacherSession();
 
 function refreshCurrentPageData(){
   const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset.atab;
-  return activeTab==='results' ? refreshResults() : initAdmin();
+  if(activeTab==='results') return refreshResults();
+  if(activeTab==='roster') return initRosterTab();
+  return initAdmin();
 }
 
 /* ============ TABS ============ */
@@ -199,9 +202,10 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['sets','library','results','settings'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    ['sets','library','results','roster','settings'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
     if(btn.dataset.atab==='results') refreshResults();
     if(btn.dataset.atab==='library') renderLibrarySetList();
+    if(btn.dataset.atab==='roster') initRosterTab();
   });
 });
 
@@ -213,6 +217,7 @@ async function initAdmin(){
   ADMIN_SETS = await apiGetAdminSets().catch(e=>{ showToast(e.message); return []; });
   renderSetList();
   populateSetFilterOptions();
+  populateRosterSetOptions();
 }
 /* ======================================================================
    EXAM SETS
@@ -1547,6 +1552,69 @@ document.getElementById('exportExcelBtn').addEventListener('click', async ()=>{
     showToast('ดาวน์โหลดไฟล์ Excel แล้ว');
   }catch(e){ showToast(e.message); }
   btn.disabled = false; btn.textContent = '⬇ ส่งออก Excel';
+});
+
+/* ============ PRINTABLE EXAM ROSTER ============ */
+const ROSTER_HEADER_STORAGE_KEY='examRosterHeader';
+function populateRosterSetOptions(){
+  const select=document.getElementById('rosterSetSelect'); if(!select) return;
+  const previous=select.value;
+  const sets=ADMIN_SETS.filter(set=>!set.archived&&!set.deletedAt);
+  select.innerHTML='<option value="">เลือกชุดข้อสอบ</option>'+sets.map(set=>`<option value="${escapeAttr(set.key)}">${escapeHtml(set.courseName||set.title)} — ${escapeHtml(set.examType||'ข้อสอบ')}</option>`).join('');
+  if(sets.some(set=>set.key===previous)) select.value=previous;
+  updateRosterClassOptions();
+}
+async function updateRosterClassOptions(){
+  const set=ADMIN_SETS.find(item=>item.key===document.getElementById('rosterSetSelect')?.value);
+  const select=document.getElementById('rosterClassSelect'); if(!select) return;
+  select.disabled=true;
+  if(!set){select.innerHTML='<option value="">เลือกห้อง</option>';document.getElementById('printRosterBtn').disabled=true;return;}
+  let source=set.assignedClasses||[];
+  if(!source.length){try{source=await apiGetClasses();}catch(error){showToast(error.message);source=[];}}
+  const classes=[...new Set(source)].sort((a,b)=>String(a).localeCompare(String(b),'th',{numeric:true}));
+  select.innerHTML='<option value="">เลือกห้อง</option>'+classes.map(room=>`<option value="${escapeAttr(room)}">${escapeHtml(room)}</option>`).join('');
+  select.disabled=!classes.length;
+  document.getElementById('printRosterBtn').disabled=true;
+}
+function initRosterTab(){
+  populateRosterSetOptions();
+  const link=document.getElementById('rosterExamLinkInput'); if(link&&!link.value) link.value=location.origin+'/';
+  try{
+    const saved=JSON.parse(localStorage.getItem(ROSTER_HEADER_STORAGE_KEY)||'{}');
+    if(!document.getElementById('rosterSchoolInput').value) document.getElementById('rosterSchoolInput').value=saved.school||'';
+    if(!document.getElementById('rosterAddressInput').value) document.getElementById('rosterAddressInput').value=saved.address||'';
+  }catch(error){}
+}
+function thaiRosterDate(value){
+  if(!value) return 'ไม่กำหนดวันสอบ';
+  const date=new Date(value); if(Number.isNaN(date.getTime())) return 'ไม่กำหนดวันสอบ';
+  return new Intl.DateTimeFormat('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(date);
+}
+function rosterTime(value){
+  if(!value) return '-';
+  const date=new Date(value); if(Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('th-TH',{hour:'2-digit',minute:'2-digit',hour12:false}).format(date).replace(':','.');
+}
+function buildRosterPrintHtml(data,options){
+  const exam=data.exam||{}, students=data.students||[], blankRows=Math.max(5,18-students.length);
+  const rows=students.map(student=>`<tr><td>${student.number}</td><td>${escapeHtml(student.studentId)}</td><td class="student-name">${escapeHtml(`${student.firstName||''} ${student.lastName||''}`.trim())}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join('')+Array.from({length:blankRows},()=>'<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
+  const period=data.examPeriod?`รอบ ${data.examPeriod}`:'';
+  const time=(exam.availableFrom||exam.availableUntil)?`${rosterTime(exam.availableFrom)} - ${rosterTime(exam.availableUntil)}`:'ไม่กำหนดเวลา';
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8"><title>รายชื่อสอบ ${escapeHtml(data.classRoom)}</title><style>
+  @page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:"TH Sarabun New","Sarabun",Tahoma,sans-serif;color:#111;margin:0;font-size:16px}.print-tools{display:flex;justify-content:flex-end;margin-bottom:10px}.print-tools button{font:inherit;padding:7px 16px;border:0;border-radius:7px;background:#1d4ed8;color:#fff;cursor:pointer}.header{display:grid;grid-template-columns:1fr 185px;gap:12px;align-items:end;margin-bottom:6px}.school{display:flex;align-items:center;gap:14px}.seal{width:72px;height:72px;border:3px double #222;border-radius:50%;display:grid;place-items:center;text-align:center;font-size:11px;line-height:1.05}.school h1{font-size:20px;margin:0 0 2px}.school p,.exam-head p{margin:1px 0}.class-line{font-size:19px;font-weight:700;color:#1e3a8a}.exam-head{text-align:center}.exam-head h2{font-size:19px;text-decoration:underline;color:#1e3a8a;margin:0 0 9px}.exam-head strong{font-size:17px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #111;padding:2px 3px;height:24px;text-align:center;line-height:1.05}th{font-weight:700}th:nth-child(1){width:7%}th:nth-child(2){width:14%}th:nth-child(3){width:31%}th:nth-child(4),th:nth-child(5),th:nth-child(6),th:nth-child(7){width:7%}th:nth-child(8){width:8%}th:nth-child(9){width:12%}.student-name{text-align:left;padding-left:8px}.details{margin-top:22px;font-size:20px;line-height:1.45}.details p{margin:1px 0}.label{color:#c81e1e;font-weight:700}.exam-link{color:#0645ad;text-decoration:underline;overflow-wrap:anywhere}@media print{.print-tools{display:none}body{font-size:15px}.details{font-size:19px}}
+  </style></head><body><div class="print-tools"><button onclick="window.print()">พิมพ์เอกสาร</button></div><section class="header"><div class="school"><div class="seal">ตรา<br>สถานศึกษา</div><div><h1>${escapeHtml(options.school||'ชื่อสถานศึกษา')}</h1><p>${escapeHtml(options.address||'ที่อยู่สถานศึกษา')}</p><p class="class-line">ห้อง ${escapeHtml(data.classRoom)} &nbsp; ${escapeHtml(period)}</p></div></div><div class="exam-head"><h2>ห้องสอบที่ ${escapeHtml(options.examRoom||'-')}</h2><strong>ใบรายชื่อสอบ${escapeHtml(exam.examType||'')}</strong><p>${escapeHtml(exam.semesterLabel||'-')} / ${escapeHtml(exam.academicYear||'-')}</p><p>สาขาวิชา ${escapeHtml(exam.courseName||exam.title||'-')}</p></div></section><table><thead><tr><th>เลขที่</th><th>รหัสนักศึกษา</th><th>ชื่อ - นามสกุล</th><th>เก็บ</th><th>กลาง</th><th>ปลาย</th><th>รวม</th><th>เกรด</th><th>ลายเซ็น</th></tr></thead><tbody>${rows}</tbody></table><section class="details"><p><span class="label">วันสอบ</span> ${escapeHtml(thaiRosterDate(exam.availableFrom))} &nbsp; เวลา ${escapeHtml(time)} &nbsp; ห้องสอบ ${escapeHtml(options.examRoom||'-')}</p><p><span class="label">อาจารย์ผู้สอน</span> ${escapeHtml(exam.teacherName||'-')}</p><p><span class="label">รายวิชา</span> ${escapeHtml(exam.courseName||exam.title||'-')}</p><p><span class="label">ลิงก์สอบ</span> <span class="exam-link">${escapeHtml(options.examLink||exam.examLink||'-')}</span></p></section></body></html>`;
+}
+document.getElementById('rosterSetSelect').addEventListener('change',updateRosterClassOptions);
+document.getElementById('rosterClassSelect').addEventListener('change',event=>{document.getElementById('printRosterBtn').disabled=!event.target.value;});
+document.getElementById('printRosterBtn').addEventListener('click',async()=>{
+  const setKey=document.getElementById('rosterSetSelect').value,classRoom=document.getElementById('rosterClassSelect').value;
+  if(!setKey||!classRoom){showToast('กรุณาเลือกชุดข้อสอบและห้อง');return;}
+  const popup=window.open('','_blank'); if(!popup){showToast('เบราว์เซอร์บล็อกหน้าต่างตัวอย่าง กรุณาอนุญาต pop-up');return;}
+  popup.document.write('<p style="font-family:sans-serif;padding:24px">กำลังจัดทำใบรายชื่อ...</p>');
+  const options={school:document.getElementById('rosterSchoolInput').value.trim(),address:document.getElementById('rosterAddressInput').value.trim(),examRoom:document.getElementById('rosterExamRoomInput').value.trim(),examLink:document.getElementById('rosterExamLinkInput').value.trim()};
+  try{localStorage.setItem(ROSTER_HEADER_STORAGE_KEY,JSON.stringify({school:options.school,address:options.address}));}catch(error){}
+  try{const data=await apiGetExamRoster(setKey,classRoom);popup.document.open();popup.document.write(buildRosterPrintHtml(data,options));popup.document.close();}
+  catch(error){popup.close();showToast(error.message);}
 });
 
 })();

@@ -170,6 +170,10 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 .teacher-row-info{font-size:13.5px;}
 .teacher-row-info b{font-family:'Prompt',sans-serif;}
 .teacher-row-info .username{color:var(--sub);font-size:12px;}
+.roster-controls{max-width:900px;}
+.roster-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px;}
+.roster-form-grid .roster-wide{grid-column:1/-1;}
+@media(max-width:700px){.roster-form-grid{grid-template-columns:1fr}.roster-form-grid .roster-wide{grid-column:auto}}
 .pub-pill{font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:none;}
 .pub-pill.pub-yes{background:rgba(22,163,74,.12);color:var(--green);}
 .pub-pill.pub-no{background:rgba(217,119,6,.12);color:var(--amber);}
