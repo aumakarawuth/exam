@@ -3,6 +3,13 @@ const { filterWrittenQuestionsForClass } = require('../grading');
 const { resultAttemptKey } = require('../result-attempt');
 const { buildGradingSnapshot, verifyResultScore } = require('../score-verification');
 const { checkExamReadiness } = require('../exam-readiness');
+function hasStartedExamDraft(db, studentId, payload, schedule) {
+  if (!payload?.autoSubmit || !schedule?.availableUntil) return false;
+  const deadline = Date.parse(schedule.availableUntil);
+  return (db.drafts || []).some(draft => draft.studentId === studentId && draft.questionKey === payload.questionKey &&
+    String(draft.resitAccessId || '') === String(payload.resitAccessId || '') && draft.examEndTime &&
+    (!payload.deviceId || draft.deviceId === payload.deviceId) && Number.isFinite(deadline) && Date.parse(draft.savedAt) <= deadline);
+}
 function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, round2, requireStudent, applyAcademicPeriod, submissionGate }) {
   app.post('/api/results', requireStudent, submissionGate.middleware, async (req, res) => {
     const payload = req.body;
@@ -22,7 +29,8 @@ function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, grade
     const previousSubmission = db.results.find(item => item.studentId === student.studentId && item.questionKey === payload.questionKey && (resit ? item.resitAccessId === resit.id : item.attemptType !== 'resit'));
     if (previousSubmission) return res.status(200).json({ id: previousSubmission.id, alreadySubmitted: true, message: 'บันทึกคำตอบนี้ไว้เรียบร้อยแล้ว' });
     const schedule=getExamSchedule(set, student.classRoom);
-    if (!resit && isPastDeadline(set, student.classRoom) && (!schedule?.lateAccessCode || payload.lateCode !== schedule.lateAccessCode)) return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาสอบแล้ว' });
+    const validAutoSubmit = hasStartedExamDraft(db, student.studentId, payload, schedule);
+    if (!resit && isPastDeadline(set, student.classRoom) && !validAutoSubmit && (!schedule?.lateAccessCode || payload.lateCode !== schedule.lateAccessCode)) return res.status(403).json({ error: 'deadline_passed', message: 'หมดเวลาสอบแล้ว' });
     const answers = payload.answers || {};
     const visibleWrittenQuestions = filterWrittenQuestionsForClass(set.sections.written, student.classRoom);
     if (!payload.autoSubmit) {
@@ -74,4 +82,4 @@ function registerSubmissionRoutes(app, { readDB, mutateDB, newId, gradeMC, grade
   });
 }
 
-module.exports = { registerSubmissionRoutes };
+module.exports = { registerSubmissionRoutes, hasStartedExamDraft };

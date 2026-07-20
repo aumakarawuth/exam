@@ -529,6 +529,7 @@ function beginExam(){
   updateGlobalTimerDisplay();
   showHub();
   saveSession();
+  flushServerSave();
   runGlobalTimer();
   setTimeout(checkSplitScreen,300);
 }
@@ -844,7 +845,7 @@ document.getElementById('modalHubBtn').addEventListener('click', ()=>{ document.
 async function submitFinalAnswers(autoSubmit){
   const record = {
     studentId: app.studentId, studentName: app.studentName, classRoom: app.classRoom,
-    questionKey: app.questionKey, resitAccessId: app.resitAccessId || null, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
+    questionKey: app.questionKey, resitAccessId: app.resitAccessId || null, deviceId: EXAM_DEVICE_ID, autoSubmit: !!autoSubmit, lateCode: app.lateCode || null,
     tabSwitches: state.tabSwitches, reloadCount: app.reloadCount,
     fullscreenExitAttempts: state.fullscreenExitAttempts, rightClickAttempts: state.rightClickAttempts, copyAttempts: state.copyAttempts,
     integrityEvents: state.integrityEvents,
@@ -870,7 +871,7 @@ async function submitFinalAnswers(autoSubmit){
   }
   showToast(lastErr && lastErr.payload && lastErr.payload.error==='already_submitted'
     ? 'รหัสนักเรียนนี้ได้ทำข้อสอบวิชานี้ไปแล้ว ระบบไม่รับคำตอบซ้ำ'
-    : 'เกิดปัญหาในการส่งคำตอบ กรุณาลองใหม่ หรือแจ้งอาจารย์/ผู้ดูแลระบบ');
+    : `ส่งข้อสอบไม่สำเร็จ: ${lastErr?.message||'กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'}`);
   throw lastErr;
 }
 
@@ -896,6 +897,9 @@ async function finalizeExam(reason){
   app.examInProgress = false;
   clearInterval(app.globalTimerHandle);
   saveSession();
+  clearTimeout(_serverSaveHandle);
+  _pendingServerPayload=null;
+  for(let wait=0;_serverSaveInFlight&&wait<60;wait++) await new Promise(resolve=>setTimeout(resolve,50));
   let submission;
   try{ submission = await submitFinalAnswers(auto); }
   catch(e){ app.examEnded=false; app.examInProgress=true; finalSubmissionInProgress=false; setSubmissionBusy(false); runGlobalTimer(); return; }
