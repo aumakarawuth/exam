@@ -24,20 +24,21 @@ function responseCapture() {
 
 test('teacher exam roster returns owned exam metadata and sorted room students', () => {
   const db = {
-    sets: [{ key: 'set-1', teacherId: 'teacher-1', title: 'ปลายภาค', courseName: 'เทคโนโลยีดิจิทัล', examType: 'ปลายภาค', assignedClasses: ['ปวช.1/4'], subjectTeacherName: 'อาจารย์ทดสอบ', examSchedules: [{ classes: ['ปวช.1/4'], availableFrom: '2026-07-24T06:30:00.000Z', availableUntil: '2026-07-24T07:30:00.000Z' }] }],
+    sets: [{ key: 'set-1', teacherId: 'teacher-1', title: 'ปลายภาค', courseName: 'เทคโนโลยีดิจิทัล', examType: 'ปลายภาค', assignedClasses: ['CC.1/4'], subjectTeacherName: 'อาจารย์ทดสอบ', examSchedules: [{ classes: ['CC.1/4'], availableFrom: '2026-07-24T06:30:00.000Z', availableUntil: '2026-07-24T07:30:00.000Z' }] }],
     students: [
-      { studentId: '20', firstName: 'คน', lastName: 'ที่สอง', classRoom: 'ปวช.1/4', examPeriod: 'เช้า' },
-      { studentId: '3', firstName: 'คน', lastName: 'แรก', classRoom: 'ปวช.1/4', examPeriod: 'เช้า' },
+      { studentId: '20', firstName: 'คน', lastName: 'ที่สอง', classRoom: 'CC.1/4', examPeriod: 'เช้า' },
+      { studentId: '3', firstName: 'คน', lastName: 'แรก', classRoom: 'CC.1/4', examPeriod: 'เช้า' },
       { studentId: '1', firstName: 'คน', lastName: 'อื่น', classRoom: 'ปวช.1/5' }
     ]
   };
   const res = responseCapture();
-  rosterHandler(db)({ query: { setKey: 'set-1', classRoom: 'ปวช.1/4' }, teacherId: 'teacher-1', protocol: 'https', get: name => name === 'host' ? 'exam.example' : '' }, res);
+  rosterHandler(db)({ query: { setKey: 'set-1', classRoom: 'CC.1/4' }, teacherId: 'teacher-1', protocol: 'https', get: name => name === 'host' ? 'exam.example' : '' }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.students.map(student => student.studentId), ['3', '20']);
   assert.equal(res.body.exam.examLink, 'https://exam.example/');
   assert.equal(res.body.exam.teacherName, 'อาจารย์ทดสอบ');
   assert.equal(res.body.examPeriod, 'เช้า');
+  assert.equal(res.body.program, 'เทคโนโลยีธุรกิจดิจิทัล');
 });
 
 test('teacher exam roster cannot read another teacher exam', () => {

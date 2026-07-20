@@ -1,3 +1,5 @@
+const { programForClassRoom } = require('../class-programs');
+
 function registerTeacherClassRoutes(app, { readDB, requireTeacher, getExamSchedule }) {
   app.get('/api/teacher/classes', requireTeacher, (req, res) => {
     const period=String(req.query.period||''); const classes = [...new Set(readDB().students.filter(student=>!period||(period==='unset'?!student.examPeriod:student.examPeriod===period)).map(student => student.classRoom))].sort();
@@ -33,6 +35,7 @@ function registerTeacherClassRoutes(app, { readDB, requireTeacher, getExamSchedu
 
     res.json({
       classRoom,
+      program: programForClassRoom(classRoom),
       examPeriod: students.find(student => student.examPeriod)?.examPeriod || '',
       exam: {
         key: set.key,
