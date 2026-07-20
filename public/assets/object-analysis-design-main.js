@@ -1570,6 +1570,7 @@ function attemptResumeDfdSession(){
     document.querySelectorAll('.tool-btn[data-tool]').forEach(btn=>btn.classList.toggle('active', btn.dataset.tool===state.tool));
     applyZoom(); render();
   } else showHub();
+  if(app.tabSwitches>=5){saveDfdSession();setTimeout(forceTimeUp,0);return true;}
   runDfdTimer();
   saveDfdSession();
   return true;

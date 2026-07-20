@@ -978,6 +978,14 @@ function attemptResumeSession(){
   updateCheatTags();
   updateReloadTag();
 
+  if(state.tabSwitches>=3&&!state.integrityEvents.some(event=>event?.type==='answers_reset')) resetAllExamAnswers();
+  if(state.tabSwitches>=5){
+    updateGlobalTimerDisplay();
+    saveSession();
+    setTimeout(()=>finalizeExam('tabswitch'),0);
+    return true;
+  }
+
   const remaining = app.examEndTime ? Math.max(0, Math.round((app.examEndTime - Date.now())/1000)) : 0;
   app.timeLeft = remaining;
   if(remaining<=0){ showHub(); saveSession(); forceTimeUp(); return true; }
