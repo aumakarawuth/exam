@@ -91,7 +91,7 @@
         <div class="panel roster-controls">
           <div class="roster-form-grid">
             <div class="field"><label for="rosterSetSelect">ชุดข้อสอบ / รายวิชา</label><select id="rosterSetSelect"><option value="">เลือกชุดข้อสอบ</option></select></div>
-            <div class="field"><label for="rosterClassSelect">ชื่อห้อง</label><select id="rosterClassSelect" disabled><option value="">เลือกห้อง</option></select></div>
+            <div class="field"><label for="rosterClassSelect">ชื่อห้อง</label><div class="roster-class-picker"><select id="rosterClassSelect" disabled><option value="">เลือกห้อง</option></select><button class="btn btn-ghost" id="addRosterClassBtn" type="button" disabled>+ เพิ่มห้อง</button></div><div class="roster-selected-classes" id="rosterSelectedClasses"></div></div>
             <div class="field"><label for="rosterExamRoomInput">ห้องสอบ</label><input id="rosterExamRoomInput" type="text" placeholder="เช่น COM.4"></div>
             <div class="field"><label for="rosterExamLinkInput">ลิงก์สอบ</label><input id="rosterExamLinkInput" type="url" placeholder="https://example.com/"></div>
           </div>

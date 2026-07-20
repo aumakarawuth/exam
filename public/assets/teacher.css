@@ -173,6 +173,7 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 .roster-controls{max-width:900px;}
 .roster-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px;}
 .roster-form-grid .roster-wide{grid-column:1/-1;}
+.roster-class-picker{display:flex;gap:8px;align-items:stretch}.roster-class-picker select{min-width:0;flex:1}.roster-class-picker .btn{white-space:nowrap;padding-inline:14px}.roster-selected-classes{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.roster-room-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid #bfdbfe;border-radius:999px;background:#eff6ff;color:#1e3a8a;font-size:13px;font-weight:700}.roster-room-chip button{border:0;background:transparent;color:#64748b;cursor:pointer;font-size:15px;line-height:1;padding:0}.roster-room-chip button:hover{color:#dc2626}
 @media(max-width:700px){.roster-form-grid{grid-template-columns:1fr}.roster-form-grid .roster-wide{grid-column:auto}}
 .pub-pill{font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:none;}
 .pub-pill.pub-yes{background:rgba(22,163,74,.12);color:var(--green);}
