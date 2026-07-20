@@ -87,7 +87,7 @@ html[data-theme="dark"] .mini-card,html[data-theme="dark"] .editor-box,html[data
 .field-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
 .field{flex:1;min-width:160px;margin-bottom:14px;}
 .field label{display:block;font-size:12px;font-weight:600;color:var(--sub);margin-bottom:6px;}
-.field input[type=text],.field input[type=number],.field input[type=email],.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;}
+.field input[type=text],.field input[type=number],.field input[type=email],.field input[type=url],.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;background:var(--surface);color:var(--ink);}
 .field textarea{resize:vertical;min-height:60px;}
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--blue);}
 .mini-card{background:var(--grid);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px;position:relative;}
