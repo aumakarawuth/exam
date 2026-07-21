@@ -3,6 +3,13 @@ const { ExcelJS, addObjectSheet, workbookBuffer, worksheetMatrix } = require('..
 const { validateStudentPayload, sendValidationError } = require('../validation');
 const { nextDraftRevision } = require('../draft-revision');
 
+function findRecoverableExamDraft(db, payload, now = Date.now()) {
+  const studentId = String(payload?.studentId || '').trim(), questionKey = String(payload?.questionKey || '').trim(), deviceId = String(payload?.deviceId || '');
+  if (!studentId || !questionKey || !/^[a-z0-9_-]{12,80}$/i.test(deviceId)) return null;
+  return (db.drafts || []).find(draft => draft.studentId === studentId && draft.questionKey === questionKey && draft.deviceId === deviceId &&
+    String(draft.resitAccessId || '') === String(payload?.resitAccessId || '') && Number.isFinite(Date.parse(draft.examEndTime)) && Date.parse(draft.examEndTime) + 15 * 60 * 1000 >= now) || null;
+}
+
 function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
   const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '' });
@@ -45,6 +52,13 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
   const draftId = (questionKey, resitAccessId) => `${questionKey}::${resitAccessId || 'normal'}`;
   const lockActive = draft => draft?.deviceId && new Date(draft.lockUntil || 0).getTime() > Date.now();
   const lockUntil = () => new Date(Date.now() + 90 * 1000).toISOString();
+  app.post('/api/student/session/recover-exam', async (req, res) => {
+    const db = readDB(), draft = findRecoverableExamDraft(db, req.body);
+    if (!draft) return res.status(401).json({ error:'exam_session_unavailable', message:'ไม่สามารถกู้เซสชันสอบจากอุปกรณ์นี้ได้ กรุณายืนยัน PIN ใหม่' });
+    const student = findStudent(db.students, draft.studentId);
+    if (!student) return res.status(401).json({ error:'unauthorized' });
+    res.json({ ok:true, token:await createStudentSession(student.studentId), student:publicStudent(student) });
+  });
   app.post('/api/exam-drafts/:questionKey/claim', requireStudent, async (req, res) => {
     const db = readDB(); const deviceId = String(req.body?.deviceId || ''); const questionKey = String(req.params.questionKey || ''); const resitAccessId=req.body?.resitAccessId || null;
     if (!/^[a-z0-9_-]{12,80}$/i.test(deviceId) || !db.sets.some(set => set.key === questionKey)) return res.status(400).json({ error:'invalid_payload', message:'ไม่สามารถยืนยันอุปกรณ์สอบได้' });
@@ -256,4 +270,4 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
   app.get('/api/classes', requireAdmin, (req, res) => { const period=String(req.query.period||''); res.json([...new Set(readDB().students.filter(student=>!period||(period==='unset'?!student.examPeriod:student.examPeriod===period)).map(student => student.classRoom))].sort()); });
 }
 
-module.exports = { registerStudentRoutes };
+module.exports = { registerStudentRoutes, findRecoverableExamDraft };

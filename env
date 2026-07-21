@@ -1,0 +1,5 @@
+ADMIN_KEY=aunaum11
+DATABASE_URL=postgresql://examuser:aunaum11@127.0.0.1:5432/examdb
+DATABASE_SSL=false
+PORT=3000
+BACKUP_DIR=./data/backups

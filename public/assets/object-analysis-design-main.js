@@ -1512,7 +1512,9 @@ async function submitObjectAnalysisResult(){
     const attempt = app.attempts[level];
     return { level, score: attempt ? attempt.best.result.total : 0, shapes: attempt ? attempt.latest.shapes : [], connections: attempt ? attempt.latest.connections : [] };
   });
-  const response = await fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json','x-student-token':app.studentToken}, body:JSON.stringify({ levels, tabSwitches: app.tabSwitches, fullscreenExitAttempts: app.fullscreenExitAttempts, reloadCount: app.reloadCount, integrityEvents: app.integrityEvents }) });
+  const submit=()=>fetch('/api/object-analysis-results', { method:'POST', headers:{'Content-Type':'application/json','x-student-token':app.studentToken}, body:JSON.stringify({ levels, tabSwitches: app.tabSwitches, fullscreenExitAttempts: app.fullscreenExitAttempts, reloadCount: app.reloadCount, integrityEvents: app.integrityEvents }) });
+  let response=await submit();
+  if(response.status===401){const recovered=await fetch('/api/student/session/recover-exam',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({studentId:app.studentId,questionKey:'object_analysis_design_dfd',deviceId:DFD_DEVICE_ID})});if(recovered.ok){const result=await recovered.json();app.studentToken=result.token;sessionStorage.setItem('examStudentToken',result.token);response=await submit();}}
   if(!response.ok){ const body = await response.json().catch(()=>({})); throw new Error(body.message || 'ไม่สามารถบันทึกคำตอบได้'); }
   submittedToBackend = true;
 }

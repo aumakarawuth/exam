@@ -54,6 +54,10 @@ async function apiSaveExamDraft(key,draft){ return apiFetch('/api/exam-drafts/'+
 async function apiClearExamDraft(key,resitAccessId){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key)+(resitAccessId?('?resitAccessId='+encodeURIComponent(resitAccessId)):''),{method:'DELETE'}); }
 const EXAM_DEVICE_ID=(()=>{let id=sessionStorage.getItem('examDeviceId');if(!id){id='dev_'+crypto.randomUUID().replace(/-/g,'');sessionStorage.setItem('examDeviceId',id);}return id;})();
 async function apiClaimExamDevice(key,resitAccessId){ return apiFetch('/api/exam-drafts/'+encodeURIComponent(key)+'/claim',{method:'POST',body:{resitAccessId,deviceId:EXAM_DEVICE_ID}}); }
+async function recoverExamStudentSession(){
+  const response=await fetch('/api/student/session/recover-exam',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({studentId:app.studentId,questionKey:app.questionKey,resitAccessId:app.resitAccessId||null,deviceId:EXAM_DEVICE_ID})});
+  if(!response.ok)return false;const result=await response.json();app.studentToken=result.token;sessionStorage.setItem('examStudentToken',result.token);return true;
+}
 
 const SECTION_KEYS = ['mc','matching','written'];
 const SECTION_TITLES = {mc:'ส่วนที่ 1 — ปรนัย', matching:'ส่วนที่ 2 — จับคู่', written:'ส่วนที่ 3 — อัตนัย'};
@@ -857,6 +861,7 @@ async function submitFinalAnswers(autoSubmit){
     try{ return await apiSubmitResult(record); }
     catch(e){
       lastErr = e;
+      if(e.payload?.error==='unauthorized'&&await recoverExamStudentSession()) continue;
       // "already submitted" is not something a retry will fix — stop immediately
       if(e.payload && e.payload.error==='already_submitted') break;
       if(attempt<MAX_TRIES) await new Promise(r=>setTimeout(r, e.retryAfterMs || 800));

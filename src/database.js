@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const { Pool } = require('pg');
-const { DATA_DIR, SQLITE_PATH, LEGACY_DB_PATH } = require('./config');
+const { DATA_DIR, SQLITE_PATH, LEGACY_DB_PATH, DATABASE_SINGLE_INSTANCE } = require('./config');
 const { normalizeStudentEnrollments } = require('./student-enrollments');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -448,7 +448,7 @@ function writeDB(db) {
     try {
       await client.query('BEGIN');
       await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
-      const fresh = await readPostgresDatabase(client);
+      const fresh = DATABASE_SINGLE_INSTANCE ? base : await readPostgresDatabase(client);
       const merged = mergeDatabaseChanges(base, intended, fresh);
       await persistPostgresRows(client, fresh, merged);
       await client.query('COMMIT');
@@ -478,7 +478,7 @@ function mutateDB(mutator) {
     try {
       await client.query('BEGIN');
       await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
-      const fresh = await readPostgresDatabase(client);
+      const fresh = DATABASE_SINGLE_INSTANCE ? currentDatabase : await readPostgresDatabase(client);
       const snapshot = structuredClone(fresh);
       const value = await mutator(snapshot);
       const clean = normalizeDatabase(snapshot);

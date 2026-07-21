@@ -21,6 +21,12 @@ module.exports = {
   PORT: process.env.PORT || 3000,
   DATABASE_URL: process.env.DATABASE_URL || '',
   DATABASE_READINESS_TIMEOUT_MS: positiveNumber(process.env.DATABASE_READINESS_TIMEOUT_MS, 3000),
+  // Skips the full-table re-read from Postgres before every write and merges against the
+  // in-memory copy instead. Safe ONLY when exactly one server.js process is running against
+  // this database (writes are serialized in-process via writeChain). If you run more than one
+  // instance/replica against the same DATABASE_URL, leave this OFF or writes from other
+  // instances can be silently overwritten. Defaults to OFF (current, safe, higher-bandwidth behavior).
+  DATABASE_SINGLE_INSTANCE: enabled(process.env.DATABASE_SINGLE_INSTANCE, false),
   ADMIN_KEY: process.env.ADMIN_KEY || 'changeme123',
   SUPABASE_URL: (process.env.SUPABASE_URL || '').replace(/\/$/, ''),
   // New Supabase secret keys replace legacy service-role keys. Keep the fallback for older projects.
