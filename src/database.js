@@ -252,6 +252,11 @@ async function deleteRows(client, table, column, ids) {
   if (ids.length) await client.query(`DELETE FROM ${table} WHERE ${column} = ANY($1::text[])`, [ids]);
 }
 
+async function bulkUpsertRows(client, rows, sql, serialize) {
+  if (!rows.length) return;
+  await client.query(sql, [JSON.stringify(rows.map(serialize))]);
+}
+
 async function persistPostgresRows(client, previous, next) {
   const before = normalizeDatabase(previous);
   const clean = normalizeDatabase(next);
@@ -272,34 +277,27 @@ async function persistPostgresRows(client, previous, next) {
     await deleteRows(client, 'students', 'student_id', deletedIds(before.students, clean.students, 'studentId'));
     await deleteRows(client, 'teachers', 'id', deletedIds(before.teachers, clean.teachers, 'id'));
     await deleteRows(client, 'exam_drafts', 'draft_key', deletedIds(before.drafts, clean.drafts, 'draftKey'));
-    for (const set of changes.sets) await client.query(
-      'INSERT INTO exam_sets (key, title, teacher_id, delivery, available_from, available_until, created_at, updated_at, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT (key) DO UPDATE SET title=EXCLUDED.title, teacher_id=EXCLUDED.teacher_id, delivery=EXCLUDED.delivery, available_from=EXCLUDED.available_from, available_until=EXCLUDED.available_until, created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
-      [set.key, set.title || '', set.teacherId || null, set.delivery || null, set.availableFrom || null, set.availableUntil || null, set.createdAt || null, set.updatedAt || null, JSON.stringify(set)]
-    );
-    for (const student of changes.students) await client.query(
-      'INSERT INTO students (student_id, first_name, last_name, class_room, created_at, data) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (student_id) DO UPDATE SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, class_room=EXCLUDED.class_room, created_at=EXCLUDED.created_at, data=EXCLUDED.data',
-      [student.studentId, student.firstName || '', student.lastName || '', student.classRoom || null, student.createdAt || null, JSON.stringify(student)]
-    );
-    for (const teacher of changes.teachers) await client.query(
-      'INSERT INTO teachers (id, username, first_name, last_name, created_at, data) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username, first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, created_at=EXCLUDED.created_at, data=EXCLUDED.data',
-      [teacher.id, teacher.username, teacher.firstName || '', teacher.lastName || '', teacher.createdAt || null, JSON.stringify(teacher)]
-    );
-    for (const question of changes.questionBank) await client.query(
-      'INSERT INTO question_bank (id, owner_id, course_name, created_at, data) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (id) DO UPDATE SET owner_id=EXCLUDED.owner_id, course_name=EXCLUDED.course_name, created_at=EXCLUDED.created_at, data=EXCLUDED.data',
-      [question.id, question.ownerId || null, question.courseName || '', question.createdAt || null, JSON.stringify(question)]
-    );
-    for (const result of changes.results) await client.query(
-      'INSERT INTO results (id, student_id, question_key, attempt_key, submitted_at, published, overall_score_20, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT (id) DO UPDATE SET student_id=EXCLUDED.student_id, question_key=EXCLUDED.question_key, attempt_key=EXCLUDED.attempt_key, submitted_at=EXCLUDED.submitted_at, published=EXCLUDED.published, overall_score_20=EXCLUDED.overall_score_20, data=EXCLUDED.data',
-      [result.id, result.studentId, result.questionKey, result.attemptKey || null, result.submittedAt || null, !!result.published, result.overallScore20 ?? null, JSON.stringify(result)]
-    );
-    for (const draft of changes.drafts) await client.query(
-      'INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (draft_key) DO UPDATE SET updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
-      [draft.draftKey, draft.studentId, draft.questionKey, draft.savedAt || new Date().toISOString(), JSON.stringify(draft)]
-    );
-    for (const event of changes.auditLogs) await client.query(
-      'INSERT INTO audit_logs (id, event_at, actor_type, actor_id, action, target_type, target_id, question_key, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT (id) DO NOTHING',
-      [event.id, event.eventAt, event.actorType, event.actorId || null, event.action, event.targetType || null, event.targetId || null, event.questionKey || null, JSON.stringify(event)]
-    );
+    await bulkUpsertRows(client, changes.sets,
+      'INSERT INTO exam_sets (key,title,teacher_id,delivery,available_from,available_until,created_at,updated_at,data) SELECT key,title,teacher_id,delivery,available_from,available_until,created_at,updated_at,data FROM jsonb_to_recordset($1::jsonb) AS x(key text,title text,teacher_id text,delivery text,available_from timestamptz,available_until timestamptz,created_at timestamptz,updated_at timestamptz,data jsonb) ON CONFLICT (key) DO UPDATE SET title=EXCLUDED.title,teacher_id=EXCLUDED.teacher_id,delivery=EXCLUDED.delivery,available_from=EXCLUDED.available_from,available_until=EXCLUDED.available_until,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at,data=EXCLUDED.data',
+      set => ({ key: set.key, title: set.title || '', teacher_id: set.teacherId || null, delivery: set.delivery || null, available_from: set.availableFrom || null, available_until: set.availableUntil || null, created_at: set.createdAt || null, updated_at: set.updatedAt || null, data: set }));
+    await bulkUpsertRows(client, changes.students,
+      'INSERT INTO students (student_id,first_name,last_name,class_room,created_at,data) SELECT student_id,first_name,last_name,class_room,created_at,data FROM jsonb_to_recordset($1::jsonb) AS x(student_id text,first_name text,last_name text,class_room text,created_at timestamptz,data jsonb) ON CONFLICT (student_id) DO UPDATE SET first_name=EXCLUDED.first_name,last_name=EXCLUDED.last_name,class_room=EXCLUDED.class_room,created_at=EXCLUDED.created_at,data=EXCLUDED.data',
+      student => ({ student_id: student.studentId, first_name: student.firstName || '', last_name: student.lastName || '', class_room: student.classRoom || null, created_at: student.createdAt || null, data: student }));
+    await bulkUpsertRows(client, changes.teachers,
+      'INSERT INTO teachers (id,username,first_name,last_name,created_at,data) SELECT id,username,first_name,last_name,created_at,data FROM jsonb_to_recordset($1::jsonb) AS x(id text,username text,first_name text,last_name text,created_at timestamptz,data jsonb) ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,last_name=EXCLUDED.last_name,created_at=EXCLUDED.created_at,data=EXCLUDED.data',
+      teacher => ({ id: teacher.id, username: teacher.username, first_name: teacher.firstName || '', last_name: teacher.lastName || '', created_at: teacher.createdAt || null, data: teacher }));
+    await bulkUpsertRows(client, changes.questionBank,
+      'INSERT INTO question_bank (id,owner_id,course_name,created_at,data) SELECT id,owner_id,course_name,created_at,data FROM jsonb_to_recordset($1::jsonb) AS x(id text,owner_id text,course_name text,created_at timestamptz,data jsonb) ON CONFLICT (id) DO UPDATE SET owner_id=EXCLUDED.owner_id,course_name=EXCLUDED.course_name,created_at=EXCLUDED.created_at,data=EXCLUDED.data',
+      question => ({ id: question.id, owner_id: question.ownerId || null, course_name: question.courseName || '', created_at: question.createdAt || null, data: question }));
+    await bulkUpsertRows(client, changes.results,
+      'INSERT INTO results (id,student_id,question_key,attempt_key,submitted_at,published,overall_score_20,data) SELECT id,student_id,question_key,attempt_key,submitted_at,published,overall_score_20,data FROM jsonb_to_recordset($1::jsonb) AS x(id text,student_id text,question_key text,attempt_key text,submitted_at timestamptz,published boolean,overall_score_20 double precision,data jsonb) ON CONFLICT (id) DO UPDATE SET student_id=EXCLUDED.student_id,question_key=EXCLUDED.question_key,attempt_key=EXCLUDED.attempt_key,submitted_at=EXCLUDED.submitted_at,published=EXCLUDED.published,overall_score_20=EXCLUDED.overall_score_20,data=EXCLUDED.data',
+      result => ({ id: result.id, student_id: result.studentId, question_key: result.questionKey, attempt_key: result.attemptKey || null, submitted_at: result.submittedAt || null, published: !!result.published, overall_score_20: result.overallScore20 ?? null, data: result }));
+    await bulkUpsertRows(client, changes.drafts,
+      'INSERT INTO exam_drafts (draft_key,student_id,question_key,updated_at,data) SELECT draft_key,student_id,question_key,updated_at,data FROM jsonb_to_recordset($1::jsonb) AS x(draft_key text,student_id text,question_key text,updated_at timestamptz,data jsonb) ON CONFLICT (draft_key) DO UPDATE SET student_id=EXCLUDED.student_id,question_key=EXCLUDED.question_key,updated_at=EXCLUDED.updated_at,data=EXCLUDED.data',
+      draft => ({ draft_key: draft.draftKey, student_id: draft.studentId, question_key: draft.questionKey, updated_at: draft.savedAt || new Date().toISOString(), data: draft }));
+    await bulkUpsertRows(client, changes.auditLogs,
+      'INSERT INTO audit_logs (id,event_at,actor_type,actor_id,action,target_type,target_id,question_key,data) SELECT id,event_at,actor_type,actor_id,action,target_type,target_id,question_key,data FROM jsonb_to_recordset($1::jsonb) AS x(id text,event_at timestamptz,actor_type text,actor_id text,action text,target_type text,target_id text,question_key text,data jsonb) ON CONFLICT (id) DO NOTHING',
+      event => ({ id: event.id, event_at: event.eventAt, actor_type: event.actorType, actor_id: event.actorId || null, action: event.action, target_type: event.targetType || null, target_id: event.targetId || null, question_key: event.questionKey || null, data: event }));
     if (changes.settingsChanged) await client.query(
       'INSERT INTO system_settings (id, data, updated_at) VALUES ($1,$2::jsonb,NOW()) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()',
       ['main', JSON.stringify(clean.settings)]

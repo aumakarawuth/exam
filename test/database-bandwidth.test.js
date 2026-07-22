@@ -29,3 +29,10 @@ test('only startup and explicit full restore may read all PostgreSQL tables', ()
   const calls = [...source.matchAll(/readPostgresDatabase\s*\(/g)].length;
   assert.equal(calls, 3);
 });
+
+test('changed PostgreSQL rows are upserted once per table as a batch', () => {
+  const persist = functionBody('persistPostgresRows', 'persistPostgresChanges');
+  assert.match(source, /function bulkUpsertRows\(/);
+  assert.match(persist, /jsonb_to_recordset\(\$1::jsonb\)/);
+  assert.doesNotMatch(persist, /for \(const .*client\.query/);
+});
