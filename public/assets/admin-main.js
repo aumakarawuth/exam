@@ -403,10 +403,12 @@ function openTeacherPasswordReset(id,name){
   document.getElementById('resetTeacherName').textContent=name||'-';
   document.getElementById('resetTeacherPassword').value='';
   document.getElementById('resetTeacherPasswordConfirm').value='';
+  document.querySelectorAll('[data-toggle-password]').forEach(button=>{const input=document.getElementById(button.dataset.togglePassword);input.type='password';button.textContent='👁';});
   document.getElementById('resetTeacherPasswordError').textContent='';
   const dialog=document.getElementById('resetTeacherPasswordDialog');dialog.showModal();setTimeout(()=>document.getElementById('resetTeacherPassword').focus(),0);
 }
 document.getElementById('cancelTeacherPasswordReset').addEventListener('click',()=>document.getElementById('resetTeacherPasswordDialog').close());
+document.querySelectorAll('[data-toggle-password]').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById(button.dataset.togglePassword);input.type=input.type==='password'?'text':'password';button.textContent=input.type==='password'?'👁':'🙈';}));
 document.getElementById('confirmTeacherPasswordReset').addEventListener('click',async()=>{
   const password=document.getElementById('resetTeacherPassword').value,confirmPassword=document.getElementById('resetTeacherPasswordConfirm').value,error=document.getElementById('resetTeacherPasswordError'),button=document.getElementById('confirmTeacherPasswordReset');
   if(password.length<8){error.textContent='รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร';return;}
