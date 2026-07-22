@@ -78,6 +78,21 @@ function registerAccountRoutes(app, dependencies) {
     res.status(201).json({ id: teacher.id });
   });
 
+  app.patch('/api/teachers/:id/password', requireAdmin, async (req, res) => {
+    const password = req.body?.password;
+    if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+      return res.status(400).json({ error: 'weak_password', message: 'รหัสผ่านใหม่ต้องมี 8-128 ตัวอักษร' });
+    }
+    const db = readDB();
+    const teacher = db.teachers.find(item => item.id === req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'not_found', message: 'ไม่พบบัญชีอาจารย์นี้' });
+    teacher.passwordHash = hashPassword(password);
+    teacher.passwordChangedAt = new Date().toISOString();
+    await writeDB(db);
+    await removeTeacherSessions(teacher.id);
+    res.json({ ok: true });
+  });
+
   app.delete('/api/teachers/:id', requireAdmin, async (req, res) => {
     const db = readDB();
     db.teachers = db.teachers.filter(t => t.id !== req.params.id);

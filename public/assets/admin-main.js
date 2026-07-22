@@ -100,6 +100,7 @@ async function apiPublishAllForSet(key){ return apiFetch('/api/sets/'+encodeURIC
 async function apiGetTeachers(){ return apiFetch('/api/teachers', { admin:true }); }
 async function apiAddTeacher(t){ return apiFetch('/api/teachers', { method:'POST', body:t, admin:true }); }
 async function apiDeleteTeacher(id){ return apiFetch('/api/teachers/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
+async function apiResetTeacherPassword(id,password){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/password', { method:'PATCH', body:{password}, admin:true }); }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -387,14 +388,34 @@ async function refreshTeachers(){
   wrap.innerHTML = teachers.map(t=>`
     <div class="teacher-row-card">
       <div class="teacher-row-info"><b>${escapeHtml(t.firstName)} ${escapeHtml(t.lastName)}</b> &nbsp; <span class="username">username: ${escapeHtml(t.username)}</span></div>
-      <button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button>
+      <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" data-resetteacher="${t.id}" data-teachername="${escapeAttr(t.firstName+' '+t.lastName)}">🔑 รีเซ็ตรหัสผ่าน</button><button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button></div>
     </div>`).join('');
+  wrap.querySelectorAll('[data-resetteacher]').forEach(button=>button.addEventListener('click',()=>openTeacherPasswordReset(button.dataset.resetteacher,button.dataset.teachername)));
   wrap.querySelectorAll('[data-delteacher]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบบัญชีอาจารย์นี้? ชุดข้อสอบที่เคยสร้างไว้จะยังอยู่แต่จะไม่ผูกกับบัญชีนี้อีกต่อไป')) return;
     try{ await apiDeleteTeacher(b.dataset.delteacher); refreshTeachers(); showToast('ลบบัญชีอาจารย์แล้ว'); }
     catch(e){ showToast(e.message); }
   }));
 }
+let resetTeacherId='';
+function openTeacherPasswordReset(id,name){
+  resetTeacherId=id;
+  document.getElementById('resetTeacherName').textContent=name||'-';
+  document.getElementById('resetTeacherPassword').value='';
+  document.getElementById('resetTeacherPasswordConfirm').value='';
+  document.getElementById('resetTeacherPasswordError').textContent='';
+  const dialog=document.getElementById('resetTeacherPasswordDialog');dialog.showModal();setTimeout(()=>document.getElementById('resetTeacherPassword').focus(),0);
+}
+document.getElementById('cancelTeacherPasswordReset').addEventListener('click',()=>document.getElementById('resetTeacherPasswordDialog').close());
+document.getElementById('confirmTeacherPasswordReset').addEventListener('click',async()=>{
+  const password=document.getElementById('resetTeacherPassword').value,confirmPassword=document.getElementById('resetTeacherPasswordConfirm').value,error=document.getElementById('resetTeacherPasswordError'),button=document.getElementById('confirmTeacherPasswordReset');
+  if(password.length<8){error.textContent='รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร';return;}
+  if(password!==confirmPassword){error.textContent='รหัสผ่านทั้งสองช่องไม่ตรงกัน';return;}
+  button.disabled=true;
+  try{await apiResetTeacherPassword(resetTeacherId,password);document.getElementById('resetTeacherPasswordDialog').close();showToast('รีเซ็ตรหัสผ่านแล้ว อาจารย์ต้องเข้าสู่ระบบใหม่');}
+  catch(e){error.textContent=e.message;}
+  finally{button.disabled=false;}
+});
 document.getElementById('addTeacherBtn').addEventListener('click', async ()=>{
   const firstName = document.getElementById('ftFirst').value.trim();
   const lastName = document.getElementById('ftLast').value.trim();

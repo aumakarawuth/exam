@@ -27,6 +27,7 @@
 </div>
 
 <dialog class="session-expired-dialog" id="sessionExpiredDialog"><div class="session-expired-card"><div class="session-expired-icon">🔒</div><h2>หมดเวลาการเข้าสู่ระบบ</h2><p>เพื่อความปลอดภัย กรุณาเข้าสู่ระบบผู้ดูแลใหม่อีกครั้ง</p><button class="btn btn-primary" type="button" id="sessionReloginBtn">เข้าสู่ระบบใหม่</button></div></dialog>
+<dialog class="session-expired-dialog" id="resetTeacherPasswordDialog"><div class="session-expired-card" style="text-align:left;"><div class="session-expired-icon" style="text-align:center;">🔑</div><h2 style="text-align:center;">รีเซ็ตรหัสผ่านอาจารย์</h2><p style="text-align:center;">บัญชี: <b id="resetTeacherName">-</b><br>เมื่อบันทึกแล้ว อาจารย์จะถูกออกจากระบบทุกอุปกรณ์</p><div class="field"><label>รหัสผ่านใหม่</label><input type="password" id="resetTeacherPassword" autocomplete="new-password" minlength="8" maxlength="128" placeholder="อย่างน้อย 8 ตัวอักษร"></div><div class="field" style="margin-top:12px;"><label>ยืนยันรหัสผ่านใหม่</label><input type="password" id="resetTeacherPasswordConfirm" autocomplete="new-password" minlength="8" maxlength="128" placeholder="กรอกรหัสผ่านอีกครั้ง"></div><div id="resetTeacherPasswordError" style="color:var(--red);font-size:13px;min-height:20px;margin-top:8px;"></div><div class="editor-actions" style="justify-content:flex-end;"><button class="btn btn-ghost" type="button" id="cancelTeacherPasswordReset">ยกเลิก</button><button class="btn btn-primary" type="button" id="confirmTeacherPasswordReset">บันทึกรหัสผ่านใหม่</button></div></div></dialog>
 
 <!-- ================= ADMIN SCREEN ================= -->
 <div id="adminScreen" class="hidden">
@@ -243,6 +244,6 @@
   </div>
 </div>
 
-<script src="/assets/admin-main.js"></script>
+<script src="/assets/admin-main.js?v=20260722-1"></script>
 </body>
 </html>

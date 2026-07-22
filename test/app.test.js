@@ -60,7 +60,7 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   const admin = await request('/admin');
   assert.equal(admin.status, 200);
   assert.match(admin.body, /href="\/assets\/admin\.css"/);
-  assert.match(admin.body, /src="\/assets\/admin-main\.js"/);
+  assert.match(admin.body, /src="\/assets\/admin-main\.js(?:\?v=[^"]+)?"/);
   assert.doesNotMatch(admin.body, /<style>/);
   const [css, script] = await Promise.all([request('/assets/admin.css'), request('/assets/admin-main.js')]);
   assert.equal(css.status, 200);
@@ -163,6 +163,14 @@ test('teacher login requires both username and password', async () => {
   const response = await request('/api/teacher/login', { method: 'POST', body: { username: 'teacher' } });
   assert.equal(response.status, 400);
   assert.equal(JSON.parse(response.body).error, 'invalid_payload');
+});
+
+test('teacher password reset is admin-only and validates password strength', async () => {
+  const unauthorized = await request('/api/teachers/teacher-missing/password', { method: 'PATCH', body: { password: 'new-password' } });
+  assert.equal(unauthorized.status, 401);
+  const weak = await request('/api/teachers/teacher-missing/password', { method: 'PATCH', headers: { 'x-admin-key': ADMIN_KEY }, body: { password: 'short' } });
+  assert.equal(weak.status, 400);
+  assert.equal(JSON.parse(weak.body).error, 'weak_password');
 });
 
 test('teacher results require a teacher session', async () => {
