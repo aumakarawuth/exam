@@ -37,7 +37,7 @@ module.exports = {
   RESTORE_DRILL_ENABLED: enabled(process.env.RESTORE_DRILL_ENABLED, true),
   RESTORE_DRILL_MAX_BYTES: positiveNumber(process.env.RESTORE_DRILL_MAX_BYTES, 250 * 1024 * 1024),
   ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL || '',
-  MONITOR_INTERVAL_SECONDS: positiveNumber(process.env.MONITOR_INTERVAL_SECONDS, 60),
+  MONITOR_INTERVAL_SECONDS: positiveNumber(process.env.MONITOR_INTERVAL_SECONDS, 300),
   ALERT_COOLDOWN_MINUTES: positiveNumber(process.env.ALERT_COOLDOWN_MINUTES, 15),
   ALERT_ERROR_RATE_PERCENT: positiveNumber(process.env.ALERT_ERROR_RATE_PERCENT, 5),
   ALERT_QUEUE_PERCENT: positiveNumber(process.env.ALERT_QUEUE_PERCENT, 80),

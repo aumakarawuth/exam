@@ -243,6 +243,7 @@ const newId = (p)=> p + (idCounter++);
 const DFD_SESSION_KEY = 'objectAnalysisExamSession';
 let dfdSaveTimer = null;
 let dfdServerSaveTimer = null;
+const DFD_SERVER_SAVE_DEBOUNCE_MS = 5000;
 const DFD_DEVICE_ID=(()=>{let id=sessionStorage.getItem('examDeviceId');if(!id){id='dev_'+crypto.randomUUID().replace(/-/g,'');sessionStorage.setItem('examDeviceId',id);}return id;})();
 let dfdPageIsLeaving = false;
 let dfdTabSwitchCheckTimer = null;
@@ -251,7 +252,7 @@ function saveDfdSession(){
   const canvasState = { shapes:state.shapes, connections:state.connections, tool:state.tool, selectedId:state.selectedId, zoom:state.zoom, panX:state.panX, panY:state.panY, hintsLeft:state.hintsLeft };
   const payload={ studentId:app.studentId, studentName:app.studentName, classRoom:app.classRoom, questionKey:app.questionKey, attempts:app.attempts, level:app.level, examEndTime:app.examEndTime, tabSwitches:app.tabSwitches, tabWarningAcknowledged:app.tabWarningAcknowledged, fullscreenExitAttempts:app.fullscreenExitAttempts, reloadCount:app.reloadCount, integrityEvents:app.integrityEvents, canvasState };
   try { localStorage.setItem(DFD_SESSION_KEY, JSON.stringify(payload)); updateDfdAutosaveTag('saved'); } catch(e) { updateDfdAutosaveTag('error'); }
-  if(navigator.onLine&&app.studentToken){clearTimeout(dfdServerSaveTimer);dfdServerSaveTimer=setTimeout(()=>fetch('/api/exam-drafts/object_analysis_design_dfd',{method:'PUT',headers:{'Content-Type':'application/json','x-student-token':app.studentToken},body:JSON.stringify({draft:{...payload,deviceId:DFD_DEVICE_ID}})}).catch(()=>{}),1200);}
+  if(navigator.onLine&&app.studentToken){clearTimeout(dfdServerSaveTimer);dfdServerSaveTimer=setTimeout(()=>fetch('/api/exam-drafts/object_analysis_design_dfd',{method:'PUT',headers:{'Content-Type':'application/json','x-student-token':app.studentToken},body:JSON.stringify({draft:{...payload,deviceId:DFD_DEVICE_ID}})}).catch(()=>{}),DFD_SERVER_SAVE_DEBOUNCE_MS);}
 }
 function updateDfdAutosaveTag(status){
   const tag=document.getElementById('autosaveTag');

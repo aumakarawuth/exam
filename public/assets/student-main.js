@@ -112,6 +112,7 @@ let _saveDebounceHandle = null;
 let _serverSaveHandle = null;
 let _serverSaveInFlight = false;
 let _pendingServerPayload = null;
+const SERVER_SAVE_DEBOUNCE_MS = 5000;
 let pageIsLeaving = false;
 let tabSwitchCheckTimer = null;
 let lastTabSwitchAt = 0;
@@ -135,7 +136,7 @@ function queueServerSave(payload){
   if(!navigator.onLine || !app.studentToken || app.examEnded) return;
   clearTimeout(_serverSaveHandle);
   _pendingServerPayload=payload;
-  _serverSaveHandle=setTimeout(flushServerSave,1200);
+  _serverSaveHandle=setTimeout(flushServerSave,SERVER_SAVE_DEBOUNCE_MS);
 }
 async function flushServerSave(){
   if(_serverSaveInFlight || !_pendingServerPayload || app.examEnded) return;
