@@ -32,6 +32,9 @@ function createSubmissionGate({ maxConcurrent = 25, maxPending = 500 } = {}) {
     if (active < maxConcurrent) return start(req, res, next);
     if (queue.length >= maxPending) {
       overloaded += 1;
+      res.locals ||= {};
+      res.locals.runtimeMetricCategory = 'controlled_rejection';
+      res.locals.runtimeMetricReason = 'submission_busy';
       res.setHeader('Retry-After', '2');
       return res.status(503).json({ error: 'submission_busy', message: 'มีผู้ส่งข้อสอบพร้อมกันจำนวนมาก กรุณารอ 2 วินาทีแล้วลองใหม่' });
     }

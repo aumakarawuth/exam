@@ -28,6 +28,9 @@ function registerSystemControlRoutes(app, { readDB, mutateDB, requireAdmin }) {
 
   app.use((req, res, next) => {
     if (!isStudentExamRequest(req) || !readDB().settings?.examSystemClosed) return next();
+    res.locals ||= {};
+    res.locals.runtimeMetricCategory = 'controlled_rejection';
+    res.locals.runtimeMetricReason = 'exam_system_closed';
     return res.status(503).json({
       error: 'exam_system_closed',
       message: readDB().settings.examSystemClosedMessage || 'ระบบสอบปิดให้บริการชั่วคราว กรุณารอประกาศจากอาจารย์ผู้สอน'

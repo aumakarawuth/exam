@@ -26,6 +26,22 @@ test('runtime metrics ignore non-API requests', () => {
   assert.equal(metrics.snapshot().totalRequests, 0);
 });
 
+test('runtime metrics separate controlled 503 responses from server errors', () => {
+  const metrics = createRuntimeMetrics();
+  const request = { path: '/api/exam-types', method: 'GET' };
+  const response = new EventEmitter();
+  response.statusCode = 503;
+  response.locals = { runtimeMetricCategory: 'controlled_rejection', runtimeMetricReason: 'exam_system_closed' };
+  metrics.middleware(request, response, () => {});
+  response.emit('finish');
+  const snapshot = metrics.snapshot();
+  assert.equal(snapshot.totalRequests, 1);
+  assert.equal(snapshot.controlledRejections, 1);
+  assert.equal(snapshot.serverErrors, 0);
+  assert.equal(snapshot.errorRatePercent, 0);
+  assert.deepEqual(snapshot.recentFailures, []);
+});
+
 test('runtime metrics ignore long-lived Operations streams', () => {
   const metrics = createRuntimeMetrics();
   let nextCalled = false;
