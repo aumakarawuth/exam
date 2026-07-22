@@ -237,9 +237,9 @@ function renderSetList(){
     return;
   }
   const query=setSearchQuery.trim().toLowerCase();
-  const visibleSets=query?activeSets.filter(set=>[
+  const visibleSets=(query?activeSets.filter(set=>[
     set.courseName,set.title,set.tagline,set.desc,set.examType,set.subjectTeacherName
-  ].some(value=>String(value||'').toLowerCase().includes(query))):activeSets;
+  ].some(value=>String(value||'').toLowerCase().includes(query))):activeSets).slice().sort((a,b)=>examOpenTimestamp(a)-examOpenTimestamp(b)||String(a.title||'').localeCompare(String(b.title||''),'th'));
   if(!visibleSets.length){
     wrap.innerHTML=`<div class="empty-note">ไม่พบชุดข้อสอบที่ตรงกับ “${escapeHtml(setSearchQuery)}”</div>`;
     return;
@@ -254,8 +254,10 @@ function renderSetList(){
     const cardsHtml = sets.map(s=>{
       const classesText = (s.assignedClasses && s.assignedClasses.length) ? s.assignedClasses.join(', ') : 'ทุกห้อง (ยังไม่จำกัดสิทธิ์)';
       const total = computeSetTotal(s);
-      return `<div class="set-card">
-        <span class="badge-pill">${escapeHtml(s.examType||'-')}</span>
+      const examOpenDate=examOpenDateLabel(s);
+      const examStatus=examScheduleStatus(s);
+      return `<div class="set-card exam-status-${examStatus.key}">
+        <div class="set-badge-row"><span class="badge-pill">${escapeHtml(s.examType||'-')}</span>${examOpenDate?`<span class="badge-pill exam-date-pill" title="วันที่เปิดข้อสอบ">📅 ${escapeHtml(examOpenDate)}</span>`:''}<span class="badge-pill exam-status-pill status-${examStatus.key}">${examStatus.icon} ${escapeHtml(examStatus.label)}</span></div>
         <span class="badge-pill" style="margin-left:5px;background:${s.academicYear?'#e0f2fe':'#f1f5f9'};color:${s.academicYear?'#0369a1':'#64748b'};">${escapeHtml(s.academicYear&&s.semesterLabel?`${s.academicYear} / ${s.semesterLabel}`:'ยังไม่กำหนดเทอม')}</span>
         <h3>${escapeHtml(s.title)}</h3>
         <p>${escapeHtml(s.desc||'')}</p>
@@ -288,6 +290,29 @@ function renderSetList(){
   wrap.querySelectorAll('[data-togglegroup]').forEach(head=>head.addEventListener('click', ()=>{
     head.nextElementSibling.classList.toggle('collapsed');
   }));
+}
+function examOpenDateLabel(set){
+  const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
+  if(set.availableFrom)values.push(set.availableFrom);
+  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!timestamps.length)return '';
+  return new Date(timestamps[0]).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function examOpenTimestamp(set){
+  const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
+  if(set.availableFrom)values.push(set.availableFrom);
+  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite);
+  return timestamps.length?Math.min(...timestamps):Number.MAX_SAFE_INTEGER;
+}
+function examScheduleStatus(set,now=Date.now()){
+  const schedules=(set.examSchedules||[]).length?set.examSchedules:[{availableFrom:set.availableFrom,availableUntil:set.availableUntil}];
+  const ranges=schedules.map(schedule=>({start:Date.parse(schedule?.availableFrom),end:Date.parse(schedule?.availableUntil)})).filter(range=>Number.isFinite(range.start)||Number.isFinite(range.end));
+  if(!ranges.length)return {key:'unscheduled',label:'ยังไม่กำหนดเวลา',icon:'⚠'};
+  if(ranges.some(range=>(!Number.isFinite(range.start)||range.start<=now)&&(!Number.isFinite(range.end)||range.end>=now)))return {key:'live',label:'กำลังสอบ',icon:'●'};
+  const starts=ranges.map(range=>range.start).filter(Number.isFinite),ends=ranges.map(range=>range.end).filter(Number.isFinite);
+  if(starts.length&&starts.every(start=>start>now))return {key:'upcoming',label:'ยังไม่สอบ',icon:'●'};
+  if(ends.length&&ends.every(end=>end<now))return {key:'finished',label:'สอบแล้ว',icon:'✓'};
+  return {key:'upcoming',label:'รอรอบถัดไป',icon:'●'};
 }
 function renderLibrarySetList(){
   const wrap=document.getElementById('librarySetListWrap');
