@@ -26,6 +26,20 @@ test('gradebook uses the highest midterm and final scores and includes formulas'
   assert.equal(sheet.getCell('K2').fill.fgColor.argb, 'FFF0FDF4');
 });
 
+test('gradebook rounds every score cell to a whole number', async () => {
+  const buffer = await buildGradebookWorkbook({
+    results: [
+      { studentId: '10001', studentName: 'Student One', examType: 'กลางภาค', overallScore20: 17.49 },
+      { studentId: '10001', studentName: 'Student One', examType: 'ปลายภาค', overallScore20: 16.5 }
+    ]
+  });
+  const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(buffer);
+  const sheet = workbook.worksheets[0];
+  assert.equal(sheet.getCell('I2').value, 17);
+  assert.equal(sheet.getCell('J2').value, 17);
+  for (const address of ['F2', 'G2', 'H2', 'I2', 'J2', 'K2']) assert.equal(sheet.getCell(address).numFmt, '0');
+});
+
 test('gradebook pairs only the same course, year, semester, and teacher', () => {
   const db = {
     sets: [

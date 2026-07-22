@@ -21,6 +21,11 @@ function splitStudentName(studentName) {
   return { firstName: parts.shift() || '', lastName: parts.join(' ') };
 }
 
+function roundedScore(value) {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.round(score) : null;
+}
+
 function examSetScoreMax(set) {
   const mc = (set?.sections?.mc?.questions || []).reduce((sum, question) => sum + (Number(question.points) || 0), 0);
   const matching = (set?.sections?.matching?.left || []).length * (Number(set?.sections?.matching?.pointsEach) || 0);
@@ -74,7 +79,7 @@ async function buildGradebookWorkbook({ results, students = [], sets = [], cours
   const data = [['ห้อง', 'รหัส นศ.', 'ชื่อ', 'นามสกุล', '', 'เวลาเรียน', 'จิตพิสัย', 'คะแนนเก็บ', 'กลางภาค', 'ปลายภาค', 'รวม', 'เกรด']];
   rows.forEach((row, index) => {
     const excelRow = index + 2;
-    data.push([row.classRoom, row.studentId, row.firstName, row.lastName, '', '', '', '', row.midterm, row.final, null, null]);
+    data.push([row.classRoom, row.studentId, row.firstName, row.lastName, '', '', '', '', roundedScore(row.midterm), roundedScore(row.final), null, null]);
     data[index + 1][10] = { formula: `IF(COUNT(F${excelRow}:J${excelRow})<5,"",SUM(F${excelRow}:J${excelRow}))`, result: 0 };
     data[index + 1][11] = { formula: `IF(K${excelRow}="","",IF(K${excelRow}>=80,4,IF(K${excelRow}>=75,3.5,IF(K${excelRow}>=70,3,IF(K${excelRow}>=65,2.5,IF(K${excelRow}>=60,2,IF(K${excelRow}>=55,1.5,IF(K${excelRow}>=50,1,0))))))))`, result: 0 };
   });
@@ -111,7 +116,7 @@ async function buildGradebookWorkbook({ results, students = [], sets = [], cours
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${fill}` } };
       cell.alignment = { horizontal: column >= 5 ? 'right' : (column < 2 ? 'center' : 'left'), vertical: 'middle' };
       cell.border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
-      cell.numFmt = column >= 5 ? '0.##' : (column === 1 ? '@' : 'General');
+      cell.numFmt = column >= 5 && column <= 10 ? '0' : (column === 11 ? '0.0' : (column === 1 ? '@' : 'General'));
     }
   }
   return workbookBuffer(workbook);
