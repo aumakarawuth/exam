@@ -34,7 +34,7 @@ function request(path, { method = 'GET', headers = {}, body } = {}) {
 test('public exam types endpoint remains available', async () => {
   const response = await request('/api/exam-types');
   assert.equal(response.status, 200);
-  assert.deepEqual(JSON.parse(response.body), ['กลางภาค', 'ปลายภาค']);
+  assert.deepEqual(JSON.parse(response.body), ['กลางภาค', 'ปลายภาค', 'บล็อคคอร์ส']);
   assert.equal(response.headers['x-content-type-options'], 'nosniff');
   assert.equal(response.headers['x-frame-options'], 'DENY');
 });

@@ -52,5 +52,5 @@ module.exports = {
   JOB_RETRY_BASE_MS: positiveNumber(process.env.JOB_RETRY_BASE_MS, 1000),
   REDIS_URL: process.env.REDIS_URL || '',
   SESSION_KEY_PREFIX: process.env.SESSION_KEY_PREFIX || 'exam',
-  EXAM_TYPES: ['กลางภาค', 'ปลายภาค']
+  EXAM_TYPES: ['กลางภาค', 'ปลายภาค', 'บล็อคคอร์ส']
 };

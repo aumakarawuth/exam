@@ -82,3 +82,12 @@ test('gradebook scales non-40 block course scores to a combined weight of 40', a
   assert.equal(sheet.getCell('I2').value, 15);
   assert.equal(sheet.getCell('J2').value, 15);
 });
+
+test('explicit block-course exam type fills both exam columns', async () => {
+  const buffer = await buildGradebookWorkbook({
+    sets: [{ key:'block-explicit', sections:{ mc:{questions:[{points:20}]}, matching:{left:[],pointsEach:0}, written:{questions:[]} } }],
+    results: [{ questionKey:'block-explicit', studentId:'10001', studentName:'ผู้เรียน ทดสอบ', examType:'บล็อคคอร์ส', overallScore20:16, detail:{visibleScoreMax:20} }]
+  });
+  const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(buffer); const sheet=workbook.worksheets[0];
+  assert.equal(sheet.getCell('I2').value,16); assert.equal(sheet.getCell('J2').value,16);
+});

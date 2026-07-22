@@ -119,7 +119,7 @@ function askChangeReason(action){
   const reason=value.trim(); if(!reason){showToast('ต้องระบุเหตุผลก่อนดำเนินการ');return null;} return reason;
 }
 
-let EXAM_TYPES = ['กลางภาค','ปลายภาค'];
+let EXAM_TYPES = ['กลางภาค','ปลายภาค','บล็อคคอร์ส'];
 
 /* ============ LOGIN ============ */
 const adminLoginScreen = document.getElementById('adminLoginScreen');
@@ -454,9 +454,9 @@ function renderSetList(){
     return;
   }
   const query=setSearchQuery.trim().toLowerCase();
-  const visibleSets=query?activeSets.filter(set=>[
+  const visibleSets=(query?activeSets.filter(set=>[
     set.courseName,set.title,set.tagline,set.desc,set.examType,set.subjectTeacherName
-  ].some(value=>String(value||'').toLowerCase().includes(query))):activeSets;
+  ].some(value=>String(value||'').toLowerCase().includes(query))):activeSets).slice().sort((a,b)=>examOpenTimestamp(a)-examOpenTimestamp(b)||String(a.title||'').localeCompare(String(b.title||''),'th'));
   if(!visibleSets.length){
     wrap.innerHTML=`<div class="empty-note">ไม่พบชุดข้อสอบที่ตรงกับ “${escapeHtml(setSearchQuery)}”</div>`;
     return;
@@ -513,6 +513,12 @@ function examOpenDateLabel(set){
   const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite).sort((a,b)=>a-b);
   if(!timestamps.length)return '';
   return new Date(timestamps[0]).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function examOpenTimestamp(set){
+  const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
+  if(set.availableFrom)values.push(set.availableFrom);
+  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite);
+  return timestamps.length?Math.min(...timestamps):Number.MAX_SAFE_INTEGER;
 }
 function renderLibrarySetList(){
   const wrap=document.getElementById('librarySetListWrap');

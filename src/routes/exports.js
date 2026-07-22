@@ -9,7 +9,7 @@ function gradebookContext(db, setKey, teacherId) {
   if (!anchor) return null;
   const sets = db.sets.filter(set => sameGradebookCourse(set, anchor) && (teacherId === undefined || set.teacherId === teacherId));
   const keys = new Set(sets.map(set => set.key));
-  const results = db.results.filter(result => keys.has(result.questionKey) && ['กลางภาค', 'ปลายภาค'].includes(result.examType));
+  const results = db.results.filter(result => keys.has(result.questionKey) && ['กลางภาค', 'ปลายภาค', 'บล็อคคอร์ส'].includes(result.examType));
   return { anchor, sets, results, ready: results.length > 0 };
 }
 

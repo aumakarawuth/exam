@@ -33,7 +33,7 @@ function blockCourseSlotScore(result, set) {
   const visibleScoreMax = Number(result?.detail?.visibleScoreMax);
   const modeScoreMax = setScoreMax > 0 ? setScoreMax : visibleScoreMax;
   const scoreMax = Number.isFinite(visibleScoreMax) && visibleScoreMax > 0 ? visibleScoreMax : setScoreMax;
-  if (!Number.isFinite(scoreMax) || scoreMax <= 0 || !Number.isFinite(modeScoreMax) || Math.abs(modeScoreMax - 20) < 0.001) return null;
+  if (!Number.isFinite(scoreMax) || scoreMax <= 0 || !Number.isFinite(modeScoreMax) || (result.examType !== 'บล็อคคอร์ส' && Math.abs(modeScoreMax - 20) < 0.001)) return null;
   const score = Number(result.overallScore20);
   if (!Number.isFinite(score)) return null;
   return Math.round(Math.min(20, Math.max(0, score / scoreMax * 20)) * 100) / 100;
@@ -44,7 +44,7 @@ async function buildGradebookWorkbook({ results, students = [], sets = [], cours
   const setsByKey = new Map(sets.map(set => [set.key, set]));
   const rowsByStudent = new Map();
   for (const result of results) {
-    if (!['กลางภาค', 'ปลายภาค'].includes(result.examType)) continue;
+    if (!['กลางภาค', 'ปลายภาค', 'บล็อคคอร์ส'].includes(result.examType)) continue;
     const roster = studentsById.get(result.studentId);
     const fallbackName = splitStudentName(result.studentName);
     const row = rowsByStudent.get(result.studentId) || {
