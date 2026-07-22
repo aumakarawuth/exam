@@ -1359,14 +1359,14 @@ function renderResultGroups(records){
     if(!groups.has(key)) groups.set(key,{key,title:record.questionTitle||'ไม่ระบุรายวิชา',records:[]});
     groups.get(key).records.push(record);
   });
-  return [...groups.values()].map(group=>`<div class="course-group result-subject-group">
-    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · กดเพื่อดูผลสอบ</span><span class="course-group-actions"><button class="btn btn-analysis btn-sm" type="button" data-question-analysis="${escapeAttr(group.key)}">📊 วิเคราะห์ข้อสอบ</button>${GRADEBOOK_SET_KEYS.has(group.key)?`<button class="btn btn-primary btn-sm" type="button" data-export-gradebook="${escapeAttr(group.key)}">📊 Excel รวมคะแนน</button>`:''}</span></div>
+  return [...groups.values()].map(group=>{const publishedCount=group.records.filter(record=>record.published).length,allPublished=publishedCount===group.records.length;return `<div class="course-group result-subject-group">
+    <div class="course-group-head" data-toggleresultgroup="1"><span class="course-group-title">📚 ${escapeHtml(group.title)}</span><span class="course-group-count">${group.records.length} คน · ประกาศแล้ว ${publishedCount} คน · กดเพื่อดูผลสอบ</span><span class="course-group-actions"><button class="btn ${allPublished?'btn-ghost':'btn-primary'} btn-sm" type="button" data-publish-set="${escapeAttr(group.key)}" data-title="${escapeAttr(group.title)}" ${allPublished?'disabled':''}>${allPublished?'✅ ประกาศผลทั้งรายวิชาแล้ว':'📣 ประกาศผลทั้งรายวิชา'}</button><button class="btn btn-analysis btn-sm" type="button" data-question-analysis="${escapeAttr(group.key)}">📊 วิเคราะห์ข้อสอบ</button>${GRADEBOOK_SET_KEYS.has(group.key)?`<button class="btn btn-primary btn-sm" type="button" data-export-gradebook="${escapeAttr(group.key)}">📊 Excel รวมคะแนน</button>`:''}</span></div>
     <div class="course-group-body collapsed" style="overflow-x:auto;"><table class="result-table"><thead><tr>
-      <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>ประเภท</th><th>รายวิชา</th><th>อาจารย์</th><th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม/20</th><th>คลิกขวา</th><th>คัดลอก</th><th>สลับแท็บ</th><th>ประกาศผล</th><th></th>
+      <th>วันเวลา</th><th>รหัส</th><th>ชื่อนักเรียน</th><th>ห้อง</th><th>ประเภท</th><th>รายวิชา</th><th>อาจารย์</th><th>ปรนัย</th><th>จับคู่</th><th>อัตนัย</th><th>รวม/20</th><th>คลิกขวา</th><th>คัดลอก</th><th>สลับแท็บ</th><th></th>
     </tr></thead><tbody>${group.records.map(r=>`<tr data-row-id="${r.id}">
       <td>${new Date(r.submittedAt).toLocaleString('th-TH')}</td><td>${escapeHtml(r.studentId)}</td><td>${escapeHtml(r.studentName)}</td><td>${escapeHtml(r.classRoom)}</td><td>${escapeHtml(r.examType||'-')}</td><td>${escapeHtml(r.questionTitle)}</td><td>${escapeHtml(r.subjectTeacherName||'-')}</td><td>${r.sectionScores.mc}</td><td>${r.sectionScores.matching}</td><td>${r.sectionScores.written}</td><td><b>${r.overallScore20}</b></td><td>${r.rightClickAttempts||0}</td><td>${r.copyAttempts||0}</td><td>${r.tabSwitches||0}</td>
-      <td><button class="pub-pill ${r.published?'pub-yes':'pub-no'}" data-togglepub="${r.id}">${r.published?'ประกาศแล้ว ✅':'ยังไม่ประกาศ 🔒'}</button></td><td><button class="btn btn-ghost btn-sm" data-viewdetail="${r.id}">ดูรายละเอียด</button>${r.attemptType!=='resit'?`<button class="btn btn-ghost btn-sm" data-openresit="${r.id}">🛠️ เปิดสอบซ่อม</button>`:''}<button class="btn btn-danger btn-sm" data-delres="${r.id}">ลบ</button></td>
-    </tr>`).join('')}</tbody></table></div></div>`).join('');
+      <td><button class="btn btn-ghost btn-sm" data-viewdetail="${r.id}">ดูรายละเอียด</button>${r.attemptType!=='resit'?`<button class="btn btn-ghost btn-sm" data-openresit="${r.id}">🛠️ เปิดสอบซ่อม</button>`:''}<button class="btn btn-danger btn-sm" data-delres="${r.id}">ลบ</button></td>
+    </tr>`).join('')}</tbody></table></div></div>`;}).join('');
 }
 
 async function refreshResults(){
@@ -1390,10 +1390,12 @@ async function refreshResults(){
     try{ await apiFetch('/api/teacher/results/'+encodeURIComponent(b.dataset.delres), { method:'DELETE', body:{reason}, auth:true }); refreshResults(); }
     catch(e){ showToast(e.message); }
   }));
-  wrap.querySelectorAll('[data-togglepub]').forEach(b=>b.addEventListener('click', async ()=>{
-    const rec = LAST_RESULTS.find(x=>x.id===b.dataset.togglepub);
-    try{ await apiSetPublished(b.dataset.togglepub, !rec.published); refreshResults(); }
-    catch(e){ showToast(e.message); }
+  wrap.querySelectorAll('[data-publish-set]').forEach(button=>button.addEventListener('click',async event=>{
+    event.stopPropagation();
+    if(!confirm(`ยืนยันประกาศผลรายวิชา “${button.dataset.title}” ให้นักเรียนทุกคนที่ส่งข้อสอบแล้วหรือไม่?`))return;
+    button.disabled=true;button.textContent='กำลังตรวจสอบและประกาศผล...';
+    try{const result=await apiPublishAllForSet(button.dataset.publishSet);showToast(`ประกาศผลแล้ว ${result.count} คน`);await refreshResults();}
+    catch(error){showToast(error.message);button.disabled=false;button.textContent='📣 ประกาศผลทั้งรายวิชา';}
   }));
   wrap.querySelectorAll('[data-openresit]').forEach(b=>b.addEventListener('click', ()=>openResitDialog(b.dataset.openresit)));
   wrap.querySelectorAll('[data-viewdetail]').forEach(b=>b.addEventListener('click', ()=> toggleDetailRow(b.dataset.viewdetail)));
@@ -1410,7 +1412,7 @@ function toggleDetailRow(resultId){
   if(!rowEl) return;
   const tr = document.createElement('tr');
   tr.className = 'detail-row'; tr.dataset.for = resultId;
-  const td = document.createElement('td'); td.colSpan = 16;
+  const td = document.createElement('td'); td.colSpan = 15;
   if(rec.detail?.type==='dfd'){
     td.innerHTML = renderDfdReview(rec);
     td.querySelector('[data-save-dfd-score]').addEventListener('click', async (event)=>{
