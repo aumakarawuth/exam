@@ -536,6 +536,33 @@ function mutateExamDraft(draftKey, mutator) {
   return run;
 }
 
+function replaceDB(db) {
+  const intended = normalizeDatabase(structuredClone(db));
+  const run = writeChain.catch(() => {}).then(async () => {
+    if (!DATABASE_URL) {
+      const fresh = readSqliteDatabase();
+      persistSqliteChanges(fresh, intended);
+      currentDatabase = intended;
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
+      const fresh = await readPostgresDatabase(client);
+      await persistPostgresRows(client, fresh, intended);
+      await client.query('COMMIT');
+      currentDatabase = intended;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  });
+  writeChain = run.catch(() => {});
+  mutationChain = writeChain;
+  return run;
+}
+
 async function closeDatabase() {
   let failure = null;
   try { await mutationChain; } catch (error) { failure = error; }
@@ -552,4 +579,4 @@ async function closeDatabase() {
   if (failure) throw failure;
 }
 
-module.exports = { readDB, writeDB, mutateDB, mutateExamDraft, closeDatabase, databaseReady, pingDatabase, changedRows, deletedIds, mergeDatabaseChanges };
+module.exports = { readDB, writeDB, mutateDB, mutateExamDraft, replaceDB, closeDatabase, databaseReady, pingDatabase, changedRows, deletedIds, mergeDatabaseChanges };

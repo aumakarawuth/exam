@@ -10,6 +10,11 @@ function payload() {
   return { version: 2, exportedAt: '2026-07-18T10:00:00.000Z', database: { sets: [{ key: 'set-1' }], results: [], students: [], teachers: [], questionBank: [], drafts: [], auditLogs: [], settings: { academicCalendar: [] } } };
 }
 
+test('manual version 1 backups are accepted for full restore', () => {
+  const backup=payload();backup.version=1;
+  assert.equal(validateRestoredBackup(backup).sets,1);
+});
+
 test('restore drill decrypts and validates the latest backup without changing data', async t => {
   const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'restore-drill-'));
   t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));

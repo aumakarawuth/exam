@@ -8,7 +8,7 @@ const COLLECTION_KEYS = ['sets', 'results', 'students', 'teachers', 'questionBan
 const ID_FIELDS = { sets: 'key', results: 'id', students: 'studentId', teachers: 'id', questionBank: 'id', drafts: 'draftKey', auditLogs: 'id' };
 
 function validateRestoredBackup(payload) {
-  if (!payload || payload.version !== 2 || !payload.exportedAt || !payload.database || typeof payload.database !== 'object') throw new Error('Invalid backup envelope');
+  if (!payload || ![1, 2].includes(payload.version) || !payload.exportedAt || !payload.database || typeof payload.database !== 'object') throw new Error('Invalid backup envelope');
   const counts = {};
   for (const collection of COLLECTION_KEYS) {
     const rows = payload.database[collection];

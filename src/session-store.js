@@ -74,6 +74,15 @@ function createSessionStore({ redisUrl = '', prefix = 'exam', now = () => Date.n
     if (removals.length) await client.multi().del(removals).zRem(expiryKey(role), hashes).exec();
   }
 
+  async function clear(role) {
+    if (!client) { memory[role].clear(); return; }
+    await ready;
+    const removals = [];
+    for await (const redisKey of client.scanIterator({ MATCH: `${prefix}:session:${role}:*`, COUNT: 100 })) removals.push(redisKey);
+    if (removals.length) await client.del(removals);
+    await client.del(expiryKey(role));
+  }
+
   function purgeExpired(current = now()) {
     let removed = 0;
     for (const store of Object.values(memory)) for (const [token, session] of store) if (session.expiresAt <= current) { store.delete(token); removed += 1; }
@@ -107,7 +116,7 @@ function createSessionStore({ redisUrl = '', prefix = 'exam', now = () => Date.n
   function status() { return { engine: redisUrl ? 'Redis' : 'Memory', configured: Boolean(redisUrl), connected: redisUrl ? Boolean(connected && client?.isReady) : true, lastError }; }
   async function close() { if (client?.isOpen) await client.quit(); connected = false; }
 
-  return { ready, set, getAndTouch, remove, removeBySubject, purgeExpired, count, ping, status, close, memory };
+  return { ready, set, getAndTouch, remove, removeBySubject, clear, purgeExpired, count, ping, status, close, memory };
 }
 
 module.exports = { createSessionStore };

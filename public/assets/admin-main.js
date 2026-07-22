@@ -87,6 +87,10 @@ async function apiImportStudentsExcel(file){
   const res = await fetch('/api/students/import-xlsx', { method:'POST', headers:{'x-admin-key':adminKey || '', 'Content-Type':file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}, body:file });
   const body = await res.json().catch(()=>({})); if(res.status===401){ showSessionExpiredDialog(); throw new Error('หมดเวลาการเข้าสู่ระบบ'); } if(!res.ok) throw new Error(body.message || 'นำเข้า Excel ไม่สำเร็จ'); return body;
 }
+async function apiRestoreSystemBackup(file){
+  const res=await fetch('/api/admin/restore.json',{method:'POST',headers:{'x-admin-key':adminKey||'','x-restore-confirm':'RESTORE','Content-Type':'application/x-exam-backup+json'},body:file});
+  const body=await res.json().catch(()=>({}));if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');}if(!res.ok)throw new Error(body.message||'กู้คืนข้อมูลไม่สำเร็จ');return body;
+}
 async function apiDeleteStudent(id){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiUpdateStudent(id, body){ return apiFetch('/api/students/'+encodeURIComponent(id), { method:'PUT', body, admin:true }); }
 async function apiSetClassExamPeriod(classRoom, examPeriod){ return apiFetch('/api/classes/'+encodeURIComponent(classRoom)+'/exam-period', { method:'POST', body:{examPeriod}, admin:true }); }
@@ -1659,6 +1663,25 @@ async function downloadFullSystemBackup(){
   catch(error){ showToast(error.message); }
 }
 document.getElementById('downloadBackupBtn').addEventListener('click', downloadFullSystemBackup);
+document.getElementById('selectRestoreBackupBtn').addEventListener('click',()=>document.getElementById('restoreBackupFile').click());
+document.getElementById('restoreBackupFile').addEventListener('change',async event=>{
+  const file=event.target.files[0];if(!file)return;
+  const button=document.getElementById('selectRestoreBackupBtn');
+  try{
+    if(file.size>25*1024*1024)throw new Error('ไฟล์สำรองต้องมีขนาดไม่เกิน 25 MB');
+    const payload=JSON.parse((await file.text()).replace(/^\uFEFF/,'')),db=payload?.database||{};
+    const keys=['sets','results','students','teachers','questionBank','drafts','auditLogs'];
+    if(![1,2].includes(payload?.version)||!keys.every(key=>Array.isArray(db[key]))||!db.settings)throw new Error('ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของระบบ');
+    const summary=`ชุดข้อสอบ ${db.sets.length} · ผลสอบ ${db.results.length} · นักเรียน ${db.students.length} · อาจารย์ ${db.teachers.length}`;
+    if(!confirm(`ตรวจพบข้อมูลสำรองวันที่ ${new Date(payload.exportedAt).toLocaleString('th-TH')}\n${summary}\n\nการกู้คืนจะแทนที่ข้อมูลปัจจุบันทั้งหมด ต้องการดำเนินการต่อหรือไม่?`))return;
+    if(prompt('ขั้นตอนสุดท้าย: พิมพ์ RESTORE เพื่อยืนยันการกู้คืนข้อมูลทั้งหมด')!=='RESTORE')return;
+    button.disabled=true;button.textContent='กำลังกู้คืนข้อมูล...';
+    const result=await apiRestoreSystemBackup(file);
+    alert(`กู้คืนข้อมูลเรียบร้อยแล้ว\nนักเรียน ${result.counts.students} คน · ชุดข้อสอบ ${result.counts.sets} ชุด · ผลสอบ ${result.counts.results} รายการ`);
+    window.location.reload();
+  }catch(error){showToast(error.message);}
+  finally{button.disabled=false;button.textContent='เลือกไฟล์เพื่อกู้คืน';event.target.value='';}
+});
 
 /* ======================================================================
    RESULTS + EXCEL EXPORT + PUBLISH

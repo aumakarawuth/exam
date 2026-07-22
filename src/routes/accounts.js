@@ -1,6 +1,8 @@
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const express = require('express');
 const { validateTeacherPayload, sendValidationError } = require('../validation');
+const { validateRestoredBackup } = require('../restore-drill');
 
 function purgeExpiredLoginFailures(store, now = Date.now()) {
   let removed = 0;
@@ -31,8 +33,8 @@ function registerFailure(store, key) {
 
 function registerAccountRoutes(app, dependencies) {
   const {
-    ADMIN_KEY, readDB, writeDB, hashPassword, verifyPassword, requireAdmin,
-    requireTeacher, createTeacherSession, removeTeacherSessions, sessionStore, newId
+    ADMIN_KEY, readDB, writeDB, replaceDB, hashPassword, verifyPassword, requireAdmin,
+    requireTeacher, createTeacherSession, removeTeacherSessions, sessionStore, backupService, newId
   } = dependencies;
   const adminLoginFailures = new Map();
   const teacherLoginFailures = new Map();
@@ -54,6 +56,25 @@ function registerAccountRoutes(app, dependencies) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="exam-system-backup-${new Date().toISOString().slice(0, 10)}.json"`);
     res.json({ version: 1, exportedAt: new Date().toISOString(), database: readDB() });
+  });
+
+  app.post('/api/admin/restore.json', requireAdmin, express.raw({ type:'application/x-exam-backup+json', limit:'25mb' }), async (req, res) => {
+    try {
+      if (req.get('x-restore-confirm') !== 'RESTORE') return res.status(400).json({ error:'confirmation_required', message:'กรุณายืนยันการกู้คืนข้อมูล' });
+      if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error:'invalid_backup', message:'ไม่พบข้อมูลในไฟล์สำรอง' });
+      const payload = JSON.parse(req.body.toString('utf8').replace(/^\uFEFF/, ''));
+      const counts = validateRestoredBackup(payload);
+      if (backupService?.status().configured) {
+        const safetyBackup = await backupService.run();
+        if (!safetyBackup.created) return res.status(503).json({ error:'safety_backup_failed', message:'สร้างไฟล์สำรองก่อนกู้คืนไม่สำเร็จ จึงยกเลิกการกู้คืนเพื่อความปลอดภัย' });
+      }
+      await replaceDB(payload.database);
+      await Promise.all([sessionStore.clear('teacher'), sessionStore.clear('student')]);
+      res.json({ ok:true, exportedAt:payload.exportedAt, counts });
+    } catch (error) {
+      if (error instanceof SyntaxError || /backup|collection|duplicate|missing|settings/i.test(error.message)) return res.status(400).json({ error:'invalid_backup', message:'ไฟล์สำรองไม่ถูกต้องหรือข้อมูลไม่ครบ' });
+      throw error;
+    }
   });
 
   app.get('/api/teachers', requireAdmin, (req, res) => {

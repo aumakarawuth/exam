@@ -138,6 +138,13 @@ test('manual restore drill requires encrypted backup configuration', async () =>
   assert.equal(JSON.parse(response.body).error, 'restore_drill_not_configured');
 });
 
+test('full-system restore requires admin access and a valid backup file', async () => {
+  assert.equal((await request('/api/admin/restore.json', { method:'POST' })).status, 401);
+  const invalid = await request('/api/admin/restore.json', { method:'POST', headers:{ 'x-admin-key':ADMIN_KEY, 'x-restore-confirm':'RESTORE', 'content-type':'application/x-exam-backup+json' } });
+  assert.equal(invalid.status, 400);
+  assert.equal(JSON.parse(invalid.body).error, 'invalid_backup');
+});
+
 test('live Operations stream requires administrator authentication', async () => {
   const response = await request('/api/admin/operations/stream');
   assert.equal(response.status, 401);
