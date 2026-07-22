@@ -9,5 +9,8 @@ for (const asset of ['admin-main.js', 'teacher-main.js']) {
     assert.match(source, /data-publish-set=/);
     assert.match(source, /apiPublishAllForSet\(button\.dataset\.publishSet\)/);
     assert.doesNotMatch(source, /data-togglepub=/);
+    assert.match(source, /function resultScoreColumns\(/);
+    assert.match(source, /columns\.matching\?'<th>จับคู่<\/th>':''/);
+    assert.match(source, /class="result-row-actions"/);
   });
 }
