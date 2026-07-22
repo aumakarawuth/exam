@@ -45,6 +45,7 @@
     <button class="admin-tab-btn" data-atab="students">รายชื่อนักเรียน</button>
     <button class="admin-tab-btn" data-atab="teachers">อาจารย์ผู้สอน</button>
     <button class="admin-tab-btn" data-atab="results">ผลสอบนักเรียน</button>
+    <button class="admin-tab-btn" data-atab="score-emails">✉ ส่งรายงานคะแนน</button>
     <button class="admin-tab-btn" data-atab="operations">🩺 Operations</button>
     <button class="admin-tab-btn" data-atab="settings">⚙️ ตั้งค่า</button>
   </div>
@@ -136,6 +137,7 @@
             <div class="field"><label>Username</label><input type="text" id="ftUsername" placeholder="เช่น somsri"></div>
             <div class="field"><label>Password</label><input type="text" id="ftPassword" placeholder="ตั้งรหัสผ่านให้อาจารย์"></div>
           </div>
+          <div class="field"><label>อีเมลรับรายงานคะแนน</label><input type="email" id="ftEmail" placeholder="teacher@school.ac.th"></div>
           <button class="btn btn-primary btn-sm" id="addTeacherBtn">+ เพิ่มอาจารย์</button>
         </div>
         <div id="teachersWrap"><div class="loading-note">กำลังโหลด...</div></div>
@@ -159,6 +161,11 @@
           </div>
         </div>
         <div id="resultsWrap"><div class="loading-note">กำลังโหลด...</div></div>
+      </div>
+
+      <div id="atab-score-emails" class="hidden">
+        <div class="toolbar-row"><div><h2>ส่งรายงานคะแนนให้อาจารย์</h2><p class="sub" style="margin:0;">หนึ่งไฟล์ต่ออาจารย์ ภายในแยกชีตตามรายวิชาที่รับผิดชอบ</p></div><button class="btn btn-ghost btn-sm" id="refreshScoreEmailsBtn">↻ รีเฟรช</button></div>
+        <div id="scoreEmailsWrap"><div class="loading-note">กำลังโหลด...</div></div>
       </div>
 
       <div id="atab-operations" class="hidden">
@@ -249,6 +256,6 @@
   </div>
 </div>
 
-<script src="/assets/admin-main.js?v=20260722-10"></script>
+<script src="/assets/admin-main.js?v=20260723-1"></script>
 </body>
 </html>

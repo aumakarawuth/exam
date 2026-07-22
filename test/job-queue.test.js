@@ -28,3 +28,13 @@ test('job queue enforces its pending capacity', () => {
   assert.equal(queue.enqueue('slow').reason, 'queue_full');
   void queue.stop({ drain: false });
 });
+
+test('job queue passes private payload to its handler', async () => {
+  const queue = createJobQueue();
+  let received;
+  queue.register('payload', ({ payload }) => { received = payload; });
+  queue.enqueue('payload', { payload: { teacherId: 't1' } });
+  await queue.onIdle();
+  assert.deepEqual(received, { teacherId: 't1' });
+  assert.equal('payload' in queue.snapshot().recentJobs[0], false);
+});

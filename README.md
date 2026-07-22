@@ -47,6 +47,8 @@ npm run migrate:postgres  # ย้ายข้อมูล local ไป PostgreS
 | `PORT` | ไม่ | พอร์ต HTTP ค่าเริ่มต้น `3000` |
 | `ADMIN_KEY` | ใช่ | secret สำหรับผู้ดูแลระบบ ห้ามใช้ค่าเริ่มต้นใน production |
 | `DATABASE_URL` | Production | PostgreSQL connection string; เว้นว่างเพื่อใช้ SQLite |
+| `RESEND_API_KEY` | Email reports | API key จาก Resend; เว้นว่างเพื่อปิดการส่งอีเมล |
+| `SCORE_REPORT_FROM_EMAIL` | Email reports | ผู้ส่งที่ยืนยันโดเมนใน Resend เช่น `Exam System <scores@school.ac.th>` |
 | `DATABASE_SSL` | ไม่ | กำหนด `false` เฉพาะ PostgreSQL ในเครื่องที่ไม่มี TLS |
 | `SUPABASE_URL` | ไม่ | URL ของ Supabase สำหรับจัดเก็บ asset |
 | `SUPABASE_SECRET_KEY` | ไม่ | Supabase secret key ฝั่งเซิร์ฟเวอร์ |

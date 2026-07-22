@@ -64,7 +64,7 @@ function createJobQueue({ concurrency = 2, maxPending = 100, historyLimit = 50, 
     const started = now();
     const controller = new AbortController();
     try {
-      await withTimeout(Promise.resolve().then(() => handler({ signal: controller.signal, attempt: job.attempt })), job.timeoutMs, controller);
+      await withTimeout(Promise.resolve().then(() => handler({ signal: controller.signal, attempt: job.attempt, payload: job.payload })), job.timeoutMs, controller);
       job.status = 'completed';
       job.finishedAt = new Date(now()).toISOString();
       job.durationMs = Math.max(0, now() - started);
@@ -97,7 +97,7 @@ function createJobQueue({ concurrency = 2, maxPending = 100, historyLimit = 50, 
     }
   }
 
-  function enqueue(type, { maxAttempts = 3, timeoutMs = 300_000, dedupeKey = '' } = {}) {
+  function enqueue(type, { maxAttempts = 3, timeoutMs = 300_000, dedupeKey = '', payload = null } = {}) {
     if (!accepting) return { accepted: false, reason: 'stopping' };
     if (!handlers.has(type)) throw new Error(`No handler registered for job type: ${type}`);
     if (pending.length + retryTimers.size >= maxPending) return { accepted: false, reason: 'queue_full' };
@@ -106,7 +106,7 @@ function createJobQueue({ concurrency = 2, maxPending = 100, historyLimit = 50, 
       if (duplicate) return { accepted: false, reason: 'duplicate' };
     }
     const id = dedupeKey ? `${dedupeKey}:${crypto.randomUUID()}` : crypto.randomUUID();
-    const job = { id, type, status: 'pending', attempt: 0, maxAttempts, timeoutMs, dedupeKey, createdAt: new Date(now()).toISOString() };
+    const job = { id, type, status: 'pending', attempt: 0, maxAttempts, timeoutMs, dedupeKey, payload, createdAt: new Date(now()).toISOString() };
     pending.push(job);
     queueMicrotask(dispatch);
     return { accepted: true, id };

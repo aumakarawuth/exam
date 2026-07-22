@@ -107,6 +107,9 @@ async function apiGetTeachers(){ return apiFetch('/api/teachers', { admin:true }
 async function apiAddTeacher(t){ return apiFetch('/api/teachers', { method:'POST', body:t, admin:true }); }
 async function apiDeleteTeacher(id){ return apiFetch('/api/teachers/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiResetTeacherPassword(id,password){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/password', { method:'PATCH', body:{password}, admin:true }); }
+async function apiUpdateTeacherEmail(id,email){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/email', { method:'PATCH', body:{email}, admin:true }); }
+async function apiGetScoreEmailStatus(){ return apiFetch('/api/admin/score-emails/status', { admin:true }); }
+async function apiSendScoreEmail(teacherId){ return apiFetch('/api/admin/score-emails/'+encodeURIComponent(teacherId)+'/send', { method:'POST', admin:true }); }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function escapeHtml(str){ return String(str==null?'':str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -275,6 +278,7 @@ function refreshCurrentPageData(){
   if(activeTab==='students') return refreshStudents();
   if(activeTab==='teachers') return refreshTeachers();
   if(activeTab==='results') return refreshResults();
+  if(activeTab==='score-emails') return refreshScoreEmails();
   if(activeTab==='operations') return refreshOperations();
   return initAdmin();
 }
@@ -284,11 +288,12 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['dashboard','sets','library','students','teachers','results','operations','settings'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
+    ['dashboard','sets','library','students','teachers','results','score-emails','operations','settings'].forEach(t=> document.getElementById('atab-'+t).classList.toggle('hidden', btn.dataset.atab!==t));
     if(btn.dataset.atab==='dashboard') refreshDashboard();
     if(btn.dataset.atab==='library') renderLibrarySetList();
     if(btn.dataset.atab==='operations'){ refreshOperations(); startOperationsStream(); } else stopOperationsStream();
     if(btn.dataset.atab==='results') refreshResults();
+    if(btn.dataset.atab==='score-emails') refreshScoreEmails();
     if(btn.dataset.atab==='students') refreshStudents();
     if(btn.dataset.atab==='teachers') refreshTeachers();
   });
@@ -358,6 +363,7 @@ async function refreshOperations(){
       <div class="operations-card"><div class="label">Restore Drill</div><div class="value ${restoreHealthy?'operations-ok':'operations-warn'}">● ${restoreHealthy?'กู้คืนได้':restore.lastFailureAt?'ตรวจไม่ผ่าน':'ยังไม่เคยตรวจ'}</div><div class="note">${restore.lastSuccessAt?'สำเร็จล่าสุด '+escapeHtml(new Date(restore.lastSuccessAt).toLocaleString('th-TH')):'ตรวจไฟล์ backup โดยไม่แตะฐานจริง'}</div>${restore.configured?'<button class="btn btn-ghost btn-sm" style="margin-top:9px;" onclick="runRestoreDrill()">ทดสอบตอนนี้</button>':''}</div>
       <div class="operations-card"><div class="label">External Alerts</div><div class="value ${alertsReady?'operations-ok':'operations-warn'}">● ${alertsReady?'พร้อมแจ้งเตือน':'ยังไม่ได้ตั้งค่า'}</div><div class="note">${alerts.lastSuccessAt?'ส่งสำเร็จล่าสุด '+escapeHtml(new Date(alerts.lastSuccessAt).toLocaleString('th-TH')):'Webhook monitoring'}</div></div>
       <div class="operations-card"><div class="label">Shared Sessions</div><div class="value ${sessions.configured&&sessions.connected?'operations-ok':'operations-warn'}">● ${sessions.configured&&sessions.connected?'Redis พร้อมใช้งาน':'Memory instance เดียว'}</div><div class="note">${escapeHtml(sessions.engine||'Memory')} · ${Number(counts.activeTeacherSessions)||0} session อาจารย์</div></div>
+      <div class="operations-card"><div class="label">Email Reports</div><div class="value ${data.scoreEmails?.configured?'operations-ok':'operations-warn'}">● ${data.scoreEmails?.configured?'พร้อมส่ง':'ยังไม่ได้ตั้งค่า'}</div><div class="note">พร้อมรับ ${Number(data.scoreEmails?.eligibleTeachers)||0} อาจารย์ · ${Number(data.scoreEmails?.courseSheets)||0} ชีต${data.scoreEmails?.lastRun?' · ล่าสุดสำเร็จ '+Number(data.scoreEmails.lastRun.sent||0)+' ล้มเหลว '+Number(data.scoreEmails.lastRun.failed||0):''}</div></div>
       <div class="operations-card"><div class="label">หน่วยความจำ</div><div class="value">${formatOperationsBytes(data.memory.rssBytes)}</div><div class="note">Heap ${formatOperationsBytes(data.memory.heapUsedBytes)} / ${formatOperationsBytes(data.memory.heapTotalBytes)}</div></div>
     </div><h3 style="margin:0 0 10px;">สถานะการสอบแบบสด <span id="operationsLiveState" class="operations-ok" style="font-size:12px;">● กำลังเชื่อมต่อ</span></h3><div class="operations-count-grid"><div class="operations-card"><div class="label">นักเรียนกำลังทำข้อสอบ</div><div class="value" id="liveActiveStudents">0</div><div class="note">นับจาก draft lock ที่ยัง active</div></div><div class="operations-card"><div class="label">ข้อสอบที่เปิดอยู่</div><div class="value" id="liveActiveExams">0</div></div><div class="operations-card"><div class="label">ส่งผลใน 5 นาที</div><div class="value" id="liveRecentResults">0</div></div><div class="operations-card"><div class="label">ส่งข้อสอบ / รอคิว</div><div class="value" id="liveSubmissionQueue">0 / 0</div></div></div><h3 style="margin:0 0 10px;">การทำงานของ API</h3><div class="operations-count-grid"><div class="operations-card"><div class="label">คำขอทั้งหมด</div><div class="value">${Number(requests.totalRequests)||0}</div><div class="note">ตั้งแต่เริ่มระบบรอบนี้</div></div><div class="operations-card"><div class="label">เวลาตอบสนองเฉลี่ย</div><div class="value">${Number(requests.averageResponseMs)||0} ms</div></div><div class="operations-card"><div class="label">ข้อผิดพลาดของเซิร์ฟเวอร์</div><div class="value ${requests.serverErrors?'operations-warn':'operations-ok'}">${Number(requests.serverErrors)||0}</div><div class="note">${Number(requests.errorRatePercent)||0}% ของคำขอ · ไม่รวมการปิดระบบตามนโยบาย</div></div><div class="operations-card"><div class="label">คำขอที่ระบบปฏิเสธตามสถานะ</div><div class="value">${Number(requests.controlledRejections)||0}</div><div class="note">เช่น ปิดระบบข้อสอบหรือคิวส่งข้อสอบเต็ม ไม่ถือเป็นระบบผิดพลาด</div></div><div class="operations-card"><div class="label">กำลังประมวลผล</div><div class="value">${Number(requests.inFlight)||0}</div></div></div>
     <h3 style="margin:18px 0 10px;">การส่งข้อสอบพร้อมกัน</h3><div class="operations-count-grid"><div class="operations-card"><div class="label">กำลังบันทึก</div><div class="value">${Number(submissions.active)||0} / ${Number(submissions.maxConcurrent)||0}</div></div><div class="operations-card"><div class="label">รอในคิว</div><div class="value ${submissions.pending?'operations-warn':''}">${Number(submissions.pending)||0}</div><div class="note">รองรับสูงสุด ${Number(submissions.maxPending)||0}</div></div><div class="operations-card"><div class="label">สูงสุดพร้อมกัน</div><div class="value">${Number(submissions.peakActive)||0}</div></div><div class="operations-card"><div class="label">ปฏิเสธเพราะระบบเต็ม</div><div class="value ${submissions.overloaded?'operations-warn':'operations-ok'}">${Number(submissions.overloaded)||0}</div></div></div>
@@ -414,10 +420,11 @@ async function refreshTeachers(){
   if(!teachers.length){ wrap.innerHTML = '<div class="empty-note">ยังไม่มีบัญชีอาจารย์ในระบบ</div>'; return; }
   wrap.innerHTML = teachers.map(t=>`
     <div class="teacher-row-card">
-      <div class="teacher-row-info"><b>${escapeHtml(t.firstName)} ${escapeHtml(t.lastName)}</b> &nbsp; <span class="username">username: ${escapeHtml(t.username)}</span></div>
-      <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" data-resetteacher="${t.id}" data-teachername="${escapeAttr(t.firstName+' '+t.lastName)}">🔑 รีเซ็ตรหัสผ่าน</button><button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button></div>
+      <div class="teacher-row-info"><b>${escapeHtml(t.firstName)} ${escapeHtml(t.lastName)}</b> &nbsp; <span class="username">username: ${escapeHtml(t.username)} · ${escapeHtml(t.email||'ยังไม่มีอีเมล')}</span></div>
+      <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" data-emailteacher="${t.id}" data-email="${escapeAttr(t.email||'')}">✉ แก้อีเมล</button><button class="btn btn-ghost btn-sm" data-resetteacher="${t.id}" data-teachername="${escapeAttr(t.firstName+' '+t.lastName)}">🔑 รีเซ็ตรหัสผ่าน</button><button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button></div>
     </div>`).join('');
   wrap.querySelectorAll('[data-resetteacher]').forEach(button=>button.addEventListener('click',()=>openTeacherPasswordReset(button.dataset.resetteacher,button.dataset.teachername)));
+  wrap.querySelectorAll('[data-emailteacher]').forEach(button=>button.addEventListener('click',async()=>{const email=prompt('อีเมลรับรายงานคะแนน',button.dataset.email||'');if(email===null)return;try{await apiUpdateTeacherEmail(button.dataset.emailteacher,email.trim());await refreshTeachers();showToast('บันทึกอีเมลแล้ว');}catch(error){showToast(error.message);}}));
   wrap.querySelectorAll('[data-delteacher]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบบัญชีอาจารย์นี้? ชุดข้อสอบที่เคยสร้างไว้จะยังอยู่แต่จะไม่ผูกกับบัญชีนี้อีกต่อไป')) return;
     try{ await apiDeleteTeacher(b.dataset.delteacher); refreshTeachers(); showToast('ลบบัญชีอาจารย์แล้ว'); }
@@ -450,14 +457,28 @@ document.getElementById('addTeacherBtn').addEventListener('click', async ()=>{
   const lastName = document.getElementById('ftLast').value.trim();
   const username = document.getElementById('ftUsername').value.trim();
   const password = document.getElementById('ftPassword').value;
-  if(!firstName || !lastName || !username || !password){ showToast('กรอกข้อมูลอาจารย์ให้ครบทุกช่อง'); return; }
+  const email = document.getElementById('ftEmail').value.trim();
+  if(!firstName || !lastName || !username || !password || !email){ showToast('กรอกข้อมูลอาจารย์และอีเมลให้ครบทุกช่อง'); return; }
   try{
-    await apiAddTeacher({firstName, lastName, username, password});
-    ['ftFirst','ftLast','ftUsername','ftPassword'].forEach(id=>document.getElementById(id).value='');
+    await apiAddTeacher({firstName, lastName, username, password, email});
+    ['ftFirst','ftLast','ftUsername','ftPassword','ftEmail'].forEach(id=>document.getElementById(id).value='');
     refreshTeachers();
     showToast('เพิ่มบัญชีอาจารย์แล้ว');
   }catch(e){ showToast(e.message); }
 });
+
+async function refreshScoreEmails(){
+  const wrap=document.getElementById('scoreEmailsWrap');
+  wrap.innerHTML='<div class="loading-note">กำลังโหลด...</div>';
+  try{
+    const status=await apiGetScoreEmailStatus();
+    if(!status.configured){wrap.innerHTML='<div class="empty-note">ยังไม่ได้ตั้งค่า RESEND_API_KEY และ SCORE_REPORT_FROM_EMAIL ใน Railway</div>';return;}
+    if(!status.recipients.length){wrap.innerHTML='<div class="empty-note">ยังไม่มีอาจารย์ที่มีผลสอบสำหรับจัดทำรายงาน</div>';return;}
+    wrap.innerHTML=status.recipients.map(item=>`<div class="teacher-row-card"><div class="teacher-row-info"><b>${escapeHtml(item.teacherName||'-')}</b><div class="username">${escapeHtml(item.email||'ยังไม่มีอีเมล')}</div><div style="margin-top:7px;">${item.courses.map(course=>`<span class="status-pill" style="margin:2px 4px 2px 0;">${escapeHtml(course)}</span>`).join('')}</div>${item.lastRun?`<div class="username" style="margin-top:6px;">ส่งล่าสุด ${escapeHtml(new Date(item.lastRun.sentAt).toLocaleString('th-TH'))}</div>`:''}</div><button class="btn btn-primary btn-sm" data-send-score-email="${escapeAttr(item.teacherId)}" ${item.email?'':'disabled'}>${item.email?'✉ ส่ง '+item.courses.length+' รายวิชา':'กรุณาเพิ่มอีเมล'}</button></div>`).join('');
+    wrap.querySelectorAll('[data-send-score-email]').forEach(button=>button.addEventListener('click',async()=>{const item=status.recipients.find(row=>row.teacherId===button.dataset.sendScoreEmail);if(!item||!confirm(`ส่งรายงานให้อาจารย์ ${item.teacherName}\nรวม ${item.courses.length} รายวิชาในไฟล์เดียวหรือไม่?`))return;button.disabled=true;button.textContent='กำลังเข้าคิว...';try{await apiSendScoreEmail(item.teacherId);showToast('นำรายงานเข้าคิวส่งแล้ว');setTimeout(refreshScoreEmails,1200);}catch(error){showToast(error.message);button.disabled=false;button.textContent='✉ ส่ง '+item.courses.length+' รายวิชา';}}));
+  }catch(error){wrap.innerHTML='<div class="empty-note">'+escapeHtml(error.message)+'</div>';}
+}
+document.getElementById('refreshScoreEmailsBtn').addEventListener('click',refreshScoreEmails);
 /* ======================================================================
    EXAM SETS
    ====================================================================== */

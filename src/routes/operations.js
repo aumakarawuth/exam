@@ -16,7 +16,7 @@ function liveOperationsSnapshot(db, { submissions, jobs, requests }, now = Date.
   };
 }
 
-function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, runtimeMetrics, submissionGate, pingDatabase, readinessTimeoutMs, backupService, restoreDrill, enqueueRestoreDrill, systemMonitor, alertManager, jobQueue, sessionStore }) {
+function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, runtimeMetrics, submissionGate, pingDatabase, readinessTimeoutMs, backupService, restoreDrill, enqueueRestoreDrill, systemMonitor, alertManager, jobQueue, sessionStore, scoreEmailService }) {
   app.get('/api/admin/operations/score-verification', requireAdmin, (req, res) => {
     const db = readDB();
     res.json({ generatedAt: new Date().toISOString(), summary: verificationSummary(db), issues: verificationReport(db) });
@@ -81,6 +81,7 @@ function registerOperationsRoutes(app, { requireAdmin, readDB, assetStorage, run
       monitoring: systemMonitor.status(),
       alerts: alertManager.status(),
       jobs: jobQueue.snapshot(),
+      scoreEmails: scoreEmailService.status(),
       sessions: sessionStore.status(),
       storage: { status: assetStorage.configured ? 'configured' : 'not_configured', maxBytes: assetStorage.maxBytes },
       memory: { rssBytes: memory.rss, heapUsedBytes: memory.heapUsed, heapTotalBytes: memory.heapTotal },

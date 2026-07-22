@@ -122,4 +122,33 @@ async function buildGradebookWorkbook({ results, students = [], sets = [], cours
   return workbookBuffer(workbook);
 }
 
-module.exports = { buildResultsWorkbook, buildGradebookWorkbook, examSetScoreMax, blockCourseSlotScore };
+async function buildMultiCourseGradebookWorkbook(courseReports) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.calcProperties.fullCalcOnLoad = true;
+  workbook.calcProperties.forceFullCalc = true;
+  const usedNames = new Set();
+  for (const report of courseReports) {
+    const sourceBuffer = await buildGradebookWorkbook(report);
+    const sourceBook = new ExcelJS.Workbook();
+    await sourceBook.xlsx.load(sourceBuffer);
+    const source = sourceBook.worksheets[0];
+    const base = String(report.courseName || 'รายวิชา').replace(/[\\/?*:[\]]/g, ' ').trim().slice(0, 31) || 'รายวิชา';
+    let name = base;
+    for (let suffix = 2; usedNames.has(name); suffix += 1) name = `${base.slice(0, 27)} (${suffix})`.slice(0, 31);
+    usedNames.add(name);
+    const target = workbook.addWorksheet(name);
+    source.eachRow({ includeEmpty: true }, (sourceRow, rowNumber) => {
+      const targetRow = target.getRow(rowNumber);
+      targetRow.values = sourceRow.values;
+      targetRow.height = sourceRow.height;
+      sourceRow.eachCell({ includeEmpty: true }, (sourceCell, columnNumber) => {
+        targetRow.getCell(columnNumber).style = JSON.parse(JSON.stringify(sourceCell.style || {}));
+      });
+    });
+    source.columns.forEach((column, index) => { target.getColumn(index + 1).width = column.width; });
+    target.autoFilter = source.autoFilter;
+  }
+  return workbookBuffer(workbook);
+}
+
+module.exports = { buildResultsWorkbook, buildGradebookWorkbook, buildMultiCourseGradebookWorkbook, examSetScoreMax, blockCourseSlotScore };

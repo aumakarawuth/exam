@@ -79,7 +79,7 @@ function registerAccountRoutes(app, dependencies) {
 
   app.get('/api/teachers', requireAdmin, (req, res) => {
     const db = readDB();
-    res.json(db.teachers.map(t => ({ id: t.id, firstName: t.firstName, lastName: t.lastName, username: t.username, createdAt: t.createdAt })));
+    res.json(db.teachers.map(t => ({ id: t.id, firstName: t.firstName, lastName: t.lastName, username: t.username, email: t.email || '', createdAt: t.createdAt })));
   });
 
   app.post('/api/teachers', requireAdmin, async (req, res) => {
@@ -92,7 +92,7 @@ function registerAccountRoutes(app, dependencies) {
     }
     const teacher = {
       id: newId('teacher'), firstName: body.firstName.trim(), lastName: body.lastName.trim(),
-      username: body.username.trim(), passwordHash: hashPassword(body.password), createdAt: new Date().toISOString()
+      username: body.username.trim(), email: String(body.email || '').trim().toLowerCase(), passwordHash: hashPassword(body.password), createdAt: new Date().toISOString()
     };
     db.teachers.push(teacher);
     await writeDB(db);
@@ -112,6 +112,14 @@ function registerAccountRoutes(app, dependencies) {
     await writeDB(db);
     await removeTeacherSessions(teacher.id);
     res.json({ ok: true });
+  });
+
+  app.patch('/api/teachers/:id/email', requireAdmin, async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'invalid_email', message: 'รูปแบบอีเมลไม่ถูกต้อง' });
+    const db = readDB(); const teacher = db.teachers.find(item => item.id === req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'not_found', message: 'ไม่พบบัญชีอาจารย์นี้' });
+    teacher.email = email; await writeDB(db); res.json({ ok: true, email });
   });
 
   app.delete('/api/teachers/:id', requireAdmin, async (req, res) => {

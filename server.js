@@ -18,7 +18,7 @@ const { hashPassword, verifyPassword, requireTeacher, requireAdmin, requireStude
 const { round2, gradeMC, gradeMatching, gradeWritten, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, sanitizeSetForStudent } = require('./src/grading');
 const { registerPages, registerFallback, registerErrorHandler } = require('./src/pages');
 const { registerRoutes } = require('./src/routes');
-const { buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook } = require('./src/results-workbook');
+const { buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildMultiCourseGradebookWorkbook } = require('./src/results-workbook');
 const { buildQuestionAnalysis, buildQuestionAnalysisWorkbook } = require('./src/question-analysis');
 const { applySecurityHeaders } = require('./src/security');
 const { newId } = require('./src/ids');
@@ -32,6 +32,7 @@ const { createBackupService } = require('./src/backup');
 const { createSystemMonitor } = require('./src/system-monitor');
 const { createJobQueue } = require('./src/job-queue');
 const { createRestoreDrill } = require('./src/restore-drill');
+const { createScoreEmailService } = require('./src/score-email');
 
 if (ADMIN_KEY === 'changeme123') {
   console.warn('[WARNING] Using the default ADMIN_KEY. Set ADMIN_KEY in your .env file before deploying for real use.');
@@ -104,6 +105,9 @@ const runtimeMetrics = createRuntimeMetrics();
 const submissionGate = createSubmissionGate();
 const alertManager = createAlertManager({ webhookUrl: config.ALERT_WEBHOOK_URL, cooldownMs: config.ALERT_COOLDOWN_MINUTES * 60_000 });
 const jobQueue = createJobQueue({ concurrency: config.JOB_CONCURRENCY, maxPending: config.JOB_MAX_PENDING, baseRetryMs: config.JOB_RETRY_BASE_MS });
+const scoreEmailService = createScoreEmailService({ apiKey: config.RESEND_API_KEY, fromEmail: config.SCORE_REPORT_FROM_EMAIL, readDB, buildWorkbook: buildMultiCourseGradebookWorkbook });
+jobQueue.register('score_email_report', ({ payload }) => scoreEmailService.sendTeacher(payload.teacherId));
+const enqueueScoreEmail = teacherId => jobQueue.enqueue('score_email_report', { maxAttempts: 1, timeoutMs: 300_000, dedupeKey: `score-email-${teacherId}`, payload: { teacherId } });
 const backupService = createBackupService({ enabled: config.BACKUP_ENABLED, backupDir: config.BACKUP_DIR, intervalMs: config.BACKUP_INTERVAL_HOURS * 3_600_000, retentionMs: config.BACKUP_RETENTION_DAYS * 86_400_000, encryptionKey: config.BACKUP_ENCRYPTION_KEY, readDB, alertManager });
 const restoreDrill = createRestoreDrill({ enabled: config.RESTORE_DRILL_ENABLED, backupDir: config.BACKUP_DIR, encryptionKey: config.BACKUP_ENCRYPTION_KEY, maxBytes: config.RESTORE_DRILL_MAX_BYTES, alertManager });
 jobQueue.register('restore_drill', async () => {
@@ -128,7 +132,7 @@ registerPages(app, PUBLIC_DIR, express);
 
 const assetStorage = createAssetStorage({ url: SUPABASE_URL, serviceRoleKey: SUPABASE_SECRET_KEY, bucket: SUPABASE_STORAGE_BUCKET });
 console.log(`Supabase Storage: ${assetStorage.configured ? 'configured' : 'not configured'} (URL: ${SUPABASE_URL ? 'present' : 'missing'}, secret key: ${SUPABASE_SECRET_KEY ? 'present' : 'missing'})`);
-registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, restoreDrill, enqueueRestoreDrill, systemMonitor, alertManager, jobQueue, sessionStore, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, mutateExamDraft, replaceDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
+registerRoutes(app, { ready: app.ready, readinessTimeoutMs: config.DATABASE_READINESS_TIMEOUT_MS, pingDatabase, backupService, restoreDrill, enqueueRestoreDrill, systemMonitor, alertManager, jobQueue, sessionStore, scoreEmailService, enqueueScoreEmail, ADMIN_KEY, EXAM_TYPES, readDB, writeDB, mutateDB, mutateExamDraft, replaceDB, hashPassword, verifyPassword, requireAdmin, requireTeacher, requireStudent, createTeacherSession, createStudentSession, removeTeacherSessions, teacherSessions, newId, sanitizeSetForStudent, getExamSchedule, hasExamAccess, isPastDeadline, isBeforeStart, gradeMC, gradeMatching, gradeWritten, round2, applyAcademicPeriod, buildResultsWorkbook: buildResultsWorkbookModule, buildGradebookWorkbook, buildQuestionAnalysis, buildQuestionAnalysisWorkbook, assetStorage, runtimeMetrics, submissionGate, googleFormsConfig: { clientId: GOOGLE_FORMS_CLIENT_ID, clientSecret: GOOGLE_FORMS_CLIENT_SECRET, redirectUri: GOOGLE_FORMS_REDIRECT_URI } });
 
 registerFallback(app, PUBLIC_DIR);
 registerErrorHandler(app);
