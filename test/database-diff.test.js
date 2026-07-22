@@ -10,7 +10,7 @@ test('database writes include only changed and deleted rows', () => {
   assert.deepEqual(deletedIds(after, before, 'id'), ['c']);
 });
 
-test('row-level merge preserves changes committed by another instance', () => {
+test('row-level merge preserves changes committed by another queued request', () => {
   const base = { sets: [], results: [], students: [{ studentId: '1', firstName: 'เดิม' }], teachers: [], questionBank: [], drafts: [], auditLogs: [], settings: { academicCalendar: [] } };
   const intended = structuredClone(base);
   intended.students[0].firstName = 'แก้ไข';

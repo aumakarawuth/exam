@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const { Pool } = require('pg');
-const { DATA_DIR, SQLITE_PATH, LEGACY_DB_PATH, DATABASE_SINGLE_INSTANCE } = require('./config');
+const { DATA_DIR, SQLITE_PATH, LEGACY_DB_PATH } = require('./config');
 const { normalizeStudentEnrollments } = require('./student-enrollments');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -448,7 +448,11 @@ function writeDB(db) {
     try {
       await client.query('BEGIN');
       await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
-      const fresh = DATABASE_SINGLE_INSTANCE ? base : await readPostgresDatabase(client);
+      // Application reads are served from currentDatabase, so a second instance would
+      // already have stale reads. Keep writes consistent with that architecture and merge
+      // this request's delta into the latest in-process snapshot. persistPostgresRows then
+      // sends only changed/deleted rows to Postgres instead of downloading every table.
+      const fresh = currentDatabase;
       const merged = mergeDatabaseChanges(base, intended, fresh);
       await persistPostgresRows(client, fresh, merged);
       await client.query('COMMIT');
@@ -478,7 +482,7 @@ function mutateDB(mutator) {
     try {
       await client.query('BEGIN');
       await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
-      const fresh = DATABASE_SINGLE_INSTANCE ? currentDatabase : await readPostgresDatabase(client);
+      const fresh = currentDatabase;
       const snapshot = structuredClone(fresh);
       const value = await mutator(snapshot);
       const clean = normalizeDatabase(snapshot);
@@ -511,8 +515,7 @@ function mutateExamDraft(draftKey, mutator) {
     try {
       await client.query('BEGIN');
       await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
-      const row = await client.query('SELECT data FROM exam_drafts WHERE draft_key = $1 FOR UPDATE', [draftKey]);
-      const current = row.rows[0]?.data || null;
+      const current = currentDatabase.drafts.find(draft => draft.draftKey === draftKey) || null;
       const next = mutator(current ? structuredClone(current) : null);
       if (next) {
         await client.query(
