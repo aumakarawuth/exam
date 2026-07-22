@@ -496,6 +496,46 @@ function mutateDB(mutator) {
   return run;
 }
 
+function mutateExamDraft(draftKey, mutator) {
+  if (!DATABASE_URL) {
+    return mutateDB(db => {
+      const current = db.drafts.find(draft => draft.draftKey === draftKey) || null;
+      const next = mutator(current ? structuredClone(current) : null);
+      db.drafts = db.drafts.filter(draft => draft.draftKey !== draftKey);
+      if (next) db.drafts.push(next);
+      return next;
+    });
+  }
+  const run = writeChain.catch(() => {}).then(async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('exam_system_write'))");
+      const row = await client.query('SELECT data FROM exam_drafts WHERE draft_key = $1 FOR UPDATE', [draftKey]);
+      const current = row.rows[0]?.data || null;
+      const next = mutator(current ? structuredClone(current) : null);
+      if (next) {
+        await client.query(
+          'INSERT INTO exam_drafts (draft_key, student_id, question_key, updated_at, data) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT (draft_key) DO UPDATE SET student_id=EXCLUDED.student_id, question_key=EXCLUDED.question_key, updated_at=EXCLUDED.updated_at, data=EXCLUDED.data',
+          [draftKey, next.studentId, next.questionKey, next.savedAt || new Date().toISOString(), JSON.stringify(next)]
+        );
+      } else {
+        await client.query('DELETE FROM exam_drafts WHERE draft_key = $1', [draftKey]);
+      }
+      await client.query('COMMIT');
+      currentDatabase.drafts = currentDatabase.drafts.filter(draft => draft.draftKey !== draftKey);
+      if (next) currentDatabase.drafts.push(structuredClone(next));
+      return next;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  });
+  writeChain = run.catch(() => {});
+  mutationChain = writeChain;
+  return run;
+}
+
 async function closeDatabase() {
   let failure = null;
   try { await mutationChain; } catch (error) { failure = error; }
@@ -512,4 +552,4 @@ async function closeDatabase() {
   if (failure) throw failure;
 }
 
-module.exports = { readDB, writeDB, mutateDB, closeDatabase, databaseReady, pingDatabase, changedRows, deletedIds, mergeDatabaseChanges };
+module.exports = { readDB, writeDB, mutateDB, mutateExamDraft, closeDatabase, databaseReady, pingDatabase, changedRows, deletedIds, mergeDatabaseChanges };

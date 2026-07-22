@@ -542,7 +542,7 @@ function runGlobalTimer(){
   app.globalTimerHandle = setInterval(()=>{
     app.timeLeft = Math.max(0, Math.round((app.examEndTime - Date.now())/1000));
     updateGlobalTimerDisplay();
-    if(app.timeLeft % 15 === 0) saveSession();
+    if(app.timeLeft % 60 === 0) saveSession();
     if(app.timeLeft<=0){ clearInterval(app.globalTimerHandle); forceTimeUp(); }
   }, 1000);
 }

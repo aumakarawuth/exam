@@ -10,7 +10,7 @@ function findRecoverableExamDraft(db, payload, now = Date.now()) {
     String(draft.resitAccessId || '') === String(payload?.resitAccessId || '') && Number.isFinite(Date.parse(draft.examEndTime)) && Date.parse(draft.examEndTime) + 15 * 60 * 1000 >= now) || null;
 }
 
-function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
+function registerStudentRoutes(app, { readDB, writeDB, mutateDB, mutateExamDraft, requireAdmin, requireStudent, hashPassword, verifyPassword, createStudentSession }) {
   const findStudent = (students, studentId) => students.find(student => student.studentId === studentId.trim());
   const publicStudent = student => ({ studentId: student.studentId, firstName: student.firstName, lastName: student.lastName, classRoom: student.classRoom, examPeriod: student.examPeriod || '' });
   const pinRecoveryFailures = new Map();
@@ -52,6 +52,13 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
   const draftId = (questionKey, resitAccessId) => `${questionKey}::${resitAccessId || 'normal'}`;
   const lockActive = draft => draft?.deviceId && new Date(draft.lockUntil || 0).getTime() > Date.now();
   const lockUntil = () => new Date(Date.now() + 90 * 1000).toISOString();
+  const updateDraft = mutateExamDraft || ((key, updater) => mutateDB(db => {
+    const current = db.drafts.find(item => item.draftKey === key) || null;
+    const next = updater(current);
+    db.drafts = db.drafts.filter(item => item.draftKey !== key);
+    if (next) db.drafts.push(next);
+    return next;
+  }));
   app.post('/api/student/session/recover-exam', async (req, res) => {
     const db = readDB(), draft = findRecoverableExamDraft(db, req.body);
     if (!draft) return res.status(401).json({ error:'exam_session_unavailable', message:'ไม่สามารถกู้เซสชันสอบจากอุปกรณ์นี้ได้ กรุณายืนยัน PIN ใหม่' });
@@ -63,10 +70,10 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
     const db = readDB(); const deviceId = String(req.body?.deviceId || ''); const questionKey = String(req.params.questionKey || ''); const resitAccessId=req.body?.resitAccessId || null;
     if (!/^[a-z0-9_-]{12,80}$/i.test(deviceId) || !db.sets.some(set => set.key === questionKey)) return res.status(400).json({ error:'invalid_payload', message:'ไม่สามารถยืนยันอุปกรณ์สอบได้' });
     try {
-      const draft = await mutateDB(latest => {
-        const key=`${req.studentId}::${draftId(questionKey,resitAccessId)}`; const current=latest.drafts.find(item=>item.draftKey===key);
+      const key=`${req.studentId}::${draftId(questionKey,resitAccessId)}`;
+      const draft = await updateDraft(key, current => {
         if(lockActive(current) && current.deviceId!==deviceId) { const error=new Error('active_on_other_device'); error.code='ACTIVE_OTHER_DEVICE'; throw error; }
-        latest.drafts=latest.drafts.filter(item=>item.draftKey!==key); const next={...(current||{}),revision:Number(current?.revision)||0,draftKey:key,studentId:req.studentId,questionKey,resitAccessId,deviceId,lockUntil:lockUntil(),savedAt:new Date().toISOString()}; latest.drafts.push(next); return next;
+        return {...(current||{}),revision:Number(current?.revision)||0,draftKey:key,studentId:req.studentId,questionKey,resitAccessId,deviceId,lockUntil:lockUntil(),savedAt:new Date().toISOString()};
       });
       res.json({ok:true,draft});
     } catch(error) {
@@ -88,14 +95,13 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
     if (!student || !db.sets.some(set => set.key === questionKey)) return res.status(404).json({ error: 'not_found' });
     if (!payload || typeof payload !== 'object' || JSON.stringify(payload).length > 250000) return res.status(400).json({ error: 'invalid_payload', message: 'ข้อมูลร่างข้อสอบไม่ถูกต้อง' });
     try {
-      const draft = await mutateDB(latest => {
-        const key = `${student.studentId}::${draftId(questionKey, payload.resitAccessId)}`;
-        const current=latest.drafts.find(item=>item.draftKey===key); const deviceId=String(payload.deviceId||'');
+      const key = `${student.studentId}::${draftId(questionKey, payload.resitAccessId)}`;
+      const draft = await updateDraft(key, current => {
+        const deviceId=String(payload.deviceId||'');
         if(lockActive(current) && current.deviceId!==deviceId) { const error=new Error('active_on_other_device'); error.code='ACTIVE_OTHER_DEVICE'; throw error; }
         const revision=nextDraftRevision(current,payload.revision);
-        latest.drafts = latest.drafts.filter(item => item.draftKey !== key);
         const next = { ...payload, revision, draftKey: key, studentId: student.studentId, questionKey, deviceId, lockUntil:lockUntil(), savedAt: new Date().toISOString() };
-        latest.drafts.push(next); return next;
+        return next;
       });
       res.json({ ok: true, savedAt: draft.savedAt, revision:draft.revision });
     } catch(error) {
@@ -105,7 +111,8 @@ function registerStudentRoutes(app, { readDB, writeDB, mutateDB, requireAdmin, r
     }
   });
   app.delete('/api/exam-drafts/:questionKey', requireStudent, async (req, res) => {
-    await mutateDB(db => { db.drafts = db.drafts.filter(item => item.draftKey !== `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`); });
+    const key = `${req.studentId}::${draftId(req.params.questionKey, req.query.resitAccessId)}`;
+    await updateDraft(key, () => null);
     res.status(204).end();
   });
 
