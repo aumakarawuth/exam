@@ -471,8 +471,9 @@ function renderSetList(){
     const cardsHtml = sets.map(s=>{
       const classesText = (s.assignedClasses && s.assignedClasses.length) ? s.assignedClasses.join(', ') : 'ทุกห้อง (ยังไม่จำกัดสิทธิ์)';
       const total = computeSetTotal(s);
+      const examOpenDate=examOpenDateLabel(s);
       return `<div class="set-card">
-        <span class="badge-pill">${escapeHtml(s.examType||'-')}</span>
+        <div class="set-badge-row"><span class="badge-pill">${escapeHtml(s.examType||'-')}</span>${examOpenDate?`<span class="badge-pill exam-date-pill" title="วันที่เปิดข้อสอบ">📅 ${escapeHtml(examOpenDate)}</span>`:''}</div>
         <span class="badge-pill" style="margin-left:5px;background:${s.academicYear?'#e0f2fe':'#f1f5f9'};color:${s.academicYear?'#0369a1':'#64748b'};">${escapeHtml(s.academicYear&&s.semesterLabel?`${s.academicYear} / ${s.semesterLabel}`:'ยังไม่กำหนดเทอม')}</span>
         <h3>${escapeHtml(s.title)}</h3>
         <p>${escapeHtml(s.desc||'')}</p>
@@ -505,6 +506,13 @@ function renderSetList(){
   wrap.querySelectorAll('[data-togglegroup]').forEach(head=>head.addEventListener('click', ()=>{
     head.nextElementSibling.classList.toggle('collapsed');
   }));
+}
+function examOpenDateLabel(set){
+  const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
+  if(set.availableFrom)values.push(set.availableFrom);
+  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!timestamps.length)return '';
+  return new Date(timestamps[0]).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
 function renderLibrarySetList(){
   const wrap=document.getElementById('librarySetListWrap');
