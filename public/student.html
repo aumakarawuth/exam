@@ -7,11 +7,21 @@
 <script src="/assets/student-boot.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/student.css?v=20260720-3">
+<link rel="stylesheet" href="/assets/student.css?v=20260722-2">
 </head>
 <body>
 
 <button class="theme-toggle" id="themeToggleBtn">🌙 โหมดมืด</button>
+
+<div id="systemClosedScreen" class="screen-wrap hidden">
+  <div class="card system-closed-card">
+    <div class="system-closed-icon">🔒</div>
+    <span class="eyebrow">SYSTEM MAINTENANCE</span>
+    <h1>ระบบสอบปิดให้บริการชั่วคราว</h1>
+    <p class="lead" id="systemClosedMessage">กรุณารอประกาศจากอาจารย์ผู้สอน</p>
+    <button class="btn btn-primary" type="button" onclick="location.reload()">ตรวจสอบอีกครั้ง</button>
+  </div>
+</div>
 
 <!-- ================= START ================= -->
 <div id="startScreen" class="screen-wrap">
@@ -224,6 +234,6 @@
   </div>
 </div>
 
-<script src="/assets/student-main.js?v=20260722-1"></script>
+<script src="/assets/student-main.js?v=20260722-2"></script>
 </body>
 </html>

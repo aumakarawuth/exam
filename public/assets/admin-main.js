@@ -47,6 +47,8 @@ async function apiVerifyAdmin(key){
 async function apiGetAdminSets(){ return apiFetch('/api/admin/sets', { admin:true }); }
 async function apiGetAcademicCalendar(){ return apiFetch('/api/admin/academic-calendar', { admin:true }); }
 async function apiSaveAcademicCalendar(academicCalendar, adminPassword){ return apiFetch('/api/admin/academic-calendar', { method:'PUT', body:{academicCalendar,adminPassword}, admin:true }); }
+async function apiGetExamAccess(){ return apiFetch('/api/system/exam-access'); }
+async function apiSetExamAccess(closed, message){ return apiFetch('/api/admin/system/exam-access', { method:'PUT', body:{closed,message}, admin:true }); }
 async function apiGetEnrollmentYears(){ return apiFetch('/api/admin/enrollment-years', { admin:true }); }
 async function apiGetEnrollmentRooms(academicYear){ return apiFetch('/api/admin/enrollment-rooms?academicYear='+encodeURIComponent(academicYear), { admin:true }); }
 async function apiPreviewPromotion(body){ return apiFetch('/api/admin/student-promotion/preview', { method:'POST', body, admin:true }); }
@@ -180,6 +182,26 @@ function organizeAdminSettings(){
 }
 organizeAdminSettings();
 
+let examSystemClosed=false;
+function renderExamAccess(){
+  const status=document.getElementById('examAccessStatus'), button=document.getElementById('toggleExamAccessBtn'), description=document.getElementById('examAccessDescription');
+  if(!status||!button)return;
+  status.textContent=examSystemClosed?'🔴 ระบบสอบปิดอยู่':'🟢 ระบบสอบเปิดอยู่';
+  status.className='status-pill '+(examSystemClosed?'pending':'pub');
+  button.textContent=examSystemClosed?'เปิดระบบสอบ':'ปิดระบบสอบ';
+  button.className='btn '+(examSystemClosed?'btn-primary':'btn-danger')+' btn-sm';
+  button.disabled=false;
+  description.textContent=examSystemClosed?'นักเรียนทุกคนจะเห็นหน้าประกาศปิดระบบและ API การสอบถูกระงับ':'นักเรียนสามารถเข้าสู่ระบบและทำข้อสอบได้ตามปกติ';
+}
+async function loadExamAccess(){ try{const data=await apiGetExamAccess();examSystemClosed=!!data.closed;renderExamAccess();}catch(error){showToast(error.message);} }
+document.getElementById('toggleExamAccessBtn')?.addEventListener('click',async event=>{
+  const closing=!examSystemClosed;
+  if(closing&&!confirm('ยืนยันปิดระบบสอบ? นักเรียนที่กำลังทำข้อสอบจะไม่สามารถบันทึกหรือส่งคำตอบจนกว่าจะเปิดระบบอีกครั้ง'))return;
+  const button=event.currentTarget;button.disabled=true;
+  try{const data=await apiSetExamAccess(closing,closing?'ระบบสอบปิดปรับปรุงชั่วคราว กรุณารอประกาศจากอาจารย์ผู้สอน':'');examSystemClosed=!!data.closed;renderExamAccess();showToast(examSystemClosed?'ปิดระบบสอบแล้ว':'เปิดระบบสอบแล้ว');}
+  catch(error){showToast(error.message);button.disabled=false;}
+});
+
 let academicCalendar=[], academicCalendarLocked=false, calendarEditPassword='';
 function calendarDateDisplay(value){ const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m)return '';const year=Number(m[1]);return `${m[3]}/${m[2]}/${year>=2400?year:year+543}`; }
 function calendarDateValue(value){ const text=String(value||'').trim(),thai=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(thai){const inputYear=Number(thai[3]),year=inputYear>=2400?inputYear-543:inputYear;return `${String(year).padStart(4,'0')}-${thai[2].padStart(2,'0')}-${thai[1].padStart(2,'0')}`;}const iso=text.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!iso)return '';const inputYear=Number(iso[1]),year=inputYear>=2400?inputYear-543:inputYear;return `${String(year).padStart(4,'0')}-${iso[2]}-${iso[3]}`; }
@@ -277,6 +299,7 @@ async function initAdmin(){
   document.getElementById('setListWrap').innerHTML = '<div class="loading-note">กำลังโหลด...</div>';
   try{ EXAM_TYPES = await apiGetExamTypes(); }catch(e){}
   await loadAcademicCalendar();
+  await loadExamAccess();
   await loadPromotionYears();
   const etSel = document.getElementById('examTypeFilterSelect');
   etSel.innerHTML = '<option value="">ทุกประเภทข้อสอบ</option>' + EXAM_TYPES.map(t=>`<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');

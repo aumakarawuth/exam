@@ -266,6 +266,18 @@ const sectionView = document.getElementById('sectionView');
 const hubActions = document.getElementById('hubActions');
 const sectionActions = document.getElementById('sectionActions');
 function hideAllTopScreens(){ [startScreen,loginScreen,checkScoreScreen,selectScreen,examScreen,finalScreen,pinSetupScreen,pinVerifyScreen].forEach(s=>s.classList.add('hidden')); }
+async function examSystemIsClosed(){
+  try{
+    const response=await fetch('/api/system/exam-access',{cache:'no-store'});
+    const status=await response.json();
+    if(!status.closed)return false;
+    hideAllTopScreens();
+    document.getElementById('systemClosedMessage').textContent=status.message||'กรุณารอประกาศจากอาจารย์ผู้สอน';
+    document.getElementById('systemClosedScreen').classList.remove('hidden');
+    document.documentElement.classList.remove('restoring-session');
+    return true;
+  }catch(error){return false;}
+}
 
 /* ============ START -> LOGIN / CHECK SCORE ============ */
 document.getElementById('goLoginBtn').addEventListener('click', ()=>{
@@ -1045,8 +1057,11 @@ async function continueVerifiedStudent(){
 }
 
 /* ============ INIT ============ */
-if(!attemptResumeSession()){
-  continueVerifiedStudent().then(continued=>{ if(!continued) startScreen.classList.remove('hidden'); });
-}else document.documentElement.classList.remove('restoring-session');
+examSystemIsClosed().then(closed=>{
+  if(closed)return;
+  if(!attemptResumeSession()){
+    continueVerifiedStudent().then(continued=>{ if(!continued) startScreen.classList.remove('hidden'); });
+  }else document.documentElement.classList.remove('restoring-session');
+});
 
 })();
