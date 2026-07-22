@@ -69,6 +69,7 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.match(script.headers['content-type'], /javascript/);
   assert.match(script.body, /score-verification-detail-btn/);
   assert.match(script.body, /examOpenDateLabel/);
+  assert.match(script.body, /examScheduleStatus/);
   assert.match(script.body, /addEventListener\('click'/);
   assert.doesNotMatch(script.body, /onclick="openScoreVerificationIssues/);
 });
