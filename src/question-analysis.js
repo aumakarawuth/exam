@@ -37,7 +37,9 @@ function buildQuestionAnalysis(set, results) {
     if (variance > 0) reliability = round((items.length / (items.length - 1)) * (1 - sumPq / variance));
   }
   const assignedClasses = Array.isArray(set?.assignedClasses) ? set.assignedClasses : [];
-  const programs = [...new Set(assignedClasses.map(programForClassRoom).filter(Boolean))];
+  const programs = set?.subjectTeacherDepartment
+    ? [set.subjectTeacherDepartment]
+    : [...new Set(assignedClasses.map(programForClassRoom).filter(Boolean))];
   return { setKey: set?.key || '', title: set?.title || '', courseName: set?.courseName || set?.title || '', courseCode: set?.courseCode || '', educationLevel: set?.educationLevel || '', assignedClasses, programs, semester: set?.semester || '', semesterLabel: set?.semesterLabel || '', academicYear: set?.academicYear || '', teacherName: set?.subjectTeacherName || '', respondents: responseScores.length, questionCount: items.length, reliability, items };
 }
 

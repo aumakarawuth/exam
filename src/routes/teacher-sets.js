@@ -19,7 +19,7 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
     const now = new Date().toISOString(); const db = readDB(); const key = body.key || newId('set');
     const teacher = db.teachers.find(item => item.id === req.teacherId);
     const subjectTeacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '';
-    const set = normalizeSetSchedule({ ...body, key, educationLevel: body.educationLevel, teacherId: req.teacherId, subjectTeacherName, subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(body.examType) ? body.examType : examTypes[0], assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [], publishMode: body.publishMode === 'auto' ? 'auto' : 'manual', delivery: body.delivery === 'object-analysis-design' ? 'object-analysis-design' : null, createdAt: now, updatedAt: now });
+    const set = normalizeSetSchedule({ ...body, key, educationLevel: body.educationLevel, teacherId: req.teacherId, subjectTeacherName, subjectTeacherDepartment: teacher?.department || '', subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(body.examType) ? body.examType : examTypes[0], assignedClasses: Array.isArray(body.assignedClasses) ? body.assignedClasses : [], publishMode: body.publishMode === 'auto' ? 'auto' : 'manual', delivery: body.delivery === 'object-analysis-design' ? 'object-analysis-design' : null, createdAt: now, updatedAt: now });
     applyAcademicPeriod(set, db.settings); db.sets.push(set); await writeDB(db); res.status(201).json({ key, academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null });
   });
   app.put('/api/teacher/sets/:key', requireTeacher, async (req, res) => {
@@ -28,7 +28,7 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
     if (errors.length) return sendValidationError(res, errors);
     const teacher = db.teachers.find(item => item.id === req.teacherId);
     const subjectTeacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : set.subjectTeacherName;
-    Object.assign(set, { ...req.body, key: set.key, teacherId: set.teacherId, subjectTeacherName, subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(req.body.examType) ? req.body.examType : set.examType, assignedClasses: Array.isArray(req.body.assignedClasses) ? req.body.assignedClasses : [], updatedAt: new Date().toISOString() });
+    Object.assign(set, { ...req.body, key: set.key, teacherId: set.teacherId, subjectTeacherName, subjectTeacherDepartment: teacher?.department || '', subjectTeacherEmail: teacher?.email || '', examType: examTypes.includes(req.body.examType) ? req.body.examType : set.examType, assignedClasses: Array.isArray(req.body.assignedClasses) ? req.body.assignedClasses : [], updatedAt: new Date().toISOString() });
     normalizeSetSchedule(set);
     applyAcademicPeriod(set, db.settings); await writeDB(db); res.json({ ok: true, academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null });
   });

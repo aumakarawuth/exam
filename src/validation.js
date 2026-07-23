@@ -37,6 +37,7 @@ function validateTeacherPayload(body) {
   if (typeof body.lastName !== 'string' || !body.lastName.trim() || body.lastName.trim().length > 100) errors.push('นามสกุลต้องมี 1-100 ตัวอักษร');
   if (typeof body.username !== 'string' || !USERNAME_PATTERN.test(body.username.trim())) errors.push('username ต้องมี 3-50 ตัว และใช้เฉพาะอักษรอังกฤษ ตัวเลข . _ หรือ -');
   if (typeof body.password !== 'string' || body.password.length < 8 || body.password.length > 200) errors.push('password ต้องมี 8-200 ตัวอักษร');
+  if (typeof body.department !== 'string' || !body.department.trim() || body.department.trim().length > 150) errors.push('สาขาวิชาต้องมี 1-150 ตัวอักษร');
   if (body?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.email).trim())) errors.push('รูปแบบอีเมลไม่ถูกต้อง');
   return errors;
 }

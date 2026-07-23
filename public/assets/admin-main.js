@@ -109,6 +109,7 @@ async function apiAddTeacher(t){ return apiFetch('/api/teachers', { method:'POST
 async function apiDeleteTeacher(id){ return apiFetch('/api/teachers/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiResetTeacherPassword(id,password){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/password', { method:'PATCH', body:{password}, admin:true }); }
 async function apiUpdateTeacherEmail(id,email){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/email', { method:'PATCH', body:{email}, admin:true }); }
+async function apiUpdateTeacherDepartment(id,department){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/department', { method:'PATCH', body:{department}, admin:true }); }
 async function apiGetScoreEmailStatus(){ return apiFetch('/api/admin/score-emails/status', { admin:true }); }
 async function apiSendScoreEmail(teacherId){ return apiFetch('/api/admin/score-emails/'+encodeURIComponent(teacherId)+'/send', { method:'POST', admin:true }); }
 
@@ -421,10 +422,11 @@ async function refreshTeachers(){
   if(!teachers.length){ wrap.innerHTML = '<div class="empty-note">ยังไม่มีบัญชีอาจารย์ในระบบ</div>'; return; }
   wrap.innerHTML = teachers.map(t=>`
     <div class="teacher-row-card">
-      <div class="teacher-row-info"><b>${escapeHtml(t.firstName)} ${escapeHtml(t.lastName)}</b> &nbsp; <span class="username">username: ${escapeHtml(t.username)} · ${escapeHtml(t.email||'ยังไม่มีอีเมล')}</span></div>
-      <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" data-emailteacher="${t.id}" data-email="${escapeAttr(t.email||'')}">✉ แก้อีเมล</button><button class="btn btn-ghost btn-sm" data-resetteacher="${t.id}" data-teachername="${escapeAttr(t.firstName+' '+t.lastName)}">🔑 รีเซ็ตรหัสผ่าน</button><button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button></div>
+      <div class="teacher-row-info"><b>${escapeHtml(t.firstName)} ${escapeHtml(t.lastName)}</b><div class="username">สาขาวิชา: ${escapeHtml(t.department||'ยังไม่ได้ระบุ')} · username: ${escapeHtml(t.username)} · ${escapeHtml(t.email||'ยังไม่มีอีเมล')}</div></div>
+      <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" data-departmentteacher="${t.id}" data-department="${escapeAttr(t.department||'')}">🏫 แก้สาขา</button><button class="btn btn-ghost btn-sm" data-emailteacher="${t.id}" data-email="${escapeAttr(t.email||'')}">✉ แก้อีเมล</button><button class="btn btn-ghost btn-sm" data-resetteacher="${t.id}" data-teachername="${escapeAttr(t.firstName+' '+t.lastName)}">🔑 รีเซ็ตรหัสผ่าน</button><button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button></div>
     </div>`).join('');
   wrap.querySelectorAll('[data-resetteacher]').forEach(button=>button.addEventListener('click',()=>openTeacherPasswordReset(button.dataset.resetteacher,button.dataset.teachername)));
+  wrap.querySelectorAll('[data-departmentteacher]').forEach(button=>button.addEventListener('click',async()=>{const department=prompt('สาขาวิชา',button.dataset.department||'');if(department===null)return;try{await apiUpdateTeacherDepartment(button.dataset.departmentteacher,department.trim());await refreshTeachers();showToast('บันทึกสาขาวิชาแล้ว');}catch(error){showToast(error.message);}}));
   wrap.querySelectorAll('[data-emailteacher]').forEach(button=>button.addEventListener('click',async()=>{const email=prompt('อีเมลรับรายงานคะแนน',button.dataset.email||'');if(email===null)return;try{await apiUpdateTeacherEmail(button.dataset.emailteacher,email.trim());await refreshTeachers();showToast('บันทึกอีเมลแล้ว');}catch(error){showToast(error.message);}}));
   wrap.querySelectorAll('[data-delteacher]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('ลบบัญชีอาจารย์นี้? ชุดข้อสอบที่เคยสร้างไว้จะยังอยู่แต่จะไม่ผูกกับบัญชีนี้อีกต่อไป')) return;
@@ -459,10 +461,11 @@ document.getElementById('addTeacherBtn').addEventListener('click', async ()=>{
   const username = document.getElementById('ftUsername').value.trim();
   const password = document.getElementById('ftPassword').value;
   const email = document.getElementById('ftEmail').value.trim();
-  if(!firstName || !lastName || !username || !password || !email){ showToast('กรอกข้อมูลอาจารย์และอีเมลให้ครบทุกช่อง'); return; }
+  const department = document.getElementById('ftDepartment').value.trim();
+  if(!firstName || !lastName || !username || !password || !department || !email){ showToast('กรอกข้อมูลอาจารย์ สาขาวิชา และอีเมลให้ครบทุกช่อง'); return; }
   try{
-    await apiAddTeacher({firstName, lastName, username, password, email});
-    ['ftFirst','ftLast','ftUsername','ftPassword','ftEmail'].forEach(id=>document.getElementById(id).value='');
+    await apiAddTeacher({firstName, lastName, username, password, department, email});
+    ['ftFirst','ftLast','ftUsername','ftPassword','ftDepartment','ftEmail'].forEach(id=>document.getElementById(id).value='');
     refreshTeachers();
     showToast('เพิ่มบัญชีอาจารย์แล้ว');
   }catch(e){ showToast(e.message); }
@@ -674,7 +677,7 @@ function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||''
 
 function blankSet(){
   return {
-    key: uid('set'), title:'', courseName:'', educationLevel:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', teacherId:null, assignedClasses:[], examSchedules:[], subjectTeacherName:'', subjectTeacherEmail:'',
+    key: uid('set'), title:'', courseName:'', educationLevel:'', tagline:'', desc:'', examType: EXAM_TYPES[0]||'กลางภาค', teacherId:null, assignedClasses:[], examSchedules:[], subjectTeacherName:'', subjectTeacherDepartment:'', subjectTeacherEmail:'',
     shuffleQuestions:true, shuffleChoices:true, publishMode:'manual', availableUntil:'', lateAccessCode:'',
     sections:{
       mc:{ title:'ส่วนที่ 1 — ปรนัย (เลือกตอบ)', desc:'เลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียวในแต่ละข้อ', questions:[], sectionPointsTotal:20 },
@@ -807,6 +810,7 @@ function wizardAccessStepHtml(){
       <div class="field"><label>ชื่ออาจารย์ (แสดงในรายงาน)</label><input type="text" id="fTeacherName" value="${escapeAttr(s.subjectTeacherName||'')}" placeholder="เช่น อ.สมศรี ใจงาม"></div>
       <div class="field"><label>อีเมลอาจารย์ (ถ้ามี)</label><input type="email" id="fTeacherEmail" value="${escapeAttr(s.subjectTeacherEmail||'')}" placeholder="teacher@school.ac.th"></div>
     </div>
+    <div class="field"><label>สาขาวิชา</label><input type="text" id="fTeacherDepartment" value="${escapeAttr(s.subjectTeacherDepartment||'')}" placeholder="เช่น เทคโนโลยีสารสนเทศ"></div>
   </div>
   <div class="wizard-nav-row">
     <button class="btn btn-ghost" id="wizBackBtn" type="button">← ย้อนกลับ</button>
@@ -978,10 +982,11 @@ function bindWizardStepEvents(){
     document.getElementById('fTeacherSelect').addEventListener('change', (e)=>{
       s.teacherId = e.target.value || null;
       const t = TEACHERS_LIST.find(x=>x.id===e.target.value);
-      if(t){ s.subjectTeacherName = t.firstName+' '+t.lastName; document.getElementById('fTeacherName').value = s.subjectTeacherName; }
+      if(t){ s.subjectTeacherName = t.firstName+' '+t.lastName; s.subjectTeacherEmail=t.email||''; s.subjectTeacherDepartment=t.department||''; document.getElementById('fTeacherName').value=s.subjectTeacherName; document.getElementById('fTeacherEmail').value=s.subjectTeacherEmail; document.getElementById('fTeacherDepartment').value=s.subjectTeacherDepartment; }
     });
     document.getElementById('fTeacherName').addEventListener('input', e=>{ s.subjectTeacherName = e.target.value; });
     document.getElementById('fTeacherEmail').addEventListener('input', e=>{ s.subjectTeacherEmail = e.target.value; });
+    document.getElementById('fTeacherDepartment').addEventListener('input', e=>{ s.subjectTeacherDepartment = e.target.value; });
     document.getElementById('wizBackBtn').addEventListener('click', ()=>{ wizardStep='info'; renderWizard(); });
     document.getElementById('wizNextBtn').addEventListener('click', ()=>{ if(s.delivery==='object-analysis-design') return saveEditingSet(); wizardStep='sections'; renderWizard(); });
   } else if(wizardStep==='sections'){

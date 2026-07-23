@@ -26,9 +26,9 @@ test('exam set validation rejects unsafe custom keys', () => {
 });
 
 test('teacher validation enforces safe usernames and password length', () => {
-  assert.deepEqual(validateTeacherPayload({ firstName: 'สมชาย', lastName: 'ใจดี', username: 'teacher.one', password: 'password123' }), []);
-  const errors = validateTeacherPayload({ firstName: 'สมชาย', lastName: 'ใจดี', username: '../admin', password: '1234' });
-  assert.equal(errors.length, 2);
+  assert.deepEqual(validateTeacherPayload({ firstName: 'สมชาย', lastName: 'ใจดี', username: 'teacher.one', password: 'password123', department: 'เทคโนโลยีสารสนเทศ' }), []);
+  const errors = validateTeacherPayload({ firstName: 'สมชาย', lastName: 'ใจดี', username: '../admin', password: '1234', department: '' });
+  assert.equal(errors.length, 3);
 });
 
 test('student validation rejects unsafe identifiers and empty names', () => {
