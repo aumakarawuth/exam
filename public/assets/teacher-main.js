@@ -270,7 +270,6 @@ function renderSetList(){
           <button class="btn ${s.quickOpen?'btn-danger':'btn-primary'} btn-sm" data-quick-open="${s.key}" data-open="${s.quickOpen?'0':'1'}">${s.quickOpen?'⏹ ยกเลิกเปิดด่วน':'⚡ เปิดข้อสอบด่วน'}</button>
           <button class="btn btn-ghost btn-sm" data-edit="${s.key}">แก้ไข</button>
           <button class="btn btn-ghost btn-sm" data-exam-pdf="${s.key}">📄 PDF ต้นฉบับ</button>
-          <button class="btn btn-ghost btn-sm" data-dup="${s.key}">ทำสำเนา</button>
           <button class="btn btn-ghost btn-sm" data-archive="${s.key}">เก็บเข้าคลัง</button>
           <button class="btn btn-danger btn-sm" data-del="${s.key}">🗑️ ย้ายไปถังขยะ</button>
         </div>
@@ -287,7 +286,6 @@ function renderSetList(){
   wrap.querySelectorAll('[data-quick-open]').forEach(b=>b.addEventListener('click', ()=>toggleQuickOpen(b.dataset.quickOpen,b.dataset.open==='1',b)));
   wrap.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openEditor(b.dataset.edit)));
   wrap.querySelectorAll('[data-exam-pdf]').forEach(b=>b.addEventListener('click', ()=>downloadExamPdf(b.dataset.examPdf,b)));
-  wrap.querySelectorAll('[data-dup]').forEach(b=>b.addEventListener('click', ()=>duplicateSet(b.dataset.dup)));
   wrap.querySelectorAll('[data-archive]').forEach(b=>b.addEventListener('click', ()=>archiveSet(b.dataset.archive)));
   wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>deleteSet(b.dataset.del)));
   wrap.querySelectorAll('[data-togglegroup]').forEach(head=>head.addEventListener('click', ()=>{
