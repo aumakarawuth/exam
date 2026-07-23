@@ -61,6 +61,7 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.equal(admin.status, 200);
   assert.match(admin.body, /href="\/assets\/admin\.css(?:\?v=[^"]+)?"/);
   assert.match(admin.body, /src="\/assets\/admin-main\.js(?:\?v=[^"]+)?"/);
+  assert.match(admin.body, /id="manageTeacherDialog"/);
   assert.doesNotMatch(admin.body, /<style>/);
   const [css, script] = await Promise.all([request('/assets/admin.css'), request('/assets/admin-main.js')]);
   assert.equal(css.status, 200);
@@ -70,6 +71,7 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.match(script.body, /score-verification-detail-btn/);
   assert.match(script.body, /examOpenDateLabel/);
   assert.match(script.body, /examScheduleStatus/);
+  assert.match(script.body, /data-manageteacher/);
   assert.match(script.body, /addEventListener\('click'/);
   assert.doesNotMatch(script.body, /onclick="openScoreVerificationIssues/);
 });

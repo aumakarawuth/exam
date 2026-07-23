@@ -122,6 +122,18 @@ function registerAccountRoutes(app, dependencies) {
     teacher.email = email; await writeDB(db); res.json({ ok: true, email });
   });
 
+  app.patch('/api/teachers/:id/profile', requireAdmin, async (req, res) => {
+    const department = String(req.body?.department || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!department || department.length > 150) return res.status(400).json({ error: 'invalid_department', message: 'สาขาวิชาต้องมี 1-150 ตัวอักษร' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'invalid_email', message: 'รูปแบบอีเมลไม่ถูกต้อง' });
+    const db = readDB(); const teacher = db.teachers.find(item => item.id === req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'not_found', message: 'ไม่พบบัญชีอาจารย์นี้' });
+    teacher.department = department; teacher.email = email;
+    db.sets.forEach(set => { if (set.teacherId === teacher.id) { set.subjectTeacherDepartment = department; set.subjectTeacherEmail = email; } });
+    await writeDB(db); res.json({ ok: true, department, email });
+  });
+
   app.patch('/api/teachers/:id/department', requireAdmin, async (req, res) => {
     const department = String(req.body?.department || '').trim();
     if (!department || department.length > 150) return res.status(400).json({ error: 'invalid_department', message: 'สาขาวิชาต้องมี 1-150 ตัวอักษร' });

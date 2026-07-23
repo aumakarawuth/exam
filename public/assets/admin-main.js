@@ -108,8 +108,7 @@ async function apiGetTeachers(){ return apiFetch('/api/teachers', { admin:true }
 async function apiAddTeacher(t){ return apiFetch('/api/teachers', { method:'POST', body:t, admin:true }); }
 async function apiDeleteTeacher(id){ return apiFetch('/api/teachers/'+encodeURIComponent(id), { method:'DELETE', admin:true }); }
 async function apiResetTeacherPassword(id,password){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/password', { method:'PATCH', body:{password}, admin:true }); }
-async function apiUpdateTeacherEmail(id,email){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/email', { method:'PATCH', body:{email}, admin:true }); }
-async function apiUpdateTeacherDepartment(id,department){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/department', { method:'PATCH', body:{department}, admin:true }); }
+async function apiUpdateTeacherProfile(id,department,email){ return apiFetch('/api/teachers/'+encodeURIComponent(id)+'/profile', { method:'PATCH', body:{department,email}, admin:true }); }
 async function apiGetScoreEmailStatus(){ return apiFetch('/api/admin/score-emails/status', { admin:true }); }
 async function apiSendScoreEmail(teacherId){ return apiFetch('/api/admin/score-emails/'+encodeURIComponent(teacherId)+'/send', { method:'POST', admin:true }); }
 
@@ -423,17 +422,30 @@ async function refreshTeachers(){
   wrap.innerHTML = teachers.map(t=>`
     <div class="teacher-row-card">
       <div class="teacher-row-info"><b>${escapeHtml(t.firstName)} ${escapeHtml(t.lastName)}</b><div class="username">สาขาวิชา: ${escapeHtml(t.department||'ยังไม่ได้ระบุ')} · username: ${escapeHtml(t.username)} · ${escapeHtml(t.email||'ยังไม่มีอีเมล')}</div></div>
-      <div class="editor-actions" style="margin:0;"><button class="btn btn-ghost btn-sm" data-departmentteacher="${t.id}" data-department="${escapeAttr(t.department||'')}">🏫 แก้สาขา</button><button class="btn btn-ghost btn-sm" data-emailteacher="${t.id}" data-email="${escapeAttr(t.email||'')}">✉ แก้อีเมล</button><button class="btn btn-ghost btn-sm" data-resetteacher="${t.id}" data-teachername="${escapeAttr(t.firstName+' '+t.lastName)}">🔑 รีเซ็ตรหัสผ่าน</button><button class="btn btn-danger btn-sm" data-delteacher="${t.id}">ลบบัญชี</button></div>
+      <button class="btn btn-primary btn-sm" data-manageteacher="${t.id}">⚙️ จัดการ</button>
     </div>`).join('');
-  wrap.querySelectorAll('[data-resetteacher]').forEach(button=>button.addEventListener('click',()=>openTeacherPasswordReset(button.dataset.resetteacher,button.dataset.teachername)));
-  wrap.querySelectorAll('[data-departmentteacher]').forEach(button=>button.addEventListener('click',async()=>{const department=prompt('สาขาวิชา',button.dataset.department||'');if(department===null)return;try{await apiUpdateTeacherDepartment(button.dataset.departmentteacher,department.trim());await refreshTeachers();showToast('บันทึกสาขาวิชาแล้ว');}catch(error){showToast(error.message);}}));
-  wrap.querySelectorAll('[data-emailteacher]').forEach(button=>button.addEventListener('click',async()=>{const email=prompt('อีเมลรับรายงานคะแนน',button.dataset.email||'');if(email===null)return;try{await apiUpdateTeacherEmail(button.dataset.emailteacher,email.trim());await refreshTeachers();showToast('บันทึกอีเมลแล้ว');}catch(error){showToast(error.message);}}));
-  wrap.querySelectorAll('[data-delteacher]').forEach(b=>b.addEventListener('click', async ()=>{
-    if(!confirm('ลบบัญชีอาจารย์นี้? ชุดข้อสอบที่เคยสร้างไว้จะยังอยู่แต่จะไม่ผูกกับบัญชีนี้อีกต่อไป')) return;
-    try{ await apiDeleteTeacher(b.dataset.delteacher); refreshTeachers(); showToast('ลบบัญชีอาจารย์แล้ว'); }
-    catch(e){ showToast(e.message); }
-  }));
+  wrap.querySelectorAll('[data-manageteacher]').forEach(button=>button.addEventListener('click',()=>openManageTeacher(button.dataset.manageteacher)));
 }
+let manageTeacherId='';
+function openManageTeacher(id){
+  const teacher=TEACHERS_LIST.find(item=>item.id===id);if(!teacher)return;
+  manageTeacherId=id;
+  document.getElementById('manageTeacherName').textContent=`${teacher.firstName} ${teacher.lastName}`.trim();
+  document.getElementById('manageTeacherUsername').textContent=`username: ${teacher.username}`;
+  document.getElementById('manageTeacherDepartment').value=teacher.department||'';
+  document.getElementById('manageTeacherEmail').value=teacher.email||'';
+  document.getElementById('manageTeacherError').textContent='';
+  document.getElementById('manageTeacherDialog').showModal();
+}
+document.getElementById('cancelManageTeacher').addEventListener('click',()=>document.getElementById('manageTeacherDialog').close());
+document.getElementById('saveManageTeacher').addEventListener('click',async()=>{
+  const department=document.getElementById('manageTeacherDepartment').value.trim(),email=document.getElementById('manageTeacherEmail').value.trim(),error=document.getElementById('manageTeacherError'),button=document.getElementById('saveManageTeacher');
+  if(!department||!email){error.textContent='กรุณากรอกสาขาวิชาและอีเมลให้ครบ';return;}
+  button.disabled=true;error.textContent='';
+  try{await apiUpdateTeacherProfile(manageTeacherId,department,email);document.getElementById('manageTeacherDialog').close();await refreshTeachers();showToast('บันทึกข้อมูลอาจารย์แล้ว');}catch(e){error.textContent=e.message;}finally{button.disabled=false;}
+});
+document.getElementById('manageTeacherResetPassword').addEventListener('click',()=>{const teacher=TEACHERS_LIST.find(item=>item.id===manageTeacherId);document.getElementById('manageTeacherDialog').close();openTeacherPasswordReset(manageTeacherId,teacher?`${teacher.firstName} ${teacher.lastName}`:'-');});
+document.getElementById('manageTeacherDelete').addEventListener('click',async()=>{if(!confirm('ลบบัญชีอาจารย์นี้? ชุดข้อสอบที่เคยสร้างไว้จะยังอยู่แต่จะไม่ผูกกับบัญชีนี้อีกต่อไป'))return;try{await apiDeleteTeacher(manageTeacherId);document.getElementById('manageTeacherDialog').close();await refreshTeachers();showToast('ลบบัญชีอาจารย์แล้ว');}catch(e){document.getElementById('manageTeacherError').textContent=e.message;}});
 let resetTeacherId='';
 function openTeacherPasswordReset(id,name){
   resetTeacherId=id;
