@@ -100,6 +100,28 @@ function itemValues(item) {
   };
 }
 
+function keepRowTogether(row) {
+  if (row.includes('<w:cantSplit')) return row;
+  if (row.includes('<w:trPr>')) return row.replace('<w:trPr>', '<w:trPr><w:cantSplit/>');
+  return row.replace(/(<w:tr\b[^>]*>)/, '$1<w:trPr><w:cantSplit/></w:trPr>');
+}
+
+function repeatHeaderRow(row) {
+  if (row.includes('<w:tblHeader')) return row;
+  if (row.includes('<w:trPr>')) return row.replace('<w:trPr>', '<w:trPr><w:tblHeader/>');
+  return row.replace(/(<w:tr\b[^>]*>)/, '$1<w:trPr><w:tblHeader/></w:trPr>');
+}
+
+function formatAnalysisTable(xml) {
+  return xml.replace(/<w:tbl\b[\s\S]*?<\/w:tbl>/g, table => {
+    let rowIndex = 0;
+    return table
+      .replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, row => keepRowTogether(rowIndex++ < 2 ? repeatHeaderRow(row) : row))
+      .replace(/<w:sz w:val="\d+"\/>/g, '<w:sz w:val="32"/>')
+      .replace(/<w:szCs w:val="\d+"\/>/g, '<w:szCs w:val="32"/>');
+  });
+}
+
 async function buildQuestionAnalysisDocx(analysis) {
   const zip = await JSZip.loadAsync(fs.readFileSync(TEMPLATE_PATH));
   const documentPart = zip.file('word/document.xml');
@@ -117,8 +139,9 @@ async function buildQuestionAnalysisDocx(analysis) {
   }).join('');
   xml = xml.replace(prototype, renderedRows);
   for (const [name, value] of Object.entries(scalarValues(analysis))) xml = replaceToken(xml, name, value);
+  xml = formatAnalysisTable(xml);
   zip.file('word/document.xml', xml);
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
-module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, replaceVisibleText, scalarValues, visibleText };
+module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, formatAnalysisTable, keepRowTogether, repeatHeaderRow, replaceVisibleText, scalarValues, visibleText };

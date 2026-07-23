@@ -16,6 +16,10 @@ test('Word question analysis applies the documented item-quality thresholds', as
   const xml = await zip.file('word/document.xml').async('string');
   assert.equal(visibleText(xml).includes('{{'), false);
   assert.equal((visibleText(xml).match(/ข้อสอบอยู่ในเกณฑ์/g) || []).length, 2);
+  assert.ok((xml.match(/<w:cantSplit\/>/g) || []).length >= 4);
+  assert.ok((xml.match(/<w:tblHeader\/>/g) || []).length >= 2);
+  const tableXml = xml.match(/<w:tbl\b[\s\S]*?<\/w:tbl>/)?.[0] || '';
+  assert.equal(/<w:sz(?:Cs)? w:val="(?!32")/.test(tableXml), false);
 });
 
 test('Word question analysis derives class years from classroom codes', () => {
