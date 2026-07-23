@@ -74,6 +74,19 @@ test('frontend pages load extracted CSS and JavaScript assets', async () => {
   assert.doesNotMatch(script.body, /onclick="openScoreVerificationIssues/);
 });
 
+test('exam roster embeds TH Sarabun font and waits for it before printing', async () => {
+  const [regular, bold, script] = await Promise.all([
+    request('/assets/fonts/th-sarabun/THSarabunNew-webfont.woff'),
+    request('/assets/fonts/th-sarabun/THSarabunNew_bold-webfont.woff'),
+    request('/assets/teacher-main.js')
+  ]);
+  assert.equal(regular.status, 200);
+  assert.equal(bold.status, 200);
+  assert.match(regular.headers['content-type'], /font|woff|octet-stream/);
+  assert.match(script.body, /font-family:\"THSarabunPSK\"/);
+  assert.match(script.body, /document\.fonts&&document\.fonts\.ready/);
+});
+
 test('student exam selection shows a preparing state before countdown', async () => {
   const [page, script, styles] = await Promise.all([
     request('/'),

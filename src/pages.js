@@ -1,6 +1,8 @@
 const path = require('path');
 
 function registerPages(app, publicDir, express) {
+  const sarabunFontDir = path.join(path.dirname(require.resolve('font-th-sarabun-new/package.json')), 'fonts');
+  app.use('/assets/fonts/th-sarabun', express.static(sarabunFontDir, { immutable: true, maxAge: '1y' }));
   app.get('/admin', (req, res) => res.sendFile(path.join(publicDir, 'admin.html')));
   app.get('/teacher', (req, res) => res.sendFile(path.join(publicDir, 'teacher.html')));
   app.get('/object-analysis-design', (req, res) => res.sendFile(path.join(publicDir, 'object-analysis-design.html')));
