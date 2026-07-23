@@ -65,6 +65,7 @@ async function apiPreviewGoogleForm(connectionId, formUrl){ return apiFetch('/ap
 async function apiGoogleFormsStatus(requestId){ return apiFetch('/api/admin/google-forms/status?requestId='+encodeURIComponent(requestId), { admin:true }); }
 async function apiCreateSet(set){ return apiFetch('/api/sets', { method:'POST', body:set, admin:true }); }
 async function apiUpdateSet(key, set){ return apiFetch('/api/sets/'+encodeURIComponent(key), { method:'PUT', body:set, admin:true }); }
+async function apiQuickOpenSet(key, open){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/quick-open', { method:'POST', body:{open}, admin:true }); }
 async function apiDuplicateSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/duplicate', { method:'POST', admin:true }); }
 async function apiArchiveSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/archive', { method:'POST', admin:true }); }
 async function apiRestoreSetCall(key){ return apiFetch('/api/sets/'+encodeURIComponent(key)+'/restore', { method:'POST', admin:true }); }
@@ -527,9 +528,9 @@ function renderSetList(){
         <p style="color:${total===20?'var(--green)':'var(--blue)'};">🎯 คะแนนเต็มรวม: ${total} คะแนน · ${total===20?'ข้อสอบปกติ':'บล็อกคอร์ส — แบ่งลงกลางภาค/ปลายภาค'}</p>
         <p style="color:var(--sub);font-size:11.5px;">${s.publishMode==='auto'?'⚡ ประกาศคะแนนอัตโนมัติ':'🔒 ต้องตรวจก่อนประกาศ'}${s.shuffleQuestions?' · 🔀 สุ่มโจทย์':''}${s.shuffleChoices?' · 🔀 สุ่มตัวเลือก':''}</p>
         <div class="set-actions">
+          <button class="btn ${s.quickOpen?'btn-danger':'btn-primary'} btn-sm" data-quick-open="${s.key}" data-open="${s.quickOpen?'0':'1'}">${s.quickOpen?'⏹ ยกเลิกเปิดด่วน':'⚡ เปิดข้อสอบด่วน'}</button>
           <button class="btn btn-ghost btn-sm" data-edit="${s.key}">แก้ไข</button>
           <button class="btn btn-ghost btn-sm" data-exam-pdf="${s.key}">📄 PDF ต้นฉบับ</button>
-          <button class="btn btn-ghost btn-sm" data-dup="${s.key}">ทำสำเนา</button>
           <button class="btn btn-ghost btn-sm" data-archive="${s.key}">เก็บเข้าคลัง</button>
           <button class="btn btn-danger btn-sm" data-del="${s.key}">🗑️ ย้ายไปถังขยะ</button>
         </div>
@@ -543,14 +544,25 @@ function renderSetList(){
       <div class="set-list course-group-body collapsed">${cardsHtml}</div>
     </div>`;
   }).join('');
+  wrap.querySelectorAll('[data-quick-open]').forEach(b=>b.addEventListener('click', ()=>toggleQuickOpen(b.dataset.quickOpen,b.dataset.open==='1',b)));
   wrap.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openEditor(b.dataset.edit)));
   wrap.querySelectorAll('[data-exam-pdf]').forEach(b=>b.addEventListener('click', ()=>downloadExamPdf(b.dataset.examPdf,b)));
-  wrap.querySelectorAll('[data-dup]').forEach(b=>b.addEventListener('click', ()=>duplicateSet(b.dataset.dup)));
   wrap.querySelectorAll('[data-archive]').forEach(b=>b.addEventListener('click', ()=>archiveSet(b.dataset.archive)));
   wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>deleteSet(b.dataset.del)));
   wrap.querySelectorAll('[data-togglegroup]').forEach(head=>head.addEventListener('click', ()=>{
     head.nextElementSibling.classList.toggle('collapsed');
   }));
+}
+async function toggleQuickOpen(key,open,button){
+  if(!open && !confirm('ยกเลิกการเปิดข้อสอบด่วน และกลับไปใช้ตารางสอบเดิม?')) return;
+  button.disabled=true;
+  try{
+    await apiQuickOpenSet(key,open);
+    const set=ADMIN_SETS.find(item=>item.key===key);
+    if(set){ set.quickOpen=open; set.quickOpenedAt=open?new Date().toISOString():null; }
+    renderSetList();
+    showToast(open?'เปิดข้อสอบให้นักเรียนในห้องที่กำหนดแล้ว':'ยกเลิกเปิดด่วน และกลับไปใช้ตารางสอบเดิมแล้ว');
+  }catch(error){ button.disabled=false; showToast(error.message); }
 }
 function normalizedExamTimestamp(value){const date=new Date(value);if(Number.isNaN(date.getTime()))return NaN;if(date.getUTCFullYear()>=2400)date.setUTCFullYear(date.getUTCFullYear()-543);return date.getTime();}
 function examOpenDateLabel(set){
@@ -567,6 +579,7 @@ function examOpenTimestamp(set){
   return timestamps.length?Math.min(...timestamps):Number.MAX_SAFE_INTEGER;
 }
 function examScheduleStatus(set,now=Date.now()){
+  if(set.quickOpen)return {key:'live',label:'เปิดด่วนอยู่',icon:'⚡'};
   const schedules=(set.examSchedules||[]).length?set.examSchedules:[{availableFrom:set.availableFrom,availableUntil:set.availableUntil}];
   const ranges=schedules.map(schedule=>({start:normalizedExamTimestamp(schedule?.availableFrom),end:normalizedExamTimestamp(schedule?.availableUntil)})).filter(range=>Number.isFinite(range.start)||Number.isFinite(range.end));
   if(!ranges.length)return {key:'unscheduled',label:'ยังไม่กำหนดเวลา',icon:'⚪'};
