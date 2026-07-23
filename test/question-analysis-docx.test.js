@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analysisStatus, buildQuestionAnalysisDocx, buildSummary } = require('../src/question-analysis-docx');
+const JSZip = require('jszip');
+const { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, visibleText } = require('../src/question-analysis-docx');
 
 test('Word question analysis applies the documented item-quality thresholds', async () => {
   const accepted = { number: 1, choices: ['ก', 'ข', 'ค', 'ง'], correctCount: 7, incorrectCount: 3, difficulty: .7, discrimination: .3 };
@@ -11,4 +12,14 @@ test('Word question analysis applies the documented item-quality thresholds', as
   const buffer = await buildQuestionAnalysisDocx({ title: 'วิชาทดสอบ', courseName: 'วิชาทดสอบ', assignedClasses: ['CIT.1/1'], programs: ['เทคโนโลยีสารสนเทศ'], respondents: 10, questionCount: 2, reliability: .75, items: [accepted, rejected] });
   assert.equal(buffer.subarray(0, 2).toString(), 'PK');
   assert.ok(buffer.length > 1000);
+  const zip = await JSZip.loadAsync(buffer);
+  const xml = await zip.file('word/document.xml').async('string');
+  assert.equal(visibleText(xml).includes('{{'), false);
+  assert.equal((visibleText(xml).match(/ข้อสอบอยู่ในเกณฑ์/g) || []).length, 2);
+});
+
+test('Word question analysis derives class years from classroom codes', () => {
+  assert.equal(classYears(['CC.1/4']), '1');
+  assert.equal(classYears(['CC.2/4', 'CC.3/4', 'CC.2/5']), '2, 3');
+  assert.equal(classYears([]), '-');
 });

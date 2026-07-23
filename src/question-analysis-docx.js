@@ -1,108 +1,124 @@
 const fs = require('fs');
 const path = require('path');
-const {
-  AlignmentType, BorderStyle, Document, Footer, ImageRun, PageBreak,
-  PageNumber, Packer, Paragraph, Table, TableCell, TableRow, TextRun,
-  VerticalAlign, WidthType
-} = require('docx');
+const JSZip = require('jszip');
 
-const FONT = 'TH Sarabun New';
-const borders = { style: BorderStyle.SINGLE, size: 4, color: '000000' };
-const cellBorders = { top: borders, bottom: borders, left: borders, right: borders };
-const text = (value, options = {}) => new TextRun({ text: String(value ?? ''), font: FONT, size: options.size || 28, bold: !!options.bold });
-const paragraph = (value, options = {}) => new Paragraph({
-  alignment: options.alignment || AlignmentType.LEFT,
-  spacing: { before: options.before || 0, after: options.after || 0, line: options.line || 300 },
-  children: [text(value, options)]
-});
-const labeled = (label, value) => new Paragraph({ spacing: { after: 40, line: 320 }, children: [text(label, { bold: true }), text(value || '-')] });
-const cell = (value, options = {}) => new TableCell({
-  borders: cellBorders,
-  width: { size: options.width, type: WidthType.DXA },
-  verticalAlign: VerticalAlign.CENTER,
-  margins: { top: 70, bottom: 70, left: 80, right: 80 },
-  children: [paragraph(value, { alignment: options.alignment || AlignmentType.CENTER, bold: options.bold, size: options.size || 24, line: 260 })]
-});
+const TEMPLATE_PATH = path.join(__dirname, 'templates', 'question-analysis-template.docx');
 
 function analysisStatus(item) {
   const difficultyOk = item.difficulty >= .2 && item.difficulty <= .8;
   const discriminationOk = item.discrimination !== null && item.discrimination >= .2;
-  const messages = [difficultyOk ? 'ค่าความยากอยู่ในเกณฑ์' : 'ค่าความยากควรปรับปรุง'];
-  messages.push(item.discrimination === null ? 'ข้อมูลอำนาจจำแนกไม่พอ' : discriminationOk ? 'อำนาจจำแนกอยู่ในเกณฑ์' : 'อำนาจจำแนกควรปรับปรุง');
-  return { accepted: difficultyOk && discriminationOk, message: messages.join(' / ') };
+  return { difficultyOk, discriminationOk, accepted: difficultyOk && discriminationOk };
 }
 
 function buildSummary(analysis) {
-  const statuses = analysis.items.map(analysisStatus);
-  const standardCount = statuses.filter(item => item.accepted).length;
+  const standardCount = analysis.items.filter(item => analysisStatus(item).accepted).length;
   const percent = analysis.questionCount ? Math.round(standardCount / analysis.questionCount * 10000) / 100 : 0;
   return { standardCount, rejectedCount: analysis.questionCount - standardCount, percent, rejectedPercent: Math.round((100 - percent) * 100) / 100 };
 }
 
-async function buildQuestionAnalysisDocx(analysis) {
-  const summary = buildSummary(analysis);
-  const logoPath = path.join(__dirname, '..', 'public', 'assets', 'college-logo.jpg');
-  const logo = fs.existsSync(logoPath) ? new ImageRun({ data: fs.readFileSync(logoPath), transformation: { width: 74, height: 74 }, type: 'jpg' }) : null;
-  const choiceCounts = [...new Set(analysis.items.map(item => item.choices.length).filter(Boolean))];
-  const choicesLabel = choiceCounts.length === 1 ? choiceCounts[0] : choiceCounts.length ? choiceCounts.join(', ') : '-';
-  const headerTable = new Table({
-    width: { size: 9360, type: WidthType.DXA },
-    columnWidths: [1500, 7860],
-    borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, insideHorizontal: { style: BorderStyle.NONE }, insideVertical: { style: BorderStyle.NONE } },
-    rows: [new TableRow({ children: [
-      new TableCell({ width: { size: 1500, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: logo ? [logo] : [] })] }),
-      new TableCell({ width: { size: 7860, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, children: [
-        paragraph('วิทยาลัยเทคโนโลยีจรัลสนิทวงศ์', { bold: true, size: 36, alignment: AlignmentType.CENTER, line: 340 }),
-        paragraph('สรุปผลการวิเคราะห์ข้อสอบ', { bold: true, size: 34, alignment: AlignmentType.CENTER, line: 330 })
-      ] })
-    ] })]
-  });
-  const itemRows = analysis.items.map(item => {
-    const status = analysisStatus(item);
-    return new TableRow({ cantSplit: true, children: [
-      cell(item.number, { width: 600 }), cell(item.correctCount, { width: 700 }), cell(item.incorrectCount, { width: 700 }),
-      cell(item.difficulty.toFixed(2), { width: 1200 }), cell(item.discrimination === null ? '-' : item.discrimination.toFixed(2), { width: 1400 }),
-      cell(status.message, { width: 4760, alignment: AlignmentType.LEFT })
-    ] });
-  });
-  const analysisTable = new Table({
-    width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 700, 700, 1200, 1400, 4760],
-    rows: [new TableRow({ tableHeader: true, children: [
-      cell('ข้อที่', { width: 600, bold: true }), cell('ถูก', { width: 700, bold: true }), cell('ผิด', { width: 700, bold: true }),
-      cell('ค่าความยาก (P)', { width: 1200, bold: true }), cell('อำนาจจำแนก (D)', { width: 1400, bold: true }), cell('ผลการวิเคราะห์', { width: 4760, bold: true })
-    ] }), ...itemRows]
-  });
-  const doc = new Document({
-    styles: { default: { document: { run: { font: FONT, size: 28 }, paragraph: { spacing: { line: 300 } } } } },
-    sections: [{
-      properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 850, right: 900, bottom: 850, left: 900 } } },
-      footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [text('หน้า ', { size: 22 }), new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 22 })] })] }) },
-      children: [
-        headerTable,
-        labeled('รายวิชา ', analysis.courseName || analysis.title),
-        labeled('รหัสวิชา ', analysis.courseCode || '-'),
-        labeled('ระดับ/ชั้นเรียน ', [analysis.educationLevel, ...(analysis.assignedClasses || [])].filter(Boolean).join(' · ')),
-        labeled('ภาคเรียน ', `${analysis.semesterLabel || analysis.semester || '-'}    ปีการศึกษา ${analysis.academicYear || '-'}`),
-        labeled('ผู้สอน ', analysis.teacherName || '-'),
-        labeled('สาขาวิชา ', (analysis.programs || []).join(', ') || '-'),
-        paragraph('การวิเคราะห์คุณภาพของแบบทดสอบ', { bold: true, size: 34, alignment: AlignmentType.CENTER, before: 160, after: 100 }),
-        labeled('กลุ่มผู้เรียน ', [analysis.educationLevel, ...(analysis.assignedClasses || [])].filter(Boolean).join(' · ')),
-        labeled('จำนวนผู้ทำข้อสอบ ', `${analysis.respondents} คน`),
-        labeled('จำนวนข้อสอบ ', `${analysis.questionCount} ข้อ`),
-        labeled('จำนวนตัวเลือก ', `${choicesLabel} ตัวเลือก`),
-        paragraph('ผลการวิเคราะห์', { bold: true, size: 30, before: 100, after: 40 }),
-        labeled('ข้อสอบที่อยู่ในเกณฑ์มาตรฐาน ', `${summary.standardCount} ข้อ คิดเป็นร้อยละ ${summary.percent}`),
-        labeled('ข้อสอบที่ไม่ได้เกณฑ์มาตรฐาน ', `${summary.rejectedCount} ข้อ คิดเป็นร้อยละ ${summary.rejectedPercent}`),
-        labeled('ข้อสอบที่สามารถเก็บเข้าคลังข้อสอบได้ ', `${summary.standardCount} ข้อ`),
-        labeled('ค่าความเชื่อมั่น ', analysis.reliability === null ? 'ข้อมูลไม่เพียงพอ' : `KR-20 = ${analysis.reliability}`),
-        new Paragraph({ children: [new PageBreak()] }),
-        paragraph('ผลการวิเคราะห์ข้อสอบรายข้อ', { bold: true, size: 34, alignment: AlignmentType.CENTER, after: 120 }),
-        analysisTable,
-        paragraph('เกณฑ์ที่ใช้: ค่าความยาก (P) 0.20–0.80 และค่าอำนาจจำแนก (D) ตั้งแต่ 0.20 ขึ้นไป', { size: 22, before: 100 })
-      ]
-    }]
-  });
-  return Packer.toBuffer(doc);
+function xmlEscape(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
-module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary };
+function textNodes(xml) {
+  return [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map(match => ({ content: match[1], start: match.index + match[0].indexOf(match[1]), end: match.index + match[0].indexOf(match[1]) + match[1].length }));
+}
+
+function visibleText(xml) {
+  return textNodes(xml).map(node => node.content).join('');
+}
+
+function replaceVisibleText(xml, needle, value) {
+  let output = xml;
+  while (true) {
+    const nodes = textNodes(output);
+    const combined = nodes.map(node => node.content).join('');
+    const foundAt = combined.indexOf(needle);
+    if (foundAt < 0) return output;
+    const foundEnd = foundAt + needle.length;
+    let cursor = 0, startNode = -1, endNode = -1, startOffset = 0, endOffset = 0;
+    for (let index = 0; index < nodes.length; index++) {
+      const next = cursor + nodes[index].content.length;
+      if (startNode < 0 && foundAt >= cursor && foundAt < next) { startNode = index; startOffset = foundAt - cursor; }
+      if (foundEnd > cursor && foundEnd <= next) { endNode = index; endOffset = foundEnd - cursor; break; }
+      cursor = next;
+    }
+    if (startNode < 0 || endNode < 0) return output;
+    const replacements = [];
+    for (let index = startNode; index <= endNode; index++) {
+      const node = nodes[index];
+      const prefix = index === startNode ? node.content.slice(0, startOffset) : '';
+      const suffix = index === endNode ? node.content.slice(endOffset) : '';
+      replacements.push({ start: node.start, end: node.end, content: prefix + (index === startNode ? xmlEscape(value) : '') + suffix });
+    }
+    for (const replacement of replacements.reverse()) output = output.slice(0, replacement.start) + replacement.content + output.slice(replacement.end);
+  }
+}
+
+function replaceToken(xml, name, value) {
+  return replaceVisibleText(xml, `{{${name}}}`, value);
+}
+
+function classYears(classRooms) {
+  return [...new Set((classRooms || []).map(room => String(room).match(/\.(\d+)\//)?.[1]).filter(Boolean))].join(', ') || '-';
+}
+
+function scalarValues(analysis) {
+  const summary = buildSummary(analysis);
+  const choiceCounts = [...new Set(analysis.items.map(item => item.choices.length).filter(Boolean))];
+  return {
+    course_name: analysis.courseName || analysis.title || '-',
+    course_code: analysis.courseCode || '-',
+    education_level: String(analysis.educationLevel || '-').replace(/\.$/, ''),
+    class_year: classYears(analysis.assignedClasses),
+    semester: analysis.semester || analysis.semesterLabel || '-',
+    academic_year: analysis.academicYear || '-',
+    teacher_name: analysis.teacherName || '-',
+    program: (analysis.programs || []).join(', ') || '-',
+    respondents: analysis.respondents,
+    question_count: analysis.questionCount,
+    choice_count: choiceCounts.length === 1 ? choiceCounts[0] : choiceCounts.length ? choiceCounts.join(', ') : '-',
+    standard_count: summary.standardCount,
+    standard_percent: summary.percent,
+    rejected_count: summary.rejectedCount,
+    rejected_percent: summary.rejectedPercent,
+    bank_count: summary.standardCount,
+    reliability: analysis.reliability === null ? 'ข้อมูลไม่เพียงพอ' : analysis.reliability
+  };
+}
+
+function itemValues(item) {
+  const status = analysisStatus(item);
+  return {
+    item_no: item.number,
+    correct_count: item.correctCount,
+    incorrect_count: item.incorrectCount,
+    difficulty: Number(item.difficulty).toFixed(2),
+    discrimination: item.discrimination === null ? 'ข้อมูลไม่พอ' : Number(item.discrimination).toFixed(2),
+    difficulty_analysis_line: status.difficultyOk ? 'ใช่' : 'ไม่ใช่ ควรปรับปรุง',
+    discrimination_analysis_line: item.discrimination === null ? 'ข้อมูลไม่พอ' : status.discriminationOk ? 'ใช่' : 'ไม่ใช่ ควรปรับปรุง'
+  };
+}
+
+async function buildQuestionAnalysisDocx(analysis) {
+  const zip = await JSZip.loadAsync(fs.readFileSync(TEMPLATE_PATH));
+  const documentPart = zip.file('word/document.xml');
+  if (!documentPart) throw new Error('เทมเพลต Word ไม่มี word/document.xml');
+  let xml = await documentPart.async('string');
+  xml = replaceVisibleText(xml, '................................', '{{course_code}}');
+  const rows = xml.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
+  const prototype = rows.find(row => visibleText(row).includes('{{item_no}}'));
+  if (!prototype) throw new Error('ไม่พบแถว {{item_no}} ในเทมเพลต Word');
+  const sourceItems = analysis.items.length ? analysis.items : [{ number: '-', correctCount: '-', incorrectCount: '-', difficulty: 0, discrimination: null }];
+  const renderedRows = sourceItems.map(item => {
+    let row = prototype;
+    for (const [name, value] of Object.entries(itemValues(item))) row = replaceToken(row, name, value);
+    return row;
+  }).join('');
+  xml = xml.replace(prototype, renderedRows);
+  for (const [name, value] of Object.entries(scalarValues(analysis))) xml = replaceToken(xml, name, value);
+  zip.file('word/document.xml', xml);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, replaceVisibleText, scalarValues, visibleText };
