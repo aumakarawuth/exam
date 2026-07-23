@@ -91,8 +91,8 @@ function itemValues(item) {
   const status = analysisStatus(item);
   return {
     item_no: item.number,
-    correct_count: item.correctCount,
-    incorrect_count: item.incorrectCount,
+    correct_count: status.accepted ? '✓' : '',
+    incorrect_count: status.accepted ? '' : '✓',
     difficulty: Number(item.difficulty).toFixed(2),
     discrimination: item.discrimination === null ? 'ข้อมูลไม่พอ' : Number(item.discrimination).toFixed(2),
     difficulty_analysis_line: status.difficultyOk ? 'ใช่' : 'ไม่ใช่ ควรปรับปรุง',
@@ -144,4 +144,4 @@ async function buildQuestionAnalysisDocx(analysis) {
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
-module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, formatAnalysisTable, keepRowTogether, repeatHeaderRow, replaceVisibleText, scalarValues, visibleText };
+module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, formatAnalysisTable, itemValues, keepRowTogether, repeatHeaderRow, replaceVisibleText, scalarValues, visibleText };
