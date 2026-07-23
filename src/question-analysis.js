@@ -1,4 +1,5 @@
 const { ExcelJS, addObjectSheet, workbookBuffer } = require('./excel-workbook');
+const { programForClassRoom } = require('./class-programs');
 
 const round = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const difficultyLabel = value => value < .2 ? 'ยากมาก' : value < .4 ? 'ยาก' : value < .6 ? 'ปานกลาง' : value < .8 ? 'ง่าย' : 'ง่ายมาก';
@@ -35,7 +36,9 @@ function buildQuestionAnalysis(set, results) {
     const sumPq = items.reduce((sum, item) => sum + item.difficulty * (1 - item.difficulty), 0);
     if (variance > 0) reliability = round((items.length / (items.length - 1)) * (1 - sumPq / variance));
   }
-  return { setKey: set?.key || '', title: set?.title || '', respondents: responseScores.length, questionCount: items.length, reliability, items };
+  const assignedClasses = Array.isArray(set?.assignedClasses) ? set.assignedClasses : [];
+  const programs = [...new Set(assignedClasses.map(programForClassRoom).filter(Boolean))];
+  return { setKey: set?.key || '', title: set?.title || '', courseName: set?.courseName || set?.title || '', courseCode: set?.courseCode || '', educationLevel: set?.educationLevel || '', assignedClasses, programs, semester: set?.semester || '', semesterLabel: set?.semesterLabel || '', academicYear: set?.academicYear || '', teacherName: set?.subjectTeacherName || '', respondents: responseScores.length, questionCount: items.length, reliability, items };
 }
 
 async function buildQuestionAnalysisWorkbook(analysis) {

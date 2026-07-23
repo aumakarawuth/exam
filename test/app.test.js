@@ -263,19 +263,23 @@ test('admin can export an exam paper PDF without answer keys', async () => {
   assert.ok(response.body.length > 100);
 });
 
-test('question analysis requires admin access and exports an Excel workbook', async () => {
+test('question analysis requires admin access and exports Excel and Word forms', async () => {
   await Promise.all([databaseReady, app.ready]);
   const setKey = readDB().sets[0].key;
   const denied = await request('/api/question-analysis?setKey=' + encodeURIComponent(setKey));
   assert.equal(denied.status, 401);
-  const [analysis, workbook] = await Promise.all([
+  const [analysis, workbook, wordForm] = await Promise.all([
     request('/api/question-analysis?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } }),
-    request('/api/export/question-analysis.xlsx?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } })
+    request('/api/export/question-analysis.xlsx?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } }),
+    request('/api/export/question-analysis.docx?setKey=' + encodeURIComponent(setKey), { headers: { 'x-admin-key': ADMIN_KEY } })
   ]);
   assert.equal(analysis.status, 200);
   assert.ok(Array.isArray(JSON.parse(analysis.body).items));
   assert.equal(workbook.status, 200);
   assert.match(workbook.headers['content-type'], /spreadsheetml/);
+  assert.equal(wordForm.status, 200);
+  assert.match(wordForm.headers['content-type'], /wordprocessingml/);
+  assert.ok(wordForm.body.length > 1000);
 });
 
 test('admin set creation rejects an incomplete payload without changing data', async () => {

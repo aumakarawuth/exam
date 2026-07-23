@@ -1916,8 +1916,10 @@ async function showQuestionAnalysis(requestedSetKey){
     const data=await apiGetQuestionAnalysis(setKey);
     const reliability=data.reliability===null?'ข้อมูลไม่พอ':data.reliability;
     wrap.innerHTML=`<div class="panel"><div class="toolbar-row"><div><h3>📊 วิเคราะห์ข้อสอบ: ${escapeHtml(data.title)}</h3><p class="panel-sub">ผู้เข้าสอบ ${data.respondents} คน · ข้อปรนัย ${data.questionCount} ข้อ · KR-20: ${reliability}</p></div><div class="editor-actions"><button class="btn btn-ghost btn-sm" id="backToResultsBtn">← กลับผลสอบ</button><button class="btn btn-primary btn-sm" id="exportQuestionAnalysisBtn">⬇ Export ตารางวิเคราะห์</button></div></div><div class="empty-note" style="text-align:left;margin-bottom:14px;">P = สัดส่วนผู้ตอบถูก (ยิ่งสูงยิ่งง่าย) · D = อำนาจจำแนกจากกลุ่มคะแนนสูง/ต่ำ 27% (≥ .20 ใช้ได้) · ควรมีผู้เข้าสอบอย่างน้อย 10 คนเพื่อใช้ตัดสินใจ</div><table class="result-table"><thead><tr><th>ข้อ</th><th>โจทย์ / การเลือกคำตอบ</th><th>ถูก / ผู้ตอบ</th><th>ความยาก (P)</th><th>อำนาจจำแนก (D)</th></tr></thead><tbody>${data.items.map(item=>`<tr><td><b>${item.number}</b></td><td><b>${escapeHtml(item.text)}</b><div style="margin-top:7px;font-size:12px;color:var(--sub);">${item.choices.map((choice,index)=>`<span style="display:inline-block;margin:0 9px 4px 0;${index===item.correctIndex?'color:var(--green);font-weight:700;':''}">${String.fromCharCode(65+index)}. ${escapeHtml(choice)} ${index===item.correctIndex?'✓':''} (${item.choiceCounts[index]||0})</span>`).join('')}</div></td><td>${item.correctCount} / ${item.respondents}</td><td><b>${item.difficulty}</b><br><span class="compact-meta">${item.difficultyLabel}</span></td><td><b>${item.discrimination===null?'-':item.discrimination}</b><br><span class="compact-meta">${item.discriminationLabel}</span></td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById('exportQuestionAnalysisBtn').insertAdjacentHTML('afterend','<button class="btn btn-primary btn-sm" id="exportQuestionAnalysisDocxBtn">📝 แบบฟอร์ม Word</button>');
     document.getElementById('backToResultsBtn').addEventListener('click',refreshResults);
     document.getElementById('exportQuestionAnalysisBtn').addEventListener('click',()=>downloadQuestionAnalysis(setKey));
+    document.getElementById('exportQuestionAnalysisDocxBtn').addEventListener('click',()=>downloadQuestionAnalysisDocx(setKey,false));
   }catch(error){ wrap.innerHTML='<div class="empty-note">'+escapeHtml(error.message)+'</div>'; }
 }
 async function showAuditLogs(){
@@ -1938,6 +1940,11 @@ async function downloadGradebook(setKey,button){
     const set=ADMIN_SETS.find(item=>item.key===setKey),courseName=String(set?.courseName||set?.title||'รายวิชา').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim()||'รายวิชา';
     const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a'); a.href=url;a.download=`รวมคะแนนวิชา(${courseName}).xlsx`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลด Excel รวมคะแนนแล้ว');
   }catch(error){showToast(error.message);}finally{button.disabled=false;button.textContent=original;}
+}
+async function downloadQuestionAnalysisDocx(setKey,isTeacher){
+  const button=document.getElementById('exportQuestionAnalysisDocxBtn'),original=button?.textContent||'📝 แบบฟอร์ม Word';
+  if(button){button.disabled=true;button.textContent='กำลังสร้าง Word...';}
+  try{const prefix=isTeacher?'/api/teacher':'/api',headers=isTeacher?{'x-teacher-token':teacherToken||''}:{'x-admin-key':adminKey||''},res=await fetch(prefix+'/export/question-analysis.docx?setKey='+encodeURIComponent(setKey),{headers});if(res.status===401){showSessionExpiredDialog();throw new Error('หมดเวลาการเข้าสู่ระบบ');}if(!res.ok)throw new Error('สร้างแบบฟอร์มวิเคราะห์ข้อสอบไม่สำเร็จ');const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a'),disposition=res.headers.get('content-disposition')||'',encodedName=disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];a.href=url;a.download=encodedName?decodeURIComponent(encodedName):'แบบฟอร์มวิเคราะห์ข้อสอบ.docx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast('ดาวน์โหลดแบบฟอร์มวิเคราะห์ข้อสอบ Word แล้ว');}catch(error){showToast(error.message);}finally{if(button){button.disabled=false;button.textContent=original;}}
 }
 async function downloadQuestionAnalysis(setKey){
   const button=document.getElementById('exportQuestionAnalysisBtn'); if(button){button.disabled=true;button.textContent='กำลังสร้างไฟล์...';}
