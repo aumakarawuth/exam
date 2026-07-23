@@ -32,13 +32,22 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
     normalizeSetSchedule(set);
     applyAcademicPeriod(set, db.settings); await writeDB(db); res.json({ ok: true, academicYear: set.academicYear || null, semester: set.semester || null, semesterLabel: set.semesterLabel || null });
   });
+  app.post('/api/teacher/sets/:key/quick-open', requireTeacher, async (req, res) => {
+    const db = readDB(); const set = owned(db, req.params.key, req.teacherId);
+    if (!set) return res.status(404).json({ error: 'not_found' });
+    set.quickOpen = req.body?.open !== false;
+    set.quickOpenedAt = set.quickOpen ? new Date().toISOString() : null;
+    set.updatedAt = new Date().toISOString();
+    await writeDB(db);
+    res.json({ ok: true, quickOpen: set.quickOpen, quickOpenedAt: set.quickOpenedAt });
+  });
   app.post('/api/teacher/sets/:key/duplicate', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' });
-    const copy = JSON.parse(JSON.stringify(set)); copy.key = newId('set'); copy.title += ' (สำเนา)'; copy.archived = false; delete copy.archivedAt; copy.academicYear = null; copy.semester = null; copy.semesterLabel = null; copy.assignedClasses = []; copy.examSchedules = []; copy.availableFrom = null; copy.availableUntil = null; copy.lateAccessCode = ''; copy.resitAccesses = []; copy.createdAt = copy.updatedAt = new Date().toISOString(); db.sets.push(copy); await writeDB(db); res.status(201).json({ key: copy.key });
+    const copy = JSON.parse(JSON.stringify(set)); copy.key = newId('set'); copy.title += ' (สำเนา)'; copy.archived = false; copy.quickOpen = false; copy.quickOpenedAt = null; delete copy.archivedAt; copy.academicYear = null; copy.semester = null; copy.semesterLabel = null; copy.assignedClasses = []; copy.examSchedules = []; copy.availableFrom = null; copy.availableUntil = null; copy.lateAccessCode = ''; copy.resitAccesses = []; copy.createdAt = copy.updatedAt = new Date().toISOString(); db.sets.push(copy); await writeDB(db); res.status(201).json({ key: copy.key });
   });
   app.post('/api/teacher/sets/:key/archive', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' });
-    set.archived = true; set.archivedAt = set.updatedAt = new Date().toISOString(); await writeDB(db); res.json({ ok: true });
+    set.archived = true; set.quickOpen = false; set.quickOpenedAt = null; set.archivedAt = set.updatedAt = new Date().toISOString(); await writeDB(db); res.json({ ok: true });
   });
   app.post('/api/teacher/sets/:key/restore', requireTeacher, async (req, res) => {
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId); if (!set) return res.status(404).json({ error: 'not_found' });
@@ -48,7 +57,7 @@ function registerTeacherSetRoutes(app, { readDB, writeDB, requireTeacher, examTy
     const db = readDB(); const set = owned(db, req.params.key, req.teacherId);
     if (!set) return res.status(404).json({ error: 'not_found' });
     const now = new Date().toISOString();
-    set.archived = true; set.archivedAt = now; set.deletedAt = now; set.deletedBy = 'teacher'; set.updatedAt = now;
+    set.archived = true; set.quickOpen = false; set.quickOpenedAt = null; set.archivedAt = now; set.deletedAt = now; set.deletedBy = 'teacher'; set.updatedAt = now;
     await writeDB(db); res.json({ ok: true, recoverable: true });
   });
 }

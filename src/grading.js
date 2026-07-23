@@ -68,10 +68,12 @@ function getExamSchedule(set, classRoom) {
   return schedule ? { ...schedule, availableFrom: normalizeExamDateTime(schedule.availableFrom), availableUntil: normalizeExamDateTime(schedule.availableUntil) } : null;
 }
 function isPastDeadline(set, classRoom) {
+  if (set.quickOpen) return false;
   const schedule = getExamSchedule(set, classRoom);
   return !!(schedule?.availableUntil && Date.now() > new Date(schedule.availableUntil).getTime());
 }
 function isBeforeStart(set, classRoom) {
+  if (set.quickOpen) return false;
   const schedule = getExamSchedule(set, classRoom);
   return !!(schedule?.availableFrom && Date.now() < new Date(schedule.availableFrom).getTime());
 }

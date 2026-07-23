@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { gradeMC, gradeMatching, gradeWritten, sanitizeSetForStudent } = require('../src/grading');
+const { gradeMC, gradeMatching, gradeWritten, sanitizeSetForStudent, isBeforeStart, isPastDeadline, hasExamAccess } = require('../src/grading');
 
 test('multiple-choice grading awards only correct answers', () => {
   const section = { questions: [{ id: 'a', answer: 1, points: 2 }, { id: 'b', answer: 0, points: 3 }] };
@@ -25,4 +25,15 @@ test('student exam data includes question resources but not answer keys', () => 
   assert.equal(result.sections.mc.questions[0].resources.code, 'int main(){}');
   assert.equal(result.sections.written.questions[0].keywords, undefined);
   assert.equal(result.sections.written.questions[0].resources.table, 'A,B\\n1,2');
+});
+
+test('quick-open bypasses the time window but preserves classroom access', () => {
+  const set = {
+    quickOpen: true,
+    examSchedules: [{ classes: ['CIT.2/5'], availableFrom: '2099-01-01T00:00:00.000Z', availableUntil: '2020-01-01T00:00:00.000Z' }]
+  };
+  assert.equal(isBeforeStart(set, 'CIT.2/5'), false);
+  assert.equal(isPastDeadline(set, 'CIT.2/5'), false);
+  assert.equal(hasExamAccess(set, 'CIT.2/5'), true);
+  assert.equal(hasExamAccess(set, 'CIT.2/6'), false);
 });
