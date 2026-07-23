@@ -60,7 +60,7 @@ function replaceToken(xml, name, value) {
 }
 
 function classYears(classRooms) {
-  return [...new Set((classRooms || []).map(room => String(room).match(/\.(\d+)\//)?.[1]).filter(Boolean))].join(', ') || '-';
+  return [...new Set((classRooms || []).map(room => String(room).match(/\.([1-9])[^.]*$/)?.[1]).filter(Boolean))].join(', ') || '-';
 }
 
 function scalarValues(analysis) {

@@ -29,5 +29,9 @@ test('Word question analysis applies the documented item-quality thresholds', as
 test('Word question analysis derives class years from classroom codes', () => {
   assert.equal(classYears(['CC.1/4']), '1');
   assert.equal(classYears(['CC.2/4', 'CC.3/4', 'CC.2/5']), '2, 3');
+  assert.equal(classYears(['สม.151']), '1');
+  assert.equal(classYears(['สช.251']), '2');
+  assert.equal(classYears(['IEP.M.131']), '1');
+  assert.equal(classYears(['สม.151', 'สช.251', 'IEP.M.131']), '1, 2');
   assert.equal(classYears([]), '-');
 });
