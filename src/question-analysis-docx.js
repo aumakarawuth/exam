@@ -28,7 +28,7 @@ function visibleText(xml) {
   return textNodes(xml).map(node => node.content).join('');
 }
 
-function replaceVisibleText(xml, needle, value) {
+function replaceVisibleText(xml, needle, value, replaceAll = true) {
   let output = xml;
   while (true) {
     const nodes = textNodes(output);
@@ -52,6 +52,7 @@ function replaceVisibleText(xml, needle, value) {
       replacements.push({ start: node.start, end: node.end, content: prefix + (index === startNode ? xmlEscape(value) : '') + suffix });
     }
     for (const replacement of replacements.reverse()) output = output.slice(0, replacement.start) + replacement.content + output.slice(replacement.end);
+    if (!replaceAll) return output;
   }
 }
 
@@ -74,7 +75,6 @@ function scalarValues(analysis) {
     semester: analysis.semester || analysis.semesterLabel || '-',
     academic_year: analysis.academicYear || '-',
     teacher_name: analysis.teacherName || '-',
-    program: (analysis.programs || []).join(', ') || '-',
     respondents: analysis.respondents,
     question_count: analysis.questionCount,
     choice_count: choiceCounts.length === 1 ? choiceCounts[0] : choiceCounts.length ? choiceCounts.join(', ') : '-',
@@ -127,6 +127,8 @@ async function buildQuestionAnalysisDocx(analysis) {
   const documentPart = zip.file('word/document.xml');
   if (!documentPart) throw new Error('เทมเพลต Word ไม่มี word/document.xml');
   let xml = await documentPart.async('string');
+  xml = replaceVisibleText(xml, '{{program}}', analysis.teacherDepartment || '-', false);
+  xml = replaceVisibleText(xml, '{{program}}', (analysis.programs || []).join(', ') || '-', false);
   xml = replaceVisibleText(xml, '................................', '{{course_code}}');
   const rows = xml.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
   const prototype = rows.find(row => visibleText(row).includes('{{item_no}}'));

@@ -13,11 +13,13 @@ test('Word question analysis applies the documented item-quality thresholds', as
   assert.equal(itemValues(rejected).correct_count, '');
   assert.equal(itemValues(rejected).incorrect_count, '✓');
   assert.deepEqual(buildSummary({ items: [accepted, rejected], questionCount: 2 }), { standardCount: 1, rejectedCount: 1, percent: 50, rejectedPercent: 50 });
-  const buffer = await buildQuestionAnalysisDocx({ title: 'วิชาทดสอบ', courseName: 'วิชาทดสอบ', assignedClasses: ['CIT.1/1'], programs: ['เทคโนโลยีสารสนเทศ'], respondents: 10, questionCount: 2, reliability: .75, items: [accepted, rejected] });
+  const buffer = await buildQuestionAnalysisDocx({ title: 'วิชาทดสอบ', courseName: 'วิชาทดสอบ', assignedClasses: ['CIT.1/1'], teacherDepartment: 'สาขาของครู', programs: ['สาขาของนักเรียน'], respondents: 10, questionCount: 2, reliability: .75, items: [accepted, rejected] });
   assert.equal(buffer.subarray(0, 2).toString(), 'PK');
   assert.ok(buffer.length > 1000);
   const zip = await JSZip.loadAsync(buffer);
   const xml = await zip.file('word/document.xml').async('string');
+  assert.equal((xml.match(/สาขาของครู/g) || []).length, 1);
+  assert.equal((xml.match(/สาขาของนักเรียน/g) || []).length, 1);
   assert.equal(visibleText(xml).includes('{{'), false);
   assert.equal((visibleText(xml).match(/ข้อสอบอยู่ในเกณฑ์/g) || []).length, 2);
   assert.ok((xml.match(/<w:cantSplit\/>/g) || []).length >= 4);
