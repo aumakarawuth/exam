@@ -552,22 +552,23 @@ function renderSetList(){
     head.nextElementSibling.classList.toggle('collapsed');
   }));
 }
+function normalizedExamTimestamp(value){const date=new Date(value);if(Number.isNaN(date.getTime()))return NaN;if(date.getUTCFullYear()>=2400)date.setUTCFullYear(date.getUTCFullYear()-543);return date.getTime();}
 function examOpenDateLabel(set){
   const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
   if(set.availableFrom)values.push(set.availableFrom);
-  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite).sort((a,b)=>a-b);
+  const timestamps=values.map(normalizedExamTimestamp).filter(Number.isFinite).sort((a,b)=>a-b);
   if(!timestamps.length)return '';
   return new Date(timestamps[0]).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
 function examOpenTimestamp(set){
   const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
   if(set.availableFrom)values.push(set.availableFrom);
-  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite);
+  const timestamps=values.map(normalizedExamTimestamp).filter(Number.isFinite);
   return timestamps.length?Math.min(...timestamps):Number.MAX_SAFE_INTEGER;
 }
 function examScheduleStatus(set,now=Date.now()){
   const schedules=(set.examSchedules||[]).length?set.examSchedules:[{availableFrom:set.availableFrom,availableUntil:set.availableUntil}];
-  const ranges=schedules.map(schedule=>({start:Date.parse(schedule?.availableFrom),end:Date.parse(schedule?.availableUntil)})).filter(range=>Number.isFinite(range.start)||Number.isFinite(range.end));
+  const ranges=schedules.map(schedule=>({start:normalizedExamTimestamp(schedule?.availableFrom),end:normalizedExamTimestamp(schedule?.availableUntil)})).filter(range=>Number.isFinite(range.start)||Number.isFinite(range.end));
   if(!ranges.length)return {key:'unscheduled',label:'ยังไม่กำหนดเวลา',icon:'⚪'};
   if(ranges.some(range=>(!Number.isFinite(range.start)||range.start<=now)&&(!Number.isFinite(range.end)||range.end>=now)))return {key:'live',label:'กำลังสอบ',icon:'●'};
   const starts=ranges.map(range=>range.start).filter(Number.isFinite),ends=ranges.map(range=>range.end).filter(Number.isFinite);
@@ -656,7 +657,7 @@ function parseManualDateTime(value){
 }
 function formatExamDate(iso){ if(!iso) return ''; const d=new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
 function formatExamTime(iso){ if(!iso) return ''; const d=new Date(iso); return `${String(d.getHours()).padStart(2,'0')}.${String(d.getMinutes()).padStart(2,'0')}`; }
-function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||'').trim(),time=String(timeValue||'').trim(); if(!date&&!time) return ''; const d=date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/),t=time.match(/^(\d{2})[.:](\d{2})$/); if(!d||!t){showToast('กรุณากรอกวัน dd/mm/yyyy และเวลา HH.MM');return '';} const value=new Date(`${d[3]}-${d[2]}-${d[1]}T${t[1]}:${t[2]}`); return Number.isNaN(value.getTime())?'':value.toISOString(); }
+function parseExamDateTime(dateValue,timeValue){ const date=String(dateValue||'').trim(),time=String(timeValue||'').trim(); if(!date&&!time) return ''; const d=date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/),t=time.match(/^(\d{2})[.:](\d{2})$/); if(!d||!t){showToast('กรุณากรอกวัน dd/mm/yyyy และเวลา HH.MM');return '';} const inputYear=Number(d[3]),year=inputYear>=2400?inputYear-543:inputYear; const value=new Date(year,Number(d[2])-1,Number(d[1]),Number(t[1]),Number(t[2])); const valid=value.getFullYear()===year&&value.getMonth()===Number(d[2])-1&&value.getDate()===Number(d[1])&&value.getHours()===Number(t[1])&&value.getMinutes()===Number(t[2]); return valid?value.toISOString():''; }
 
 function blankSet(){
   return {

@@ -291,22 +291,23 @@ function renderSetList(){
     head.nextElementSibling.classList.toggle('collapsed');
   }));
 }
+function normalizedExamTimestamp(value){const date=new Date(value);if(Number.isNaN(date.getTime()))return NaN;if(date.getUTCFullYear()>=2400)date.setUTCFullYear(date.getUTCFullYear()-543);return date.getTime();}
 function examOpenDateLabel(set){
   const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
   if(set.availableFrom)values.push(set.availableFrom);
-  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite).sort((a,b)=>a-b);
+  const timestamps=values.map(normalizedExamTimestamp).filter(Number.isFinite).sort((a,b)=>a-b);
   if(!timestamps.length)return '';
   return new Date(timestamps[0]).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
 function examOpenTimestamp(set){
   const values=(set.examSchedules||[]).map(schedule=>schedule?.availableFrom).filter(Boolean);
   if(set.availableFrom)values.push(set.availableFrom);
-  const timestamps=values.map(value=>new Date(value).getTime()).filter(Number.isFinite);
+  const timestamps=values.map(normalizedExamTimestamp).filter(Number.isFinite);
   return timestamps.length?Math.min(...timestamps):Number.MAX_SAFE_INTEGER;
 }
 function examScheduleStatus(set,now=Date.now()){
   const schedules=(set.examSchedules||[]).length?set.examSchedules:[{availableFrom:set.availableFrom,availableUntil:set.availableUntil}];
-  const ranges=schedules.map(schedule=>({start:Date.parse(schedule?.availableFrom),end:Date.parse(schedule?.availableUntil)})).filter(range=>Number.isFinite(range.start)||Number.isFinite(range.end));
+  const ranges=schedules.map(schedule=>({start:normalizedExamTimestamp(schedule?.availableFrom),end:normalizedExamTimestamp(schedule?.availableUntil)})).filter(range=>Number.isFinite(range.start)||Number.isFinite(range.end));
   if(!ranges.length)return {key:'unscheduled',label:'ยังไม่กำหนดเวลา',icon:'⚠'};
   if(ranges.some(range=>(!Number.isFinite(range.start)||range.start<=now)&&(!Number.isFinite(range.end)||range.end>=now)))return {key:'live',label:'กำลังสอบ',icon:'●'};
   const starts=ranges.map(range=>range.start).filter(Number.isFinite),ends=ranges.map(range=>range.end).filter(Number.isFinite);
