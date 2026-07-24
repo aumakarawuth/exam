@@ -157,6 +157,7 @@ async function buildQuestionAnalysisDocx(analysis) {
   const renderedRows = sourceItems.map(item => {
     let row = prototype;
     for (const [name, value] of Object.entries(itemValues(item))) row = replaceToken(row, name, value);
+    row = replaceVisibleText(row, 'เกณฑ์ ', 'เกณฑ์');
     return row;
   }).join('');
   xml = xml.replace(prototype, renderedRows);

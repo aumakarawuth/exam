@@ -36,6 +36,9 @@ test('Word question analysis applies the documented item-quality thresholds', as
   assert.equal((xml.match(/สาขาของครู/g) || []).length, 1);
   assert.equal((xml.match(/สาขาของนักเรียน/g) || []).length, 1);
   assert.equal(visibleText(xml).includes('{{'), false);
+  assert.equal(visibleText(xml).includes('เกณฑ์ '), false);
+  assert.ok(visibleText(xml).includes('ข้อสอบอยู่ในเกณฑ์ค่อนข้างง่าย'));
+  assert.ok(visibleText(xml).includes('มีค่าอำนาจจำแนกอยู่ในเกณฑ์พอใช้'));
   assert.equal((visibleText(xml).match(/ข้อสอบอยู่ในเกณฑ์/g) || []).length, 2);
   assert.ok((xml.match(/<w:cantSplit\/>/g) || []).length >= 4);
   assert.ok((xml.match(/<w:tblHeader\/>/g) || []).length >= 2);
