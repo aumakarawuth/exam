@@ -4,6 +4,26 @@ const JSZip = require('jszip');
 
 const TEMPLATE_PATH = path.join(__dirname, 'templates', 'question-analysis-template.docx');
 
+const difficultyAnalysisLine = value => value < .2
+  ? 'ยากเกินไป'
+  : value < .4
+    ? 'ค่อนข้างยาก'
+    : value < .6
+      ? 'ยากปานกลาง (เหมาะสมดีมาก)'
+      : value <= .8
+        ? 'ค่อนข้างง่าย'
+        : 'ง่ายเกินไป';
+
+const discriminationAnalysisLine = value => value >= .6
+  ? 'ดีมาก'
+  : value >= .4
+    ? 'ดี'
+    : value >= .2
+      ? 'พอใช้'
+      : value >= .1
+        ? 'ค่อนข้างต่ำ ควรปรับปรุง'
+        : 'ต่ำมาก ต้องปรับปรุง';
+
 function analysisStatus(item) {
   const difficultyOk = item.difficulty >= .2 && item.difficulty <= .8;
   const discriminationOk = item.discrimination !== null && item.discrimination >= .2;
@@ -95,8 +115,8 @@ function itemValues(item) {
     incorrect_count: status.accepted ? '' : '✓',
     difficulty: Number(item.difficulty).toFixed(2),
     discrimination: item.discrimination === null ? 'ข้อมูลไม่พอ' : Number(item.discrimination).toFixed(2),
-    difficulty_analysis_line: status.difficultyOk ? 'ใช่' : 'ไม่ใช่ ควรปรับปรุง',
-    discrimination_analysis_line: item.discrimination === null ? 'ข้อมูลไม่พอ' : status.discriminationOk ? 'ใช่' : 'ไม่ใช่ ควรปรับปรุง'
+    difficulty_analysis_line: difficultyAnalysisLine(Number(item.difficulty)),
+    discrimination_analysis_line: item.discrimination === null ? 'ข้อมูลไม่พอ' : discriminationAnalysisLine(Number(item.discrimination))
   };
 }
 
@@ -146,4 +166,4 @@ async function buildQuestionAnalysisDocx(analysis) {
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
-module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, formatAnalysisTable, itemValues, keepRowTogether, repeatHeaderRow, replaceVisibleText, scalarValues, visibleText };
+module.exports = { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, difficultyAnalysisLine, discriminationAnalysisLine, formatAnalysisTable, itemValues, keepRowTogether, repeatHeaderRow, replaceVisibleText, scalarValues, visibleText };

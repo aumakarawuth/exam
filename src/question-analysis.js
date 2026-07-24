@@ -2,8 +2,25 @@ const { ExcelJS, addObjectSheet, workbookBuffer } = require('./excel-workbook');
 const { programForClassRoom } = require('./class-programs');
 
 const round = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-const difficultyLabel = value => value < .2 ? 'ยากมาก' : value < .4 ? 'ยาก' : value < .6 ? 'ปานกลาง' : value < .8 ? 'ง่าย' : 'ง่ายมาก';
-const discriminationLabel = value => value >= .4 ? 'ดีมาก' : value >= .2 ? 'พอใช้' : value >= 0 ? 'ควรปรับปรุง' : 'ผิดปกติ';
+const difficultyLabel = value => value < .2
+  ? 'ยากเกินไป'
+  : value < .4
+    ? 'ค่อนข้างยาก'
+    : value < .6
+      ? 'ยากปานกลาง (เหมาะสมดีมาก)'
+      : value <= .8
+        ? 'ค่อนข้างง่าย'
+        : 'ง่ายเกินไป';
+
+const discriminationLabel = value => value >= .6
+  ? 'ดีมาก'
+  : value >= .4
+    ? 'ดี'
+    : value >= .2
+      ? 'พอใช้'
+      : value >= .1
+        ? 'ค่อนข้างต่ำ ควรปรับปรุง'
+        : 'ต่ำมาก ต้องปรับปรุง';
 
 function buildQuestionAnalysis(set, results) {
   const questions = set?.sections?.mc?.questions || [];
@@ -52,4 +69,4 @@ async function buildQuestionAnalysisWorkbook(analysis) {
   return workbookBuffer(workbook);
 }
 
-module.exports = { buildQuestionAnalysis, buildQuestionAnalysisWorkbook };
+module.exports = { buildQuestionAnalysis, buildQuestionAnalysisWorkbook, difficultyLabel, discriminationLabel };

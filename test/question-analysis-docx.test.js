@@ -1,7 +1,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const JSZip = require('jszip');
-const { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, itemValues, visibleText } = require('../src/question-analysis-docx');
+const { analysisStatus, buildQuestionAnalysisDocx, buildSummary, classYears, difficultyAnalysisLine, discriminationAnalysisLine, itemValues, visibleText } = require('../src/question-analysis-docx');
+
+test('Word question analysis translates difficulty and discrimination at every boundary', () => {
+  assert.deepEqual([.19, .2, .39, .4, .59, .6, .8, .81].map(difficultyAnalysisLine), [
+    'ยากเกินไป', 'ค่อนข้างยาก', 'ค่อนข้างยาก', 'ยากปานกลาง (เหมาะสมดีมาก)',
+    'ยากปานกลาง (เหมาะสมดีมาก)', 'ค่อนข้างง่าย', 'ค่อนข้างง่าย', 'ง่ายเกินไป'
+  ]);
+  assert.deepEqual([.6, .59, .4, .39, .2, .19, .1, .09, 0].map(discriminationAnalysisLine), [
+    'ดีมาก', 'ดี', 'ดี', 'พอใช้', 'พอใช้', 'ค่อนข้างต่ำ ควรปรับปรุง',
+    'ค่อนข้างต่ำ ควรปรับปรุง', 'ต่ำมาก ต้องปรับปรุง', 'ต่ำมาก ต้องปรับปรุง'
+  ]);
+});
 
 test('Word question analysis applies the documented item-quality thresholds', async () => {
   const accepted = { number: 1, choices: ['ก', 'ข', 'ค', 'ง'], correctCount: 7, incorrectCount: 3, difficulty: .7, discrimination: .3 };
@@ -12,6 +23,10 @@ test('Word question analysis applies the documented item-quality thresholds', as
   assert.equal(itemValues(accepted).incorrect_count, '');
   assert.equal(itemValues(rejected).correct_count, '');
   assert.equal(itemValues(rejected).incorrect_count, '✓');
+  assert.equal(itemValues(accepted).difficulty_analysis_line, 'ค่อนข้างง่าย');
+  assert.equal(itemValues(accepted).discrimination_analysis_line, 'พอใช้');
+  assert.equal(itemValues(rejected).difficulty_analysis_line, 'ง่ายเกินไป');
+  assert.equal(itemValues(rejected).discrimination_analysis_line, 'ค่อนข้างต่ำ ควรปรับปรุง');
   assert.deepEqual(buildSummary({ items: [accepted, rejected], questionCount: 2 }), { standardCount: 1, rejectedCount: 1, percent: 50, rejectedPercent: 50 });
   const buffer = await buildQuestionAnalysisDocx({ title: 'วิชาทดสอบ', courseName: 'วิชาทดสอบ', assignedClasses: ['CIT.1/1'], teacherDepartment: 'สาขาของครู', programs: ['สาขาของนักเรียน'], respondents: 10, questionCount: 2, reliability: .75, items: [accepted, rejected] });
   assert.equal(buffer.subarray(0, 2).toString(), 'PK');
